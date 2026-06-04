@@ -172,7 +172,6 @@ with aba_painel:
 
     if dados:
         import pandas as pd
-        import io
 
         df = pd.DataFrame(dados, columns=["SKU", "Produto", "Descrição", "Entradas", "Saídas"])
         df["Estoque Atual"] = df["Entradas"] - df["Saídas"]
@@ -189,17 +188,15 @@ with aba_painel:
         st.markdown("<br>", unsafe_allow_html=True)
         st.dataframe(df, use_container_width=True, hide_index=True)
         
-        # FUNÇÃO EXCEL: Transforma a tabela em arquivo de planilha na memória
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Estoque_Atual')
+        # Converte para CSV compatível com o Excel brasileiro (separado por ponto e vírgula)
+        csv_data = df.to_csv(index=False, sep=";").encode('utf-8-sig')
         
-        # Cria o botão de download físico do arquivo .xlsx
+        # Cria o botão de download físico sem dependências externas
         st.download_button(
-            label="📥 Exportar Relatório para Excel",
-            data=buffer.getvalue(),
-            file_name=f"relatorio_estoque_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            label="📥 Exportar Relatório para Excel (CSV)",
+            data=csv_data,
+            file_name=f"relatorio_estoque_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
         )
     else:
         st.info("Nenhum item em estoque. Comece cadastrando um produto.")
@@ -273,3 +270,7 @@ with aba_entrada:
 # --- ABA 4: ORDEM DE SAÍDA ---
 with aba_saida:
     st.subheader("Requisição / Baixa Logística de Estoque")
+    with st.form("saida_form", clear_on_submit=True):
+        cx1, cx2 = st.columns(2)
+        with cx1:
+            cod_sai = st.text_input("Código SKU para Baixa:")

@@ -120,11 +120,11 @@ def inicializar_banco():
 inicializar_banco()
 
 # --- TOPO BRANDING ARROJADO ---
-col_logo, col_titulo, col_logout = st.columns([1, 4, 1])
+col_logo, col_titulo, col_logout = st.columns()
 with col_titulo:
     st.markdown(
         "<h1 style='margin:0; font-size: 2.2rem;'>⚡ NEXTGEN <span style='color: #38BDF8;'>|</span> INVENTORY</h1>"
-        "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materials e Notas Fiscais</p>",
+        "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materiais e Notas Fiscais</p>",
         unsafe_allow_html=True,
     )
 
@@ -238,10 +238,11 @@ with aba_entrada:
                 prod = cursor.fetchone()
 
                 if prod:
+                    id_produto_encontrado = prod[0]
                     data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         "INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
-                        (data_atual, nf.strip(), prod[0], qtd_ent),
+                        (data_atual, nf.strip(), id_produto_encontrado, qtd_ent),
                     )
                     conn.commit()
                     st.success(f"NF {nf} processada. {qtd_ent} unidades adicionadas!")
@@ -273,11 +274,9 @@ with aba_saida:
 
                 if prod:
                     id_p = prod[0]
-                    # Validando o saldo real antes de retirar
-                    cursor.execute(
-                        "SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?",
-                        (id_p,),
-                    )
+                    
+                    # Cálculo de Entradas
+                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
                     ent = cursor.fetchone()[0]
                     
-                    cursor.execute(
+                    # Cálculo de Saídas

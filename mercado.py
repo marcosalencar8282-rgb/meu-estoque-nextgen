@@ -7,12 +7,13 @@ st.title("🛒 Sistema de Vendas e Estoque Simplificado")
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
-    return sqlite3.connect("mercado_carrinho_simples.db")
+    return sqlite3.connect("mercado_nf_simples.db")
 
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
-cursor.execute("CREATE TABLE IF NOT EXISTS estoque (codigo TEXT, quantidade INTEGER)")
+# ATUALIZAÇÃO: Tabela de estoque agora grava o número da nota fiscal e a data
+cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, quantidade INTEGER)")
 cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT)")
 conn.commit()
 conn.close()
@@ -24,7 +25,7 @@ if "carrinho_compras" not in st.session_state:
 # --- CRIAÇÃO DAS ABAS SIMPLES ---
 aba1, aba2, aba3, aba4 = st.tabs([
     "📝 1. CADASTRAR PRODUTO", 
-    "🧾 2. ENTRADA DE ESTOQUE", 
+    "🧾 2. ENTRADA DE ESTOQUE (NF)", 
     "💻 3. FRENTE DE CAIXA (PDV)", 
     "📊 4. RELATÓRIO DE VENDAS"
 ])
@@ -52,31 +53,35 @@ with aba1:
 
 # --- ABA 2: ENTRADA DE ESTOQUE ---
 with aba2:
-    st.subheader("Abastecer Prateleiras")
+    st.subheader("Abastecer Prateleiras por Nota Fiscal")
+    
+    # Inclusão dos campos de Nota Fiscal
+    e_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="e_nf")
     e_cod = st.text_input("Código do Produto para Abastecer:", key="e1")
     e_qtd = st.number_input("Quantidade que está Entrando:", min_value=1, value=10, key="e2")
     
     if st.button("Confirmar Entrada"):
-        if e_cod:
+        if e_nf and e_cod:
             conn = conectar()
             cursor = conn.cursor()
             cursor.execute("SELECT nome FROM produtos WHERE codigo = ?", (e_cod.strip(),))
             prod = cursor.fetchone()
             
             if prod:
-                cursor.execute("INSERT INTO estoque VALUES (?, ?)", (e_cod.strip(), e_qtd))
+                data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
+                # Grava com a Nota Fiscal e a data atual
+                cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), e_qtd))
                 conn.commit()
-                st.success(f"Estoque abastecido com +{e_qtd} unidades!")
+                st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades!")
             else:
                 st.error("Código não encontrado! Cadastre o produto na aba 1 primeiro.")
             conn.close()
         else:
-            st.warning("Digite o código do produto.")
+            st.warning("Digite o número da Nota Fiscal e o código do produto.")
 
 # --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO) ---
 with aba3:
     st.subheader("Frente de Caixa - Vendas")
-    
     col_v1, col_v2 = st.columns([1, 1.5])
     
     with col_v1:
@@ -98,6 +103,7 @@ with aba3:
                     st.session_state["carrinho_compras"].append({
                         "codigo": v_cod.strip(),
                         "nome": nome_p,
+                        "whitespace_fix": v_qtd,
                         "quantidade": v_qtd,
                         "total": valor_total
                     })
@@ -144,7 +150,6 @@ with aba3:
             st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
 
 # --- ABA 4: RELATÓRIO DE VENDAS ---
-# CORREÇÃO AQUI: Mudado de aba_4 para aba4 para resolver o NameError
 with aba4:
     st.subheader("Histórico de Vendas Realizadas")
     conn = conectar()

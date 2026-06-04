@@ -26,13 +26,13 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
-    return sqlite3.connect("mercado_saldo_v12.db")
+    return sqlite3.connect("mercado_v14.db")
 
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, quantidade INTEGER)")
-cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantity_fix if False else quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)") # Fallback seguro
+# CORREÇÃO AQUI: Comando SQL limpo e sem a linha de rascunho que causava o OperationalError
 cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
 conn.commit()
 conn.close()
@@ -216,5 +216,8 @@ with aba3:
                     st.session_state["carrinho_compras"] = []
                     st.success("Venda finalizada com sucesso!")
                     st.cache_data.clear()
+                    st.rerun()
+        else:
+            st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
 
 

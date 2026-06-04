@@ -11,7 +11,7 @@ st.set_page_config(
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
-# Credenciais de acesso (Mude aqui o usuário e a senha)
+# Credenciais de acesso
 USUARIO_CORRETO = "admin"
 SENHA_CORRETA = "1234"
 
@@ -27,7 +27,7 @@ def realizar_login():
         st.error("Usuário ou senha incorretos.")
 
 
-# TELA DE LOGIN (Se não estiver autenticado, bloqueia o sistema)
+# TELA DE LOGIN (Bloqueia o sistema se não estiver autenticado)
 if not st.session_state["autenticado"]:
     st.markdown(
         "<h1 style='text-align: center; color: #FFFFFF; font-family: Inter;'>⚡ NEXTGEN SYSTEM</h1>",
@@ -44,9 +44,9 @@ if not st.session_state["autenticado"]:
             st.text_input("Usuário:", key="usuario_input")
             st.text_input("Senha:", type="password", key="senha_input")
             st.form_submit_button("Entrar no Sistema", on_click=realizar_login)
-    st.stop()  # Interrompe a execução do resto do código se não logou
+    st.stop()
 
-# Estilização CSS para o visual Dark/Cyber (Apenas carrega após o login)
+# Estilização CSS para o visual Dark/Cyber (Apenas após o login)
 st.markdown(
     """
     <style>
@@ -124,7 +124,7 @@ col_logo, col_titulo, col_logout = st.columns([1, 4, 1])
 with col_titulo:
     st.markdown(
         "<h1 style='margin:0; font-size: 2.2rem;'>⚡ NEXTGEN <span style='color: #38BDF8;'>|</span> INVENTORY</h1>"
-        "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materiais e Notas Fiscais</p>",
+        "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materials e Notas Fiscais</p>",
         unsafe_allow_html=True,
     )
 
@@ -241,7 +241,7 @@ with aba_entrada:
                     data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         "INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
-                        (data_atual, nf.strip(), prod, qtd_ent),
+                        (data_atual, nf.strip(), prod[0], qtd_ent),
                     )
                     conn.commit()
                     st.success(f"NF {nf} processada. {qtd_ent} unidades adicionadas!")
@@ -272,10 +272,12 @@ with aba_saida:
                 prod = cursor.fetchone()
 
                 if prod:
-                    id_p = prod
+                    id_p = prod[0]
+                    # Validando o saldo real antes de retirar
                     cursor.execute(
                         "SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?",
                         (id_p,),
                     )
-                    ent = cursor.fetchone()
+                    ent = cursor.fetchone()[0]
+                    
                     cursor.execute(

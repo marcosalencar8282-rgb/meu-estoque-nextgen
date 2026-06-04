@@ -91,7 +91,15 @@ with aba1:
                 cursor.execute("INSERT INTO produtos VALUES (?, ?, ?)", (c_cod.strip(), c_nom.strip(), c_pre))
                 conn.commit()
                 st.success(f"Produto '{c_nom}' cadastrado!")
+                # LINHA DE COMANDO ADICIONADA: Força todas as tabelas e abas a atualizarem os dados na hora
+                st.cache_data.clear()
+                st.rerun()
             except:
+                st.error("Este código já existe!")
+            conn.close()
+        else:
+            st.warning("Preencha o código e o nome.")
+
                 st.error("Este código já existe!")
             conn.close()
         else:

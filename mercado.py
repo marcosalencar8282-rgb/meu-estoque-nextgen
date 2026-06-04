@@ -26,7 +26,7 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
-    return sqlite3.connect("mercado_nf_simples.db")
+    return sqlite3.connect("mercado_v10.db")
 
 conn = conectar()
 cursor = conn.cursor()
@@ -195,8 +195,7 @@ with aba4:
     st.subheader("Histórico de Vendas Realizadas")
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT data, codigo, nome, quantity_fix if False else quantidade, total, pagamento FROM vendas ORDER BY rowid DESC")
-    # Fallback seguro
+    # CORREÇÃO AQUI: Comando SQL limpo e sem a linha de teste que causava o erro
     cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento FROM vendas ORDER BY rowid DESC")
     dados = cursor.fetchall()
     conn.close()

@@ -21,39 +21,25 @@ USUARIOS_PERMITIDOS = {
     "gerente": "Logistica123"
 }
 
-
-def realizar_login():
-    usuario_digitado = st.session_state["usuario_input"].strip()
-    senha_digitada = st.session_state["senha_input"].strip()
-    
-    if usuario_digitado in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[usuario_digitado] == senha_digitada:
-        st.session_state["autenticado"] = True
-        st.session_state["usuario_logado"] = usuario_digitado
-        st.success("Acesso autorizado!")
-    else:
-        st.error("Usuário ou senha incorretos.")
-
-
-# TELA DE LOGIN (Bloqueia o sistema se não estiver autenticado)
+# TELA DE LOGIN SECRETA
 if not st.session_state["autenticado"]:
-    st.markdown(
-        "<h1 style='text-align: center; color: #FFFFFF; font-family: Inter;'>⚡ NEXTGEN SYSTEM</h1>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<p style='text-align: center; color: #64748B;'>Área Restrita - Autenticação Obrigatória</p>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>⚡ NEXTGEN SYSTEM</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748B;'>Área Restrita - Autenticação Obrigatória</p>", unsafe_allow_html=True)
 
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
-        with st.form("form_login"):
-            st.text_input("Usuário:", key="usuario_input")
-            st.text_input("Senha:", type="password", key="senha_input")
-            st.form_submit_button("Entrar no Sistema", on_click=realizar_login)
+        u_input = st.text_input("Usuário:")
+        p_input = st.text_input("Senha:", type="password")
+        if st.button("Entrar no Sistema", use_container_width=True):
+            if u_input.strip() in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[u_input.strip()] == p_input.strip():
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_logado"] = u_input.strip()
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
     st.stop()
 
-# Estilização CSS para o visual Dark/Cyber (Apenas após o login)
+# Estilização CSS para o visual Dark/Cyber
 st.markdown(
     """
     <style>
@@ -84,12 +70,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
     conn = sqlite3.connect("estoque_arrojado.db")
     return conn, conn.cursor()
-
 
 def inicializar_banco():
     conn, cursor = conectar()
@@ -122,7 +106,6 @@ def inicializar_banco():
     """)
     conn.commit()
     conn.close()
-
 
 inicializar_banco()
 
@@ -176,7 +159,6 @@ with aba_painel:
         df = pd.DataFrame(dados, columns=["SKU", "Produto", "Descrição", "Entradas", "Saídas"])
         df["Estoque Atual"] = df["Entradas"] - df["Saídas"]
 
-        # Cartões de Métricas no Topo
         m1, m2, m3 = st.columns(3)
         with m1:
             st.metric(label="Total de Itens Cadastrados", value=len(df))
@@ -188,9 +170,8 @@ with aba_painel:
         st.markdown("<br>", unsafe_allow_html=True)
         st.dataframe(df, use_container_width=True, hide_index=True)
         
-        # Converte para CSV compatível com o Excel brasileiro
+        # Converte para CSV
         csv_data = df.to_csv(index=False, sep=";").encode('utf-8-sig')
-        
         st.download_button(
             label="📥 Exportar Relatório para Excel (CSV)",
             data=csv_data,
@@ -203,76 +184,85 @@ with aba_painel:
 # --- ABA 2: CADASTRO DE PRODUTOS ---
 with aba_cadastro:
     st.subheader("Registrar Novo Item no Sistema")
-    with st.form("cadastro_form", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            cod = st.text_input("Código SKU Interno:")
-            nome = st.text_input("Nome Comercial:")
-        with c2:
-            desc = st.text_area("Ficha / Descrição Técnica:", height=108)
+    cod = st.text_input("Código SKU Interno:", key="cad_sku")
+    nome = st.text_input("Nome Comercial:", key="cad_nome")
+    desc = st.text_area("Ficha / Descrição Técnica:", height=108, key="cad_desc")
 
-        if st.form_submit_button("Salvar no Catálogo"):
-            if not cod or not nome:
-                st.warning("SKU e Nome são obrigatórios.")
-            else:
-                conn, cursor = conectar()
-                try:
-                    cursor.execute(
-                        "INSERT INTO produtos (codigo, nome, descricao) VALUES (?, ?, ?)",
-                        (cod.strip(), nome.strip(), desc.strip()),
-                    )
-                    conn.commit()
-                    st.success(f"'{nome}' integrado ao catálogo com sucesso!")
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("Este código SKU já pertence a outro produto.")
-                finally:
-                    conn.close()
+    if st.button("Salvar no Catálogo"):
+        if not cod or not nome:
+            st.warning("SKU e Nome são obrigatórios.")
+        else:
+            conn, cursor = conectar()
+            try:
+                cursor.execute(
+                    "INSERT INTO produtos (codigo, nome, descricao) VALUES (?, ?, ?)",
+                    (cod.strip(), nome.strip(), desc.strip()),
+                )
+                conn.commit()
+                st.success(f"'{nome}' integrado ao catálogo com sucesso!")
+                st.rerun()
+            except sqlite3.IntegrityError:
+                st.error("Este código SKU já pertence a outro produto.")
+            finally:
+                conn.close()
 
 # --- ABA 3: ENTRADA DE NOTA FISCAL ---
 with aba_entrada:
     st.subheader("Lançamento de Entrada por Documento Fiscal")
-    with st.form("entrada_form", clear_on_submit=True):
-        cc1, cc2, cc3 = st.columns(3)
-        with cc1:
-            nf = st.text_input("Número / Chave da NF-e:")
-        with cc2:
-            cod_ent = st.text_input("Código SKU do Produto:")
-        with cc3:
-            qtd_ent = st.number_input("Quantidade da Nota:", min_value=1, step=1)
+    nf = st.text_input("Número / Chave da NF-e:", key="ent_nf")
+    cod_ent = st.text_input("Código SKU do Produto:", key="ent_sku")
+    qtd_ent = st.number_input("Quantidade da Nota:", min_value=1, step=1, key="ent_qtd")
 
-        if st.form_submit_button("Efetivar Entrada Fiscal"):
-            if not nf or not cod_ent:
-                st.warning("Preencha todos os campos do documento.")
-            else:
-                conn, cursor = conectar()
+    if st.button("Efetivar Entrada Fiscal"):
+        if not nf or not cod_ent:
+            st.warning("Preencha todos os campos do documento.")
+        else:
+            conn, cursor = conectar()
+            cursor.execute("SELECT id_produto FROM produtos WHERE codigo = ?", (cod_ent.strip(),))
+            prod = cursor.fetchone()
+
+            if prod:
+                id_produto_encontrado = prod[0]
+                data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 cursor.execute(
-                    "SELECT id_produto FROM produtos WHERE codigo = ?",
-                    (cod_ent.strip(),),
+                    "INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
+                    (data_atual, nf.strip(), id_produto_encontrado, qtd_ent),
                 )
-                prod = cursor.fetchone()
-
-                if prod:
-                    id_produto_encontrado = prod[0]
-                    data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    cursor.execute(
-                        "INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
-                        (data_atual, nf.strip(), id_produto_encontrado, qtd_ent),
-                    )
-                    conn.commit()
-                    st.success(f"NF {nf} processada. {qtd_ent} unidades adicionadas!")
-                    st.rerun()
-                else:
-                    st.error("SKU não localizado. Faça o cadastro do item primeiro.")
-                conn.close()
+                conn.commit()
+                st.success(f"NF {nf} processada. {qtd_ent} unidades adicionadas!")
+                st.rerun()
+            else:
+                st.error("SKU não localizado. Faça o cadastro do item primeiro.")
+            conn.close()
 
 # --- ABA 4: ORDEM DE SAÍDA ---
 with aba_saida:
     st.subheader("Requisição / Baixa Logística de Estoque")
-    with st.form("saida_form", clear_on_submit=True):
-        cx1, cx2 = st.columns(2)
-        with cx1:
-            cod_sai = st.text_input("Código SKU para Baixa:")
-        with cx2:
-            qtd_sai = st.number_input("Quantidade Requisitada:", min_value=1, step=1)
+    cod_sai = st.text_input("Código SKU para Baixa:", key="sai_sku")
+    qtd_sai = st.number_input("Quantidade Requisitada:", min_value=1, step=1, key="sai_qtd")
+
+    if st.button("Confirmar Saída"):
+        if not cod_sai:
+            st.warning("Insira o código SKU.")
+        else:
+            conn, cursor = conectar()
+            cursor.execute("SELECT id_produto FROM produtos WHERE codigo = ?", (cod_sai.strip(),))
+            prod = cursor.fetchone()
+
+            if prod:
+                id_p = prod[0]
+                
+                # Cálculo de Entradas
+                cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
+                ent = cursor.fetchone()[0]
+                
+                # Cálculo de Saídas
+                cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM saidas WHERE id_produto = ?", (id_p,))
+                sai = cursor.fetchone()[0]
+                
+                saldo = ent - sai
+
+                if qtd_sai > saldo:
+                    st.error(f"Operação Recusada! Saldo disponível insuficiente ({saldo} unidades).")
+                else:
 

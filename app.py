@@ -269,14 +269,14 @@ with aba_saida:
             else:
                 conn, cursor = conectar()
                 cursor.execute(
-                    "SELECT id_produto FROM whitesmith WHERE codigo = ?",  # Corrigido internamente
-                    (cod_sai.strip(),),
-                )
-                # Fallback seguro para tabela de produtos
-                cursor.execute(
                     "SELECT id_produto FROM produtos WHERE codigo = ?",
                     (cod_sai.strip(),),
                 )
                 prod = cursor.fetchone()
 
                 if prod:
+                    id_p = prod[0]
+                    
+                    # Cálculo de Entradas
+                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
+                    ent = cursor.fetchone()[0]

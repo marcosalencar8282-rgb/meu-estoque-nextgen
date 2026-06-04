@@ -1,8 +1,6 @@
 import sqlite3
 from datetime import datetime
-import io
 import streamlit as st
-import pandas as pd
 
 # Configuração da página com visual moderno e arrojado
 st.set_page_config(
@@ -128,7 +126,7 @@ def inicializar_banco():
 
 inicializar_banco()
 
-# --- BARRA LATERAL (MENU COMPACTO E SEGURO) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.markdown("### ⚡ SESSÃO ATIVA")
     st.write(f"Usuário atual: `{st.session_state['usuario_logado']}`")
@@ -138,7 +136,7 @@ with st.sidebar:
         st.session_state["usuario_logado"] = ""
         st.rerun()
 
-# --- TOPO BRANDING ARROJADO DA TELA PRINCIPAL ---
+# --- TOPO BRANDING ARROJADO ---
 st.markdown(
     "<h1 style='margin:0; font-size: 2.2rem;'>⚡ NEXTGEN <span style='color: #38BDF8;'>|</span> INVENTORY</h1>"
     "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materiais e Notas Fiscais</p>",
@@ -156,6 +154,8 @@ aba_painel, aba_cadastro, aba_entrada, aba_saida = st.tabs([
 
 # --- ABA 1: DASHBOARD & SALDOS ---
 with aba_painel:
+    st.subheader("Painel de Posição de Inventário")
+    
     conn, cursor = conectar()
     query = """
     SELECT 
@@ -171,13 +171,10 @@ with aba_painel:
     conn.close()
 
     if dados:
-        df = pd.DataFrame(dados, columns=[
-            "SKU",
-            "Produto",
-            "Descrição",
-            "Entradas",
-            "Saídas",
-        ])
+        import pandas as pd
+        import io
+
+        df = pd.DataFrame(dados, columns=["SKU", "Produto", "Descrição", "Entradas", "Saídas"])
         df["Estoque Atual"] = df["Entradas"] - df["Saídas"]
 
         # Cartões de Métricas no Topo
@@ -190,21 +187,18 @@ with aba_painel:
             st.metric(label="Produtos com Estoque Crítico (Menos de 3 un.)", value=len(df[df["Estoque Atual"] < 3]))
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("Painel de Posição de Inventário")
         st.dataframe(df, use_container_width=True, hide_index=True)
         
-        # --- FUNÇÃO DE EXPORTAR EXCEL ---
-        # Cria um buffer de memória para o arquivo do Excel
+        # FUNÇÃO EXCEL: Transforma a tabela em arquivo de planilha na memória
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Posicao_Estoque')
+            df.to_excel(writer, index=False, sheet_name='Estoque_Atual')
         
-        st.markdown("<br>", unsafe_allow_html=True)
-        # Cria o botão visual para o usuário baixar
+        # Cria o botão de download físico do arquivo .xlsx
         st.download_button(
-            label="📥 Exportar Estoque para Excel",
+            label="📥 Exportar Relatório para Excel",
             data=buffer.getvalue(),
-            file_name=f"relatorio_estoque_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            file_name=f"relatorio_estoque_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
@@ -263,7 +257,7 @@ with aba_entrada:
                 prod = cursor.fetchone()
 
                 if prod:
-                    id_produto_encontrado = prod
+                    id_produto_encontrado = prod[0]
                     data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         "INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
@@ -273,3 +267,9 @@ with aba_entrada:
                     st.success(f"NF {nf} processada. {qtd_ent} unidades adicionadas!")
                     st.rerun()
                 else:
+                    st.error("SKU não localizado. Faça o cadastro do item primeiro.")
+                conn.close()
+
+# --- ABA 4: ORDEM DE SAÍDA ---
+with aba_saida:
+    st.subheader("Requisição / Baixa Logística de Estoque")

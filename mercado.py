@@ -7,7 +7,7 @@ st.title("🛒 Sistema de Vendas e Estoque Simplificado")
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
-    return sqlite3.connect("mercado_super_simples.db")
+    return sqlite3.connect("mercado_carrinho_simples.db")
 
 conn = conectar()
 cursor = conn.cursor()
@@ -17,11 +17,15 @@ cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome 
 conn.commit()
 conn.close()
 
+# --- CONTROLE DE MEMÓRIA DO CARRINHO ---
+if "carrinho_compras" not in st.session_state:
+    st.session_state["carrinho_compras"] = []
+
 # --- CRIAÇÃO DAS ABAS SIMPLES ---
 aba1, aba2, aba3, aba4 = st.tabs([
     "📝 1. CADASTRAR PRODUTO", 
     "🧾 2. ENTRADA DE ESTOQUE", 
-    "💻 3. FRENTE DE CAIXA", 
+    "💻 3. FRENTE DE CAIXA (PDV)", 
     "📊 4. RELATÓRIO DE VENDAS"
 ])
 
@@ -69,37 +73,80 @@ with aba2:
         else:
             st.warning("Digite o código do produto.")
 
-# --- ABA 3: FRENTE DE CAIXA (VENDA DIRETA) ---
+# --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO) ---
 with aba3:
-    st.subheader("Registrar Venda")
-    v_cod = st.text_input("Código do Produto Vendido:", key="v1")
-    v_qtd = st.number_input("Quantidade Vendida:", min_value=1, value=1, key="v2")
-    v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
+    st.subheader("Frente de Caixa - Vendas")
     
-    if st.button("Efetivar Venda"):
-        if v_cod:
-            conn = conectar()
-            cursor = conn.cursor()
-            cursor.execute("SELECT nome, preco FROM produtos WHERE codigo = ?", (v_cod.strip(),))
-            prod = cursor.fetchone()
-            
-            if prod:
-                nome_p, preco_p = prod
-                valor_total = preco_p * v_qtd
-                data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
+    col_v1, col_v2 = st.columns([1, 1.5])
+    
+    with col_v1:
+        st.markdown("#### 🔍 Registrar Item")
+        v_cod = st.text_input("Código do Produto Vendido:", key="v1")
+        v_qtd = st.number_input("Quantidade Vendida:", min_value=1, value=1, key="v2")
+        
+        if st.button("Adicionar ao Carrinho"):
+            if v_cod:
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("SELECT nome, preco FROM produtos WHERE codigo = ?", (v_cod.strip(),))
+                prod = cursor.fetchone()
                 
-                # Salva a venda com o nome do produto e forma de pagamento
-                cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?)", (data_venda, v_cod.strip(), nome_p, v_qtd, valor_total, v_pag))
-                conn.commit()
-                st.success(f"Venda Realizada! {v_qtd}x {nome_p} no {v_pag} = R$ {valor_total:.2f}")
+                if prod:
+                    nome_p, preco_p = prod
+                    valor_total = preco_p * v_qtd
+                    
+                    # Guarda na memória temporária do carrinho
+                    st.session_state["carrinho_compras"].append({
+                        "codigo": v_cod.strip(),
+                        "nome": nome_p,
+                        "quantidade": v_qtd,
+                        "total": valor_total
+                    })
+                    st.success(f"'{nome_p}' colocado no carrinho!")
+                    st.rerun()
+                else:
+                    st.error("Produto não cadastrado!")
+                conn.close()
             else:
-                st.error("Produto não cadastrado no sistema!")
-            conn.close()
+                st.warning("Digite o código do produto.")
+
+    with col_v2:
+        st.markdown("#### 📋 Cupom Fiscal / Carrinho")
+        if st.session_state["carrinho_compras"]:
+            df_cupom = pd.DataFrame(st.session_state["carrinho_compras"])
+            st.dataframe(df_cupom[["codigo", "nome", "quantidade", "total"]], use_container_width=True, hide_index=True)
+            
+            soma_total_compra = df_cupom["total"].sum()
+            st.markdown(f"### VALOR TOTAL: R$ {soma_total_compra:.2f}")
+            
+            v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
+            
+            c_b1, c_b2 = st.columns(2)
+            with c_b1:
+                if st.button("❌ Cancelar Tudo"):
+                    st.session_state["carrinho_compras"] = []
+                    st.rerun()
+            with c_b2:
+                if st.button("✅ Confirmar Venda"):
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    
+                    # Salva todos os itens do carrinho um por um no banco de dados
+                    for item in st.session_state["carrinho_compras"]:
+                        cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?)", 
+                                       (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag))
+                    
+                    conn.commit()
+                    conn.close()
+                    st.session_state["carrinho_compras"] = []
+                    st.success("Venda finalizada com sucesso!")
+                    st.rerun()
         else:
-            st.warning("Digite o código do produto.")
+            st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
 
 # --- ABA 4: RELATÓRIO DE VENDAS ---
-with aba4:
+with aba_4:
     st.subheader("Histórico de Vendas Realizadas")
     conn = conectar()
     cursor = conn.cursor()
@@ -108,10 +155,7 @@ with aba4:
     conn.close()
     
     if dados:
-        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto Sold", "Qtd", "Total R$", "Forma de Pagamento"])
-        # Traduzindo cabeçalho da tabela para ficar amigável
-        df.columns = ["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento"]
-        
+        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento"])
         st.metric(label="FATURAMENTO TOTAL ACUMULADO", value=f"R$ {df['Total R$'].sum():.2f}")
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:

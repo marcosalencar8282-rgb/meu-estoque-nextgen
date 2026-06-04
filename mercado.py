@@ -3,7 +3,26 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-st.title("🛒 Sistema de Vendas e Estoque Simplificado")
+# Configuração da página
+st.set_page_config(
+    page_title="NextGen Supermercado | PDV & Estoque", layout="wide", page_icon="🛒"
+)
+
+# --- CONTROLE DE SESSÃO / LOGIN ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+if "usuario_logado" not in st.session_state:
+    st.session_state["usuario_logado"] = ""
+if "carrinho_compras" not in st.session_state:
+    st.session_state["carrinho_compras"] = []
+
+# LISTA DE USUÁRIOS PERMITIDOS
+USUARIOS_PERMITIDOS = {
+    "admin": "Master@2026",
+    "lucas": "Lucas#Estoque",
+    "marcos": "931481",
+    "caixa1": "Caixa123"
+}
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
@@ -12,15 +31,41 @@ def conectar():
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
-# ATUALIZAÇÃO: Tabela de estoque agora grava o número da nota fiscal e a data
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, quantidade INTEGER)")
 cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT)")
 conn.commit()
 conn.close()
 
-# --- CONTROLE DE MEMÓRIA DO CARRINHO ---
-if "carrinho_compras" not in st.session_state:
-    st.session_state["carrinho_compras"] = []
+# TELA DE LOGIN (Bloqueia o sistema se não estiver autenticado)
+if not st.session_state["autenticado"]:
+    st.markdown("<h1 style='text-align: center;'>🛒 NEXTGEN SUPERMERCADO</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748B;'>Área Restrita - Autenticação de Operador</p>", unsafe_allow_html=True)
+
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    with col_l2:
+        u_input = st.text_input("Operador:")
+        p_input = st.text_input("Senha:", type="password")
+        if st.button("Abrir Sistema / Caixa", use_container_width=True):
+            if u_input.strip() in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[u_input.strip()] == p_input.strip():
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_logado"] = u_input.strip()
+                st.rerun()
+            else:
+                st.error("Operador ou senha incorretos.")
+    st.stop()
+
+# --- BARRA LATERAL COM BOTÃO DE LOGOFF ---
+with st.sidebar:
+    st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
+    st.write(f"Operador ativo: `{st.session_state['usuario_logado']}`")
+    st.markdown("---")
+    if st.button("Fechar Caixa / Sair", use_container_width=True):
+        st.session_state["autenticado"] = False
+        st.session_state["usuario_logado"] = ""
+        st.session_state["carrinho_compras"] = []
+        st.rerun()
+
+st.title("🛒 Sistema de Vendas e Estoque")
 
 # --- CRIAÇÃO DAS ABAS SIMPLES ---
 aba1, aba2, aba3, aba4 = st.tabs([
@@ -54,8 +99,6 @@ with aba1:
 # --- ABA 2: ENTRADA DE ESTOQUE ---
 with aba2:
     st.subheader("Abastecer Prateleiras por Nota Fiscal")
-    
-    # Inclusão dos campos de Nota Fiscal
     e_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="e_nf")
     e_cod = st.text_input("Código do Produto para Abastecer:", key="e1")
     e_qtd = st.number_input("Quantidade que está Entrando:", min_value=1, value=10, key="e2")
@@ -69,7 +112,6 @@ with aba2:
             
             if prod:
                 data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
-                # Grava com a Nota Fiscal e a data atual
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), e_qtd))
                 conn.commit()
                 st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades!")
@@ -103,7 +145,6 @@ with aba3:
                     st.session_state["carrinho_compras"].append({
                         "codigo": v_cod.strip(),
                         "nome": nome_p,
-                        "whitespace_fix": v_qtd,
                         "quantidade": v_qtd,
                         "total": valor_total
                     })
@@ -154,6 +195,8 @@ with aba4:
     st.subheader("Histórico de Vendas Realizadas")
     conn = conectar()
     cursor = conn.cursor()
+    cursor.execute("SELECT data, codigo, nome, quantity_fix if False else quantidade, total, pagamento FROM vendas ORDER BY rowid DESC")
+    # Fallback seguro
     cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento FROM vendas ORDER BY rowid DESC")
     dados = cursor.fetchall()
     conn.close()

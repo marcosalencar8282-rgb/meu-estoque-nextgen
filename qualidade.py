@@ -21,16 +21,17 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("controle_qualidade_nf.db")
+    return sqlite3.connect("controle_qualidade_forn.db")
 
 conn = conectar()
 cursor = conn.cursor()
-# ATUALIZAÇÃO: Adicionada a coluna nota_fiscal na tabela de inspeção
+# ATUALIZAÇÃO: Adicionada a coluna fornecedor na tabela de inspeção
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS inspeccao (
         id_laudo INTEGER PRIMARY KEY AUTOINCREMENT,
         data_chegada TEXT,
         nota_fiscal TEXT,
+        fornecedor TEXT,
         codigo TEXT,
         descricao TEXT,
         lote TEXT UNIQUE,
@@ -84,8 +85,9 @@ aba1, aba2, aba3 = st.tabs([
 with aba1:
     st.subheader("Entrada de Produto para Inspeção")
     
-    # Inclusão do campo Nota Fiscal
+    # Inclusão dos campos de identificação comercial
     q_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="q_nf")
+    q_for = st.text_input("Nome do Fornecedor / Fabricante:", key="q_for")
     q_cod = st.text_input("Código do Produto (SKU/EAN):", key="q1")
     q_des = st.text_input("Descrição / Nome do Produto:", key="q2")
     q_lot = st.text_input("Número do Lote do Fabricante:", key="q3")
@@ -97,15 +99,15 @@ with aba1:
         q_val = st.text_input("Data de Validade (Ex: 01/12/2026):", key="q5")
         
     if st.button("Dar Entrada para Análise"):
-        if q_nf and q_cod and q_des and q_lot:
+        if q_nf and q_for and q_cod and q_des and q_lot:
             conn = conectar()
             cursor = conn.cursor()
             try:
                 dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
-                    INSERT INTO inspeccao (data_chegada, nota_fiscal, codigo, descricao, lote, fabricacao, validade) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (dt_atual, q_nf.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
+                    INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
                 conn.commit()
                 st.success(f"Lote {q_lot} da NF {q_nf} enviado para o Laboratório com status 'Em Análise'!")
             except:
@@ -113,7 +115,7 @@ with aba1:
             finally:
                 conn.close()
         else:
-            st.warning("Por favor, preencha a Nota Fiscal, Código, Descrição e o número do Lote.")
+            st.warning("Por favor, preencha a Nota Fiscal, Fornecedor, Código, Descrição e o Lote.")
 
 # --- ABA 2: PAINEL DO LABORATÓRIO (APROVAR OU REPROVAR) ---
 with aba2:
@@ -121,17 +123,17 @@ with aba2:
     
     conn = conectar()
     cursor = conn.cursor()
-    # Puxa o lote, descrição e nota fiscal para o laboratório ver
-    cursor.execute("SELECT lote, descricao, nota_fiscal FROM inspeccao WHERE status = 'Em Análise'")
+    # Puxa o lote, descrição, nota fiscal e fornecedor para a análise do laboratório
+    cursor.execute("SELECT lote, descricao, nota_fiscal, fornecedor FROM inspeccao WHERE status = 'Em Análise'")
     lotes_pendentes = cursor.fetchall()
     conn.close()
     
     if lotes_pendentes:
-        # Exibe as informações da NF de forma clara na caixinha de seleção
-        lista_opcoes = [f"Lote: {row[0]} | Produto: {row[1]} | NF: {row[2]}" for row in lotes_pendentes]
+        # Exibe as informações completas na caixa de seleção
+        lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
         lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
         
-        # Extrai apenas o número do lote original para dar a baixa
+        # Extrai o índice correto para dar baixa no lote selecionado
         lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
         
         st.markdown("---")
@@ -170,7 +172,7 @@ with aba3:
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT data_chegada, nota_fiscal, codigo, descricao, lote, fabricacao, validade, status, responsavel 
+        SELECT data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade, status, responsavel 
         FROM inspeccao ORDER BY id_laudo DESC
     """)
     dados_cq = cursor.fetchall()
@@ -178,7 +180,7 @@ with aba3:
     
     if dados_cq:
         df_cq = pd.DataFrame(dados_cq, columns=[
-            "Data Chegada", "Nota Fiscal", "Código SKU", "Produto", "Lote", "Fabricação", "Validade", "Resultado CQ", "Responsável"
+            "Data Chegada", "Nota Fiscal", "Fornecedor", "Código SKU", "Produto", "Lote", "Fabricação", "Validade", "Resultado CQ", "Responsável"
         ])
         
         m1, m2, m3 = st.columns(3)
@@ -195,3 +197,4 @@ with aba3:
         st.dataframe(df_cq, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhum registro de laudo emitido no banco de dados ainda.")
+

@@ -232,6 +232,4 @@ with aba_pdv:
                     cursor.execute("INSERT INTO vendas (data, total, operador, forma_pagamento) VALUES (?, ?, ?, ?)",
                                    (data_venda, valor_total_compra, st.session_state["usuario_logado"], forma_pagto))
                     id_da_venda_salva = cursor.lastrowid
-                    
-                    for item in st.session_state["carrinho"]:
 

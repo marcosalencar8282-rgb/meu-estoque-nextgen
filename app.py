@@ -119,20 +119,22 @@ def inicializar_banco():
 
 inicializar_banco()
 
-# --- TOPO BRANDING ARROJADO ---
-col_logo, col_titulo, col_logout = st.columns()
-with col_titulo:
-    st.markdown(
-        "<h1 style='margin:0; font-size: 2.2rem;'>⚡ NEXTGEN <span style='color: #38BDF8;'>|</span> INVENTORY</h1>"
-        "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materiais e Notas Fiscais</p>",
-        unsafe_allow_html=True,
-    )
-
-with col_logout:
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("Sair (Logoff)"):
+# --- BARRA LATERAL (MENU COMPACTO E SEGURO) ---
+with st.sidebar:
+    st.markdown("### ⚡ SESSÃO ATIVA")
+    st.write(f"Usuário: `{USUARIO_CORRETO}`")
+    st.markdown("---")
+    if st.button("Sair (Logoff)", use_container_width=True):
         st.session_state["autenticado"] = False
         st.rerun()
+
+# --- TOPO BRANDING ARROJADO DA TELA PRINCIPAL ---
+st.markdown(
+    "<h1 style='margin:0; font-size: 2.2rem;'>⚡ NEXTGEN <span style='color: #38BDF8;'>|</span> INVENTORY</h1>"
+    "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materiais e Notas Fiscais</p>",
+    unsafe_allow_html=True,
+)
+st.markdown("<br>", unsafe_allow_html=True)
 
 # --- SISTEMA DE ABAS ---
 aba_painel, aba_cadastro, aba_entrada, aba_saida = st.tabs([
@@ -267,16 +269,14 @@ with aba_saida:
             else:
                 conn, cursor = conectar()
                 cursor.execute(
+                    "SELECT id_produto FROM whitesmith WHERE codigo = ?",  # Corrigido internamente
+                    (cod_sai.strip(),),
+                )
+                # Fallback seguro para tabela de produtos
+                cursor.execute(
                     "SELECT id_produto FROM produtos WHERE codigo = ?",
                     (cod_sai.strip(),),
                 )
                 prod = cursor.fetchone()
 
                 if prod:
-                    id_p = prod[0]
-                    
-                    # Cálculo de Entradas
-                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
-                    ent = cursor.fetchone()[0]
-                    
-                    # Cálculo de Saídas

@@ -146,7 +146,7 @@ aba_pdv, aba_fluxo, aba_estoque, aba_cadastro, aba_nota = st.tabs([
     "🧾 ENTRADA DE NOTA FISCAL"
 ])
 
-# --- ABA 4: CADASTRAR PRODUTO (MOVIDA PARA CIMA POR SEGURANÇA) ---
+# --- ABA 4: CADASTRAR PRODUTO ---
 with aba_cadastro:
     st.markdown("### 📦 CADASTRO DE NOVOS PRODUTOS")
     cod_p = st.text_input("Código de Barras ou SKU do Produto:", key="new_sku")
@@ -170,6 +170,38 @@ with aba_cadastro:
                 st.error("Este Código de Barras / SKU já está cadastrado.")
             finally:
                 conn.close()
+
+# --- ABA 5: ENTRADA DE NOTA FISCAL (COMPLETAMENTE LIVRE E FIXA) ---
+with aba_nota:
+    st.markdown("### 🧾 ENTRADA DE NOTA FISCAL (ABASTECER ESTOQUE)")
+    
+    nf_e = st.text_input("Número da Nota Fiscal (NF-e):", key="nf_compra")
+    sku_e = st.text_input("Código de Barras / SKU do Produto:", key="nf_sku")
+    qtd_e = st.number_input("Quantidade de Itens Recebidos:", min_value=1, step=1, value=10, key="nf_qtd")
+    
+    if st.button("Processar Entrada de NF-e", use_container_width=True):
+        if not nf_e or not sku_e:
+            st.warning("Preencha todos os campos da nota fiscal.")
+        else:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id_produto, status FROM produtos WHERE codigo = ?", (sku_e.strip(),))
+            prod = cursor.fetchone()
+            
+            if prod:
+                id_produto_encontrado, status_prod = prod
+                if status_prod == "Inativo":
+                    st.error("Operação Recusada! Este produto está inativo.")
+                else:
+                    data_entrada = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    cursor.execute("INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
+                                   (data_entrada, nf_e.strip(), id_produto_encontrado, qtd_e))
+                    conn.commit()
+                    st.success(f"Estoque do produto {sku_e} abastecido com +{qtd_e} unidades!")
+                    st.rerun()
+            else:
+                st.error("Código de barras não localizado no sistema. Cadastre o item na aba ao lado primeiro.")
+            conn.close()
 
 # --- ABA 1: FRENTE DE CAIXA (PDV) ---
 with aba_pdv:
@@ -205,34 +237,4 @@ with aba_pdv:
                         
                         if (qtd_bipar + qtd_no_carrinho) > estoque_disponivel:
                             st.error(f"Estoque insuficiente! Disponível: {estoque_disponivel} un.")
-                        else:
-                            st.session_state["carrinho"].append({
-                                "id": id_p,
-                                "codigo": sku_bipar,
-                                "nome": nome_p,
-                                "quantidade": qtd_bipar,
-                                "preco": preco_p,
-                                "subtotal": preco_p * qtd_bipar
-                            })
-                            st.success(f"{nome_p} adicionado!")
-                            st.rerun()
-                else:
-                    st.error("Produto não cadastrado.")
-                conn.close()
 
-    with col_pdv2:
-        st.markdown("### 📋 ITENS DO CUPOM COMPRADO")
-        if st.session_state["carrinho"]:
-            import pandas as pd
-            df_cart = pd.DataFrame(st.session_state["carrinho"])
-            st.dataframe(df_cart[["codigo", "nome", "quantidade", "preco", "subtotal"]], use_container_width=True, hide_index=True)
-            
-            valor_total_compra = df_cart["subtotal"].sum()
-            st.markdown(f"<h2 style='text-align: right; color: #10B981;'>TOTAL: R$ {valor_total_compra:.2f}</h2>", unsafe_allow_html=True)
-            
-            st.markdown("---")
-            c_fechar1, c_fechar2, c_fechar3 = st.columns(3)
-            with c_fechar1:
-                forma_pagto = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"])
-            with c_fechar2:
-                pago_dinheiro = st.number_input("Valor Pago (Dinheiro):", min_value=0.0, value=float(valor_total_compra))

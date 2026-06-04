@@ -26,7 +26,7 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("supermercado_final_v7.db")
+    return sqlite3.connect("supermercado_final_v8.db")
 
 def inicializar_banco():
     conn = conectar()
@@ -141,7 +141,7 @@ st.markdown(
 )
 st.markdown("<br>", unsafe_allow_html=True)
 
-# SISTEMA DE ABAS ORGANIZADO E INDEPENDENTE
+# SISTEMA DE ABAS
 aba_pdv, aba_fluxo, aba_estoque, aba_cadastro, aba_nota = st.tabs([
     "💻 FRENTE DE CAIXA (PDV)",
     "💰 FLUXO DE CAIXA",
@@ -180,7 +180,6 @@ with aba_pdv:
                         sai = cursor.fetchone()[0]
                         estoque_disponivel = ent - sai
                         
-                        qtd_no_carrinho = sum(item['whitespace_fix'] if 'whitespace_fix' in item else item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
                         qtd_no_carrinho = sum(item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
                         
                         if (qtd_bipar + qtd_no_carrinho) > estoque_disponivel:
@@ -190,7 +189,6 @@ with aba_pdv:
                                 "id": id_p,
                                 "codigo": sku_bipar,
                                 "nome": nome_p,
-                                "whitespace_fix": qtd_bipar,
                                 "quantidade": qtd_bipar,
                                 "preco": preco_p,
                                 "subtotal": float(preco_p * qtd_bipar)
@@ -231,4 +229,9 @@ with aba_pdv:
                     conn = conectar()
                     cursor = conn.cursor()
                     data_venda = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    cursor.execute("INSERT INTO vendas (data, total, operador, forma_pagamento) VALUES (?, ?, ?, ?)",
+                                   (data_venda, valor_total_compra, st.session_state["usuario_logado"], forma_pagto))
+                    id_da_venda_salva = cursor.lastrowid
+                    
+                    for item in st.session_state["carrinho"]:
 

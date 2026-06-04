@@ -72,13 +72,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- CONEXÃO COM O BANCO DE DADOS COMPLETO ---
+# --- CONEXÃO COM O BANCO DE DADOS COMPLETO (ATUALIZADO PARA V3) ---
 def conectar():
-    conn = sqlite3.connect("supermercado_nextgen.db")
-    return conn, conn.cursor()
+    return sqlite3.connect("supermercado_v3.db")
 
 def inicializar_banco():
-    conn, cursor = conectar()
+    conn = conectar()
+    cursor = conn.cursor()
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS produtos (
         id_produto INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,7 +142,7 @@ st.markdown(
 )
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- SISTEMA DE ABAS (5 ABAS SEPARADAS) ---
+# --- SISTEMA DE ABAS ---
 aba_pdv, aba_fluxo, aba_estoque, aba_cadastro, aba_nota = st.tabs([
     "💻 FRENTE DE CAIXA (PDV)",
     "💰 FLUXO DE CAIXA",
@@ -165,7 +165,8 @@ with aba_pdv:
             if not sku_bipar:
                 st.warning("Insira o código do produto.")
             else:
-                conn, cursor = conectar()
+                conn = conectar()
+                cursor = conn.cursor()
                 cursor.execute("SELECT id_produto, nome, preco_venda, status FROM produtos WHERE codigo = ?", (sku_bipar,))
                 prod = cursor.fetchone()
                 
@@ -174,7 +175,6 @@ with aba_pdv:
                     if status_p == "Inativo":
                         st.error("Produto inativo no sistema!")
                     else:
-                        # CORREÇÃO AQUI: Consultas SQL robustas usando COALESCE para evitar erros de NoneType
                         cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
                         ent = cursor.fetchone()[0]
                         
@@ -229,8 +229,10 @@ with aba_pdv:
                     st.rerun()
             with c_btn2:
                 if st.button("✅ FINALIZAR VENDA", use_container_width=True):
-                    conn, cursor = conectar()
+                    conn = conectar()
+                    cursor = conn.cursor()
                     data_venda = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute("INSERT INTO vendas (data, total, operador, forma_pagamento) VALUES (?, ?, ?, ?)",
                                    (data_venda, valor_total_compra, st.session_state["usuario_logado"], forma_pagto))
+                    id_da_venda_salva = cursor.lastrowid
               

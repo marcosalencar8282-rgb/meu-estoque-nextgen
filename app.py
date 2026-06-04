@@ -1,6 +1,8 @@
 import sqlite3
 from datetime import datetime
+import io
 import streamlit as st
+import pandas as pd
 
 # Configuração da página com visual moderno e arrojado
 st.set_page_config(
@@ -10,18 +12,25 @@ st.set_page_config(
 # --- CONTROLE DE SESSÃO / LOGIN ---
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
+if "usuario_logado" not in st.session_state:
+    st.session_state["usuario_logado"] = ""
 
-# Credenciais de acesso
-USUARIO_CORRETO = "marcos"
-SENHA_CORRETA = "931481"
+# LISTA DE USUÁRIOS
+USUARIOS_PERMITIDOS = {
+    "admin": "Master@2026",
+    "lucas": "Lucas#Estoque",
+    "marcos": "931481",
+    "gerente": "Logistica123"
+}
 
 
 def realizar_login():
-    if (
-        st.session_state["usuario_input"] == USUARIO_CORRETO
-        and st.session_state["senha_input"] == SENHA_CORRETA
-    ):
+    usuario_digitado = st.session_state["usuario_input"].strip()
+    senha_digitada = st.session_state["senha_input"].strip()
+    
+    if usuario_digitado in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[usuario_digitado] == senha_digitada:
         st.session_state["autenticado"] = True
+        st.session_state["usuario_logado"] = usuario_digitado
         st.success("Acesso autorizado!")
     else:
         st.error("Usuário ou senha incorretos.")
@@ -122,10 +131,11 @@ inicializar_banco()
 # --- BARRA LATERAL (MENU COMPACTO E SEGURO) ---
 with st.sidebar:
     st.markdown("### ⚡ SESSÃO ATIVA")
-    st.write(f"Usuário: `{USUARIO_CORRETO}`")
+    st.write(f"Usuário atual: `{st.session_state['usuario_logado']}`")
     st.markdown("---")
     if st.button("Sair (Logoff)", use_container_width=True):
         st.session_state["autenticado"] = False
+        st.session_state["usuario_logado"] = ""
         st.rerun()
 
 # --- TOPO BRANDING ARROJADO DA TELA PRINCIPAL ---
@@ -161,8 +171,6 @@ with aba_painel:
     conn.close()
 
     if dados:
-        import pandas as pd
-
         df = pd.DataFrame(dados, columns=[
             "SKU",
             "Produto",
@@ -184,6 +192,21 @@ with aba_painel:
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("Painel de Posição de Inventário")
         st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        # --- FUNÇÃO DE EXPORTAR EXCEL ---
+        # Cria um buffer de memória para o arquivo do Excel
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Posicao_Estoque')
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        # Cria o botão visual para o usuário baixar
+        st.download_button(
+            label="📥 Exportar Estoque para Excel",
+            data=buffer.getvalue(),
+            file_name=f"relatorio_estoque_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     else:
         st.info("Nenhum item em estoque. Comece cadastrando um produto.")
 
@@ -240,7 +263,7 @@ with aba_entrada:
                 prod = cursor.fetchone()
 
                 if prod:
-                    id_produto_encontrado = prod[0]
+                    id_produto_encontrado = prod
                     data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         "INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
@@ -250,33 +273,3 @@ with aba_entrada:
                     st.success(f"NF {nf} processada. {qtd_ent} unidades adicionadas!")
                     st.rerun()
                 else:
-                    st.error("SKU não localizado. Faça o cadastro do item primeiro.")
-                conn.close()
-
-# --- ABA 4: ORDEM DE SAÍDA ---
-with aba_saida:
-    st.subheader("Requisição / Baixa Logística de Estoque")
-    with st.form("saida_form", clear_on_submit=True):
-        cx1, cx2 = st.columns(2)
-        with cx1:
-            cod_sai = st.text_input("Código SKU para Baixa:")
-        with cx2:
-            qtd_sai = st.number_input("Quantidade Requisitada:", min_value=1, step=1)
-
-        if st.form_submit_button("Confirmar Saída"):
-            if not cod_sai:
-                st.warning("Insira o código SKU.")
-            else:
-                conn, cursor = conectar()
-                cursor.execute(
-                    "SELECT id_produto FROM produtos WHERE codigo = ?",
-                    (cod_sai.strip(),),
-                )
-                prod = cursor.fetchone()
-
-                if prod:
-                    id_p = prod[0]
-                    
-                    # Cálculo de Entradas
-                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
-                    ent = cursor.fetchone()[0]

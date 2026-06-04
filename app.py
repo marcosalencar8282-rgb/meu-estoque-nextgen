@@ -12,8 +12,8 @@ if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
 # Credenciais de acesso
-USUARIO_CORRETO = "admin"
-SENHA_CORRETA = "1234"
+USUARIO_CORRETO = "marcos"
+SENHA_CORRETA = "931481"
 
 
 def realizar_login():

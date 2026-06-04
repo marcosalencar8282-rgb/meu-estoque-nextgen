@@ -25,7 +25,7 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("supermercado_final.db")
+    return sqlite3.connect("supermercado_final_v5.db")
 
 def inicializar_banco():
     conn = conectar()
@@ -74,7 +74,7 @@ def inicializar_banco():
 
 inicializar_banco()
 
-# --- LÓGICA INTERNA DE LOGIN ---
+# --- TELA DE LOGIN ---
 if not st.session_state["autenticado"]:
     st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>🛒 NEXTGEN SUPERMERCADO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #64748B;'>Autenticação de Operador de Caixa / Gerência</p>", unsafe_allow_html=True)
@@ -134,6 +134,12 @@ else:
         "<p style='color: #64748B; margin-top: -5px;'>Módulo Integrado de Vendas, Fluxo de Caixa e Controle de Estoque</p>",
         unsafe_allow_html=True,
     )
+    
+    # BOTÃO MANUAL DE REINICIALIZAÇÃO EM CASO DE TRAVAMENTO DE CACHE
+    if st.button("🔄 FORÇAR ATUALIZAÇÃO DA TELA (Clique aqui se sumir algo)", key="btn_reset_cache"):
+        st.cache_data.clear()
+        st.rerun()
+        
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Sistema de Abas
@@ -220,7 +226,3 @@ else:
                     if st.button("❌ Cancelar Cupom", use_container_width=True):
                         st.session_state["carrinho"] = []
                         st.rerun()
-                with c_btn2:
-                    if st.button("✅ FINALIZAR VENDA", use_container_width=True):
-                        conn = conectar()
-                        cursor = conn.cursor()

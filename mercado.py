@@ -26,13 +26,14 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
-    return sqlite3.connect("mercado_v10.db")
+    return sqlite3.connect("mercado_troco_v11.db")
 
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, quantidade INTEGER)")
-cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT)")
+# ATUALIZAÇÃO: Adicionado o campo de troco na tabela de vendas
+cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
 conn.commit()
 conn.close()
 
@@ -121,7 +122,7 @@ with aba2:
         else:
             st.warning("Digite o número da Nota Fiscal e o código do produto.")
 
-# --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO) ---
+# --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO E TROCO) ---
 with aba3:
     st.subheader("Frente de Caixa - Vendas")
     col_v1, col_v2 = st.columns([1, 1.5])
@@ -162,10 +163,22 @@ with aba3:
             df_cupom = pd.DataFrame(st.session_state["carrinho_compras"])
             st.dataframe(df_cupom[["codigo", "nome", "quantidade", "total"]], use_container_width=True, hide_index=True)
             
-            soma_total_compra = df_cupom["total"].sum()
+            soma_total_compra = float(df_cupom["total"].sum())
             st.markdown(f"### VALOR TOTAL: R$ {soma_total_compra:.2f}")
             
+            st.markdown("---")
+            st.markdown("#### 💰 Fechamento de Valores")
             v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
+            
+            # Campo de entrada para quanto o cliente entregou em dinheiro
+            valor_recebido = st.number_input("Valor Pago pelo Cliente (R$):", min_value=0.0, value=soma_total_compra, step=1.0)
+            
+            # Cálculo automático do troco na tela
+            troco_calculado = valor_recebido - soma_total_compra
+            if troco_calculado > 0:
+                st.markdown(f"<p style='color:#F59E0B; font-weight:bold; font-size:20px;'>Troco a Devolver: R$ {troco_calculado:.2f}</p>", unsafe_allow_html=True)
+            elif troco_calculado < 0:
+                st.markdown(f"<p style='color:#EF4444; font-weight:bold; font-size:16px;'>Falta pagar: R$ {abs(troco_calculado):.2f}</p>", unsafe_allow_html=True)
             
             c_b1, c_b2 = st.columns(2)
             with c_b1:
@@ -173,20 +186,25 @@ with aba3:
                     st.session_state["carrinho_compras"] = []
                     st.rerun()
             with c_b2:
-                if st.button("✅ Confirmar Venda"):
-                    conn = conectar()
-                    cursor = conn.cursor()
-                    data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    
-                    for item in st.session_state["carrinho_compras"]:
-                        cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?)", 
-                                       (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag))
-                    
-                    conn.commit()
-                    conn.close()
-                    st.session_state["carrinho_compras"] = []
-                    st.success("Venda finalizada com sucesso!")
-                    st.rerun()
+                # Bloqueia a confirmação se o valor pago for menor que o total da compra
+                if troco_calculado < 0:
+                    st.button("✅ Confirmar Venda", disabled=True, help="O valor pago é menor que o total.")
+                else:
+                    if st.button("✅ Confirmar Venda"):
+                        conn = conectar()
+                        cursor = conn.cursor()
+                        data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        
+                        # Salva a venda incluindo o troco correspondente
+                        for item in st.session_state["carrinho_compras"]:
+                            cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                                           (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag, max(0.0, troco_calculado)))
+                        
+                        conn.commit()
+                        conn.close()
+                        st.session_state["carrinho_compras"] = []
+                        st.success("Venda finalizada com sucesso!")
+                        st.rerun()
         else:
             st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
 
@@ -195,13 +213,12 @@ with aba4:
     st.subheader("Histórico de Vendas Realizadas")
     conn = conectar()
     cursor = conn.cursor()
-    # CORREÇÃO AQUI: Comando SQL limpo e sem a linha de teste que causava o erro
-    cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento FROM vendas ORDER BY rowid DESC")
+    cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento, troco FROM vendas ORDER BY rowid DESC")
     dados = cursor.fetchall()
     conn.close()
     
     if dados:
-        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento"])
+        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento", "Troco R$"])
         st.metric(label="FATURAMENTO TOTAL ACUMULADO", value=f"R$ {df['Total R$'].sum():.2f}")
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:

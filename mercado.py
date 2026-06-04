@@ -3,10 +3,8 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-# Configuração da página
-st.set_page_config(
-    page_title="NextGen Supermercado | PDV & Estoque", layout="wide", page_icon="🛒"
-)
+# Configuração da página leve
+st.set_page_config(page_title="NextGen Supermercado", layout="wide", page_icon="🛒")
 
 # --- CONTROLE DE SESSÃO / LOGIN ---
 if "autenticado" not in st.session_state:
@@ -20,27 +18,25 @@ if "carrinho_compras" not in st.session_state:
 USUARIOS_PERMITIDOS = {
     "admin": "Master@2026",
     "lucas": "Lucas#Estoque",
-    "marcos": "931481",
-    "caixa1": "Caixa123"
+    "marcos": "931481"
 }
 
-# --- CONEXÃO DIRETA COM O BANCO ---
+# --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("mercado_v14.db")
+    return sqlite3.connect("mercado_modelo_normal.db")
 
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
-cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, quantidade INTEGER)")
-# CORREÇÃO AQUI: Comando SQL limpo e sem a linha de rascunho que causava o OperationalError
+cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, nome TEXT, quantidade INTEGER)")
 cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
 conn.commit()
 conn.close()
 
-# TELA DE LOGIN (Bloqueia o sistema se não estiver autenticado)
+# TELA DE LOGIN
 if not st.session_state["autenticado"]:
     st.markdown("<h1 style='text-align: center;'>🛒 NEXTGEN SUPERMERCADO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #64748B;'>Área Restrita - Autenticação de Operador</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748B;'>Autenticação Obrigatória de Operador</p>", unsafe_allow_html=True)
 
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
@@ -55,7 +51,7 @@ if not st.session_state["autenticado"]:
                 st.error("Operador ou senha incorretos.")
     st.stop()
 
-# --- BARRA LATERAL COM BOTÃO DE LOGOFF ---
+# BARRA LATERAL (LOGOFF)
 with st.sidebar:
     st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
     st.write(f"Operador ativo: `{st.session_state['usuario_logado']}`")
@@ -66,15 +62,15 @@ with st.sidebar:
         st.session_state["carrinho_compras"] = []
         st.rerun()
 
-st.title("🛒 Sistema de Vendas e Estoque")
+st.title("🛒 Painel de Controle Comercial")
 
-# --- CRIAÇÃO DAS ABAS SIMPLES (5 ABAS) ---
+# AS 5 ABAS SOLICITADAS DE FORMA INDEPENDENTE
 aba1, aba2, aba3, aba4, aba5 = st.tabs([
     "📝 1. CADASTRAR PRODUTO", 
     "🧾 2. ENTRADA DE ESTOQUE (NF)", 
     "💻 3. FRENTE DE CAIXA (PDV)", 
     "📊 4. RELATÓRIO DE VENDAS",
-    "📈 5. SALDO EM ESTOQUE"
+    "📈 5. HISTÓRICO DE ENTRADAS"
 ])
 
 # --- ABA 1: CADASTRAR PRODUTO ---
@@ -92,17 +88,15 @@ with aba1:
                 cursor.execute("INSERT INTO produtos VALUES (?, ?, ?)", (c_cod.strip(), c_nom.strip(), c_pre))
                 conn.commit()
                 st.success(f"Produto '{c_nom}' cadastrado!")
-                st.cache_data.clear()
-                st.rerun()
             except:
                 st.error("Este código já existe!")
             conn.close()
         else:
             st.warning("Preencha o código e o nome.")
 
-# --- ABA 2: ENTRADA DE ESTOQUE ---
+# --- ABA 2: ENTRADA DE ESTOQUE (NF) ---
 with aba2:
-    st.subheader("Abastecer Prateleiras por Nota Fiscal")
+    st.subheader("Entrada de Notas Fiscais")
     e_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="e_nf")
     e_cod = st.text_input("Código do Produto para Abastecer:", key="e1")
     e_qtd = st.number_input("Quantidade que está Entrando:", min_value=1, value=10, key="e2")
@@ -115,17 +109,16 @@ with aba2:
             prod = cursor.fetchone()
             
             if prod:
+                nome_p = prod[0]
                 data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
-                cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), e_qtd))
+                cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, e_qtd))
                 conn.commit()
-                st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades!")
-                st.cache_data.clear()
-                st.rerun()
+                st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades de '{nome_p}'!")
             else:
                 st.error("Código não encontrado! Cadastre o produto na aba 1 primeiro.")
             conn.close()
         else:
-            st.warning("Digite o número da Nota Fiscal e o código do produto.")
+            st.warning("Digite a Nota Fiscal e o código do produto.")
 
 # --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO E TROCO) ---
 with aba3:
@@ -146,27 +139,16 @@ with aba3:
                 
                 if prod:
                     nome_p, preco_p = prod
+                    valor_total = preco_p * v_qtd
                     
-                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM estoque WHERE codigo = ?", (v_cod.strip(),))
-                    total_entradas = cursor.fetchone()[0]
-                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM vendas WHERE codigo = ?", (v_cod.strip(),))
-                    total_vendas = cursor.fetchone()[0]
-                    
-                    qtd_no_carrinho_atual = sum(item["quantidade"] for item in st.session_state["carrinho_compras"] if item["codigo"] == v_cod.strip())
-                    saldo_disponivel_real = total_entradas - total_vendas - qtd_no_carrinho_atual
-                    
-                    if v_qtd > saldo_disponivel_real:
-                        st.error(f"Estoque insuficiente! Saldo atual desse produto é de apenas {saldo_disponivel_real} unidades.")
-                    else:
-                        valor_total = preco_p * v_qtd
-                        st.session_state["carrinho_compras"].append({
-                            "codigo": v_cod.strip(),
-                            "nome": nome_p,
-                            "quantidade": v_qtd,
-                            "total": valor_total
-                        })
-                        st.success(f"'{nome_p}' colocado no carrinho!")
-                        st.rerun()
+                    st.session_state["carrinho_compras"].append({
+                        "codigo": v_cod.strip(),
+                        "nome": nome_p,
+                        "quantidade": v_qtd,
+                        "total": valor_total
+                    })
+                    st.success(f"'{nome_p}' colocado no carrinho!")
+                    st.rerun()
                 else:
                     st.error("Produto não cadastrado!")
                 conn.close()
@@ -182,17 +164,12 @@ with aba3:
             soma_total_compra = float(df_cupom["total"].sum())
             st.markdown(f"### VALOR TOTAL: R$ {soma_total_compra:.2f}")
             
-            st.markdown("---")
-            st.markdown("#### 💰 Fechamento de Valores")
             v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
-            
             valor_recebido = st.number_input("Valor Pago pelo Cliente (R$):", min_value=0.0, value=soma_total_compra, step=1.0)
             
             troco_calculado = valor_recebido - soma_total_compra
             if troco_calculado > 0:
-                st.markdown(f"<p style='color:#F59E0B; font-weight:bold; font-size:20px;'>Troco a Devolver: R$ {troco_calculado:.2f}</p>", unsafe_allow_html=True)
-            elif troco_calculado < 0:
-                st.markdown(f"<p style='color:#EF4444; font-weight:bold; font-size:16px;'>Falta pagar: R$ {abs(troco_calculado):.2f}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='color:#F59E0B; font-weight:bold; font-size:20px;'>Troco: R$ {troco_calculado:.2f}</p>", unsafe_allow_html=True)
             
             c_b1, c_b2 = st.columns(2)
             with c_b1:
@@ -200,9 +177,7 @@ with aba3:
                     st.session_state["carrinho_compras"] = []
                     st.rerun()
             with c_b2:
-                if troco_calculado < 0:
-                    st.button("✅ Confirmar Venda", disabled=True)
-                elif st.button("✅ Confirmar Venda"):
+                if st.button("✅ Confirmar Venda"):
                     conn = conectar()
                     cursor = conn.cursor()
                     data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -215,9 +190,40 @@ with aba3:
                     conn.close()
                     st.session_state["carrinho_compras"] = []
                     st.success("Venda finalizada com sucesso!")
-                    st.cache_data.clear()
                     st.rerun()
         else:
             st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
+
+# --- ABA 4: RELATÓRIO DE VENDAS ---
+with aba4:
+    st.subheader("Histórico de Vendas Realizadas")
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento, troco FROM vendas ORDER BY rowid DESC")
+    dados = cursor.fetchall()
+    conn.close()
+    
+    if dados:
+        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento", "Troco R$"])
+        st.metric(label="FATURAMENTO TOTAL ACUMULADO", value=f"R$ {df['Total R$'].sum():.2f}")
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.metric(label="FATURAMENTO TOTAL ACUMULADO", value="R$ 0,00")
+        st.info("Nenhuma venda realizada ainda.")
+
+# --- ABA 5: HISTÓRICO DE ENTRADAS ---
+with aba5:
+    st.subheader("Registro de Entradas de Mercadorias")
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("SELECT data, nota_fiscal, codigo, nome, quantidade FROM estoque ORDER BY rowid DESC")
+    dados_est = cursor.fetchall()
+    conn.close()
+    
+    if dados_est:
+        df_est = pd.DataFrame(dados_est, columns=["Data/Hora", "Nota Fiscal", "Código", "Produto", "Quantidade"])
+        st.dataframe(df_est, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhuma nota fiscal deu entrada ainda.")
 
 

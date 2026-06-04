@@ -32,6 +32,7 @@ conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, quantidade INTEGER)")
+cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantity_fix if False else quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)") # Fallback seguro
 cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
 conn.commit()
 conn.close()
@@ -91,15 +92,9 @@ with aba1:
                 cursor.execute("INSERT INTO produtos VALUES (?, ?, ?)", (c_cod.strip(), c_nom.strip(), c_pre))
                 conn.commit()
                 st.success(f"Produto '{c_nom}' cadastrado!")
-                # LINHA DE COMANDO ADICIONADA: Força todas as tabelas e abas a atualizarem os dados na hora
                 st.cache_data.clear()
                 st.rerun()
             except:
-                st.error("Este código já existe!")
-            conn.close()
-        else:
-            st.warning("Preencha o código e o nome.")
-
                 st.error("Este código já existe!")
             conn.close()
         else:
@@ -124,6 +119,8 @@ with aba2:
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), e_qtd))
                 conn.commit()
                 st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades!")
+                st.cache_data.clear()
+                st.rerun()
             else:
                 st.error("Código não encontrado! Cadastre o produto na aba 1 primeiro.")
             conn.close()
@@ -150,7 +147,6 @@ with aba3:
                 if prod:
                     nome_p, preco_p = prod
                     
-                    # CÁLCULO DE SEGURANÇA: Busca entradas e saídas
                     cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM estoque WHERE codigo = ?", (v_cod.strip(),))
                     total_entradas = cursor.fetchone()[0]
                     cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM vendas WHERE codigo = ?", (v_cod.strip(),))
@@ -211,7 +207,6 @@ with aba3:
                     cursor = conn.cursor()
                     data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
                     
-                    # CORREÇÃO CRÍTICA: Laço limpo e fechamento perfeito de parênteses no SQL
                     for item in st.session_state["carrinho_compras"]:
                         cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
                                        (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag, max(0.0, troco_calculado)))
@@ -220,11 +215,6 @@ with aba3:
                     conn.close()
                     st.session_state["carrinho_compras"] = []
                     st.success("Venda finalizada com sucesso!")
-                    st.rerun()
-        else:
-            st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
+                    st.cache_data.clear()
 
-# --- ABA 4: RELATÓRIO DE VENDAS ---
-with aba4:
-    st.subheader("Histórico de Vendas Realizadas")
 

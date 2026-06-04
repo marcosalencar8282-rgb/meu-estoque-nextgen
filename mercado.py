@@ -142,18 +142,18 @@ st.markdown(
 )
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- SISTEMA DE ABAS ---
-aba_pdv, aba_fluxo, aba_estoque, aba_cadastro = st.tabs([
+# --- SISTEMA DE ABAS (AGORA COM 5 ABAS SEPARADAS) ---
+aba_pdv, aba_fluxo, aba_estoque, aba_cadastro, aba_nota = st.tabs([
     "💻 FRENTE DE CAIXA (PDV)",
     "💰 FLUXO DE CAIXA",
     "📈 ESTOQUE ATUAL",
-    "📦 CADASTRO & NOTA FISCAL"
+    "📝 CADASTRAR PRODUTO",
+    "🧾 ENTRADA DE NOTA FISCAL"
 ])
 
 # --- ABA 1: FRENTE DE CAIXA (PDV) ---
 with aba_pdv:
     st.subheader("Registrar Compra (Cupom Fiscal)")
-    
     col_pdv1, col_pdv2 = st.columns([1, 1.5])
     
     with col_pdv1:
@@ -175,9 +175,9 @@ with aba_pdv:
                         st.error("Produto inativo no sistema!")
                     else:
                         cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
-                        ent = cursor.fetchone()[0]
+                        ent = cursor.fetchone()[0] if cursor.fetchone() else 0
                         cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM itens_venda WHERE id_produto = ?", (id_p,))
-                        sai = cursor.fetchone()[0]
+                        sai = cursor.fetchone()[0] if cursor.fetchone() else 0
                         estoque_disponivel = ent - sai
                         
                         qtd_no_carrinho = sum(item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
@@ -232,5 +232,4 @@ with aba_pdv:
                     cursor.execute("INSERT INTO vendas (data, total, operador, forma_pagamento) VALUES (?, ?, ?, ?)",
                                    (data_venda, valor_total_compra, st.session_state["usuario_logado"], forma_pagto))
                     id_da_venda_salva = cursor.lastrowid
-                    
-                    # CORREÇÃO AQUI: Alinhamento perfeito do laço for para gravação de itens
+              

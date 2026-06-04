@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 import streamlit as st
 import pandas as pd
+import os
 
 # Configuração da página com visual moderno de sistema comercial
 st.set_page_config(
@@ -24,9 +25,10 @@ USUARIOS_PERMITIDOS = {
     "caixa1": "Caixa123"
 }
 
-# --- CONEXÃO COM O BANCO DE DADOS ---
+# --- CONEXÃO COM O BANCO DE DADOS EM PASTA PERMITIDA (/tmp/) ---
 def conectar():
-    return sqlite3.connect("supermercado_final_v8.db")
+    # Salva na pasta temporária do Linux para evitar bloqueio de escrita (OperationalError)
+    return sqlite3.connect("/tmp/supermercado_final_v9.db")
 
 def inicializar_banco():
     conn = conectar()
@@ -180,6 +182,7 @@ with aba_pdv:
                         sai = cursor.fetchone()[0]
                         estoque_disponivel = ent - sai
                         
+                        qtd_no_carrinho = sum(item['whitespace_fix'] if 'whitespace_fix' in item else item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
                         qtd_no_carrinho = sum(item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
                         
                         if (qtd_bipar + qtd_no_carrinho) > estoque_disponivel:
@@ -229,7 +232,5 @@ with aba_pdv:
                     conn = conectar()
                     cursor = conn.cursor()
                     data_venda = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    cursor.execute("INSERT INTO vendas (data, total, operador, forma_pagamento) VALUES (?, ?, ?, ?)",
-                                   (data_venda, valor_total_compra, st.session_state["usuario_logado"], forma_pagto))
-                    id_da_venda_salva = cursor.lastrowid
+
 

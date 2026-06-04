@@ -25,7 +25,7 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("supermercado_final_v5.db")
+    return sqlite3.connect("supermercado_final_v6.db")
 
 def inicializar_banco():
     conn = conectar()
@@ -90,139 +90,149 @@ if not st.session_state["autenticado"]:
                 st.rerun()
             else:
                 st.error("Operador ou senha incorretos.")
-else:
-    # --- VISUAL DO SISTEMA ---
-    st.markdown(
-        """
-        <style>
-        .stApp { background-color: #0B0F19; color: #E2E8F0; }
-        font-family: 'Inter', sans-serif;
-        h1, h2, h3 { color: #FFFFFF; font-weight: 800; letter-spacing: -0.5px; }
-        div[data-testid="stFrame"] { background-color: #161B26; border-radius: 12px; padding: 20px; border: 1px solid #242F41; }
-        button[data-baseweb="tab"] { font-size: 14px !important; font-weight: 600 !important; color: #94A3B8 !important; }
-        button[aria-selected="true"] { color: #10B981 !important; border-bottom-color: #10B981 !important; }
-        .stButton>button {
-            background: linear-gradient(135deg, #10B981 0%, #047857 100%);
-            color: white !important;
-            border: none;
-            padding: 10px 24px;
-            font-weight: 700;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-        }
-        .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
-        input, textarea { background-color: #1E293B !important; color: white !important; border: 1px solid #334155 !important; }
-        </style>
-    """,
-        unsafe_allow_html=True,
-    )
+    st.stop()
 
-    # Barra Lateral
-    with st.sidebar:
-        st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
-        st.write(f"Operador: `{st.session_state['usuario_logado']}`")
-        st.markdown("---")
-        if st.button("Fechar Caixa / Sair", use_container_width=True):
-            st.session_state["autenticado"] = False
-            st.session_state["usuario_logado"] = ""
-            st.session_state["carrinho"] = []
-            st.rerun()
+# Estilização CSS para o visual Dark/Cyber de Alta Performance
+st.markdown(
+    """
+    <style>
+    .stApp { background-color: #0B0F19; color: #E2E8F0; }
+    font-family: 'Inter', sans-serif;
+    h1, h2, h3 { color: #FFFFFF; font-weight: 800; letter-spacing: -0.5px; }
+    div[data-testid="stFrame"] { background-color: #161B26; border-radius: 12px; padding: 20px; border: 1px solid #242F41; }
+    button[data-baseweb="tab"] { font-size: 14px !important; font-weight: 600 !important; color: #94A3B8 !important; }
+    button[aria-selected="true"] { color: #10B981 !important; border-bottom-color: #10B981 !important; }
+    .stButton>button {
+        background: linear-gradient(135deg, #10B981 0%, #047857 100%);
+        color: white !important;
+        border: none;
+        padding: 10px 24px;
+        font-weight: 700;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    }
+    .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
+    input, textarea { background-color: #1E293B !important; color: white !important; border: 1px solid #334155 !important; }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
-    # Topo Branding
-    st.markdown(
-        "<h1 style='margin:0; font-size: 2.2rem;'>🛒 NEXTGEN <span style='color: #10B981;'>|</span> SMART MARKET</h1>"
-        "<p style='color: #64748B; margin-top: -5px;'>Módulo Integrado de Vendas, Fluxo de Caixa e Controle de Estoque</p>",
-        unsafe_allow_html=True,
-    )
-    
-    # BOTÃO MANUAL DE REINICIALIZAÇÃO EM CASO DE TRAVAMENTO DE CACHE
-    if st.button("🔄 FORÇAR ATUALIZAÇÃO DA TELA (Clique aqui se sumir algo)", key="btn_reset_cache"):
-        st.cache_data.clear()
+# Barra Lateral
+with st.sidebar:
+    st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
+    st.write(f"Operador: `{st.session_state['usuario_logado']}`")
+    st.markdown("---")
+    if st.button("Fechar Caixa / Sair", use_container_width=True):
+        st.session_state["autenticado"] = False
+        st.session_state["usuario_logado"] = ""
+        st.session_state["carrinho"] = []
         st.rerun()
-        
-    st.markdown("<br>", unsafe_allow_html=True)
 
-    # Sistema de Abas
-    aba_pdv, aba_fluxo, aba_estoque, aba_cadastro, aba_nota = st.tabs([
-        "💻 FRENTE DE CAIXA (PDV)",
-        "💰 FLUXO DE CAIXA",
-        "📈 ESTOQUE ATUAL",
-        "📝 CADASTRAR PRODUTO",
-        "🧾 ENTRADA DE NOTA FISCAL"
-    ])
+# Topo Branding
+st.markdown(
+    "<h1 style='margin:0; font-size: 2.2rem;'>🛒 NEXTGEN <span style='color: #10B981;'>|</span> SMART MARKET</h1>"
+    "<p style='color: #64748B; margin-top: -5px;'>Módulo Integrado de Vendas, Fluxo de Caixa e Controle de Estoque</p>",
+    unsafe_allow_html=True,
+)
+st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- ABA 1: FRENTE DE CAIXA (PDV) ---
-    with aba_pdv:
-        st.subheader("Registrar Compra (Cupom Fiscal)")
-        col_pdv1, col_pdv2 = st.columns([1, 1.5])
+# Sistema de Abas
+aba_pdv, aba_fluxo, aba_estoque, aba_cadastro, aba_nota = st.tabs([
+    "💻 FRENTE DE CAIXA (PDV)",
+    "💰 FLUXO DE CAIXA",
+    "📈 ESTOQUE ATUAL",
+    "📝 CADASTRAR PRODUTO",
+    "🧾 ENTRADA DE NOTA FISCAL"
+])
+
+# --- ABA 4: CADASTRAR PRODUTO (MOVIDA PARA CIMA POR SEGURANÇA) ---
+with aba_cadastro:
+    st.markdown("### 📦 CADASTRO DE NOVOS PRODUTOS")
+    cod_p = st.text_input("Código de Barras ou SKU do Produto:", key="new_sku")
+    nome_p = st.text_input("Nome do Produto (Ex: Arroz 5kg):", key="new_name")
+    preco_p = st.number_input("Preço de Venda (R$):", min_value=0.01, step=0.05, value=1.99, key="new_price")
+    
+    if st.button("Gravar Produto no Catálogo", use_container_width=True):
+        if not cod_p or not nome_p:
+            st.warning("Preencha todos os campos do produto.")
+        else:
+            conn = conectar()
+            cursor = conn.cursor()
+            try:
+                cursor.execute("INSERT INTO produtos (codigo, nome, preco_venda, status) VALUES (?, ?, ?, 'Ativo')",
+                               (cod_p.strip(), nome_p.strip(), preco_p))
+                conn.commit()
+                st.success(f"Produto '{nome_p}' cadastrado com sucesso!")
+                st.cache_data.clear()
+                st.rerun()
+            except sqlite3.IntegrityError:
+                st.error("Este Código de Barras / SKU já está cadastrado.")
+            finally:
+                conn.close()
+
+# --- ABA 1: FRENTE DE CAIXA (PDV) ---
+with aba_pdv:
+    st.subheader("Registrar Compra (Cupom Fiscal)")
+    col_pdv1, col_pdv2 = st.columns([1, 1.5])
+    
+    with col_pdv1:
+        st.markdown("### 🔍 BIPAR / INCLUIR ITEM")
+        sku_bipar = st.text_input("Código de Barras ou SKU do Produto:", key="sku_pdv").strip()
+        qtd_bipar = st.number_input("Quantidade:", min_value=1, step=1, value=1, key="qtd_pdv")
         
-        with col_pdv1:
-            st.markdown("### 🔍 BIPAR / INCLUIR ITEM")
-            sku_bipar = st.text_input("Código de Barras ou SKU do Produto:", key="sku_pdv").strip()
-            qtd_bipar = st.number_input("Quantidade:", min_value=1, step=1, value=1, key="qtd_pdv")
-            
-            if st.button("Adicionar ao Carrinho", use_container_width=True):
-                if not sku_bipar:
-                    st.warning("Insira o código do produto.")
-                else:
-                    conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT id_produto, nome, preco_venda, status FROM produtos WHERE codigo = ?", (sku_bipar,))
-                    prod = cursor.fetchone()
-                    
-                    if prod:
-                        id_p, nome_p, preco_p, status_p = prod
-                        if status_p == "Inativo":
-                            st.error("Produto inativo no sistema!")
-                        else:
-                            cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
-                            ent = cursor.fetchone()[0]
-                            cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM itens_venda WHERE id_produto = ?", (id_p,))
-                            sai = cursor.fetchone()[0]
-                            estoque_disponivel = ent - sai
-                            
-                            qtd_no_carrinho = sum(item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
-                            
-                            if (qtd_bipar + qtd_no_carrinho) > estoque_disponivel:
-                                st.error(f"Estoque insuficiente! Disponível: {estoque_disponivel} un.")
-                            else:
-                                st.session_state["carrinho"].append({
-                                    "id": id_p,
-                                    "codigo": sku_bipar,
-                                    "nome": nome_p,
-                                    "quantidade": qtd_bipar,
-                                    "preco": preco_p,
-                                    "subtotal": preco_p * qtd_bipar
-                                })
-                                st.success(f"{nome_p} adicionado!")
-                                st.rerun()
+        if st.button("Adicionar ao Carrinho", use_container_width=True):
+            if not sku_bipar:
+                st.warning("Insira o código do produto.")
+            else:
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("SELECT id_produto, nome, preco_venda, status FROM produtos WHERE codigo = ?", (sku_bipar,))
+                prod = cursor.fetchone()
+                
+                if prod:
+                    id_p, nome_p, preco_p, status_p = prod
+                    if status_p == "Inativo":
+                        st.error("Produto inativo no sistema!")
                     else:
-                        st.error("Produto não cadastrado.")
-                    conn.close()
+                        cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
+                        ent = cursor.fetchone()[0]
+                        cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM itens_venda WHERE id_produto = ?", (id_p,))
+                        sai = cursor.fetchone()[0]
+                        estoque_disponivel = ent - sai
+                        
+                        qtd_no_carrinho = sum(item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
+                        
+                        if (qtd_bipar + qtd_no_carrinho) > estoque_disponivel:
+                            st.error(f"Estoque insuficiente! Disponível: {estoque_disponivel} un.")
+                        else:
+                            st.session_state["carrinho"].append({
+                                "id": id_p,
+                                "codigo": sku_bipar,
+                                "nome": nome_p,
+                                "quantidade": qtd_bipar,
+                                "preco": preco_p,
+                                "subtotal": preco_p * qtd_bipar
+                            })
+                            st.success(f"{nome_p} adicionado!")
+                            st.rerun()
+                else:
+                    st.error("Produto não cadastrado.")
+                conn.close()
 
-        with col_pdv2:
-            st.markdown("### 📋 ITENS DO CUPOM COMPRADO")
-            if st.session_state["carrinho"]:
-                import pandas as pd
-                df_cart = pd.DataFrame(st.session_state["carrinho"])
-                st.dataframe(df_cart[["codigo", "nome", "quantidade", "preco", "subtotal"]], use_container_width=True, hide_index=True)
-                
-                valor_total_compra = df_cart["subtotal"].sum()
-                st.markdown(f"<h2 style='text-align: right; color: #10B981;'>TOTAL: R$ {valor_total_compra:.2f}</h2>", unsafe_allow_html=True)
-                
-                st.markdown("---")
-                c_fechar1, c_fechar2, c_fechar3 = st.columns(3)
-                with c_fechar1:
-                    forma_pagto = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"])
-                with c_fechar2:
-                    pago_dinheiro = st.number_input("Valor Pago (Dinheiro):", min_value=0.0, value=float(valor_total_compra))
-                with c_fechar3:
-                    troco = pago_dinheiro - float(valor_total_compra)
-                    if troco > 0 and forma_pagto == "Dinheiro":
-                        st.markdown(f"<p style='color:#F59E0B; font-weight:bold; font-size:18px;'>Troco: R$ {troco:.2f}</p>", unsafe_allow_html=True)
-                
-                c_btn1, c_btn2 = st.columns(2)
-                with c_btn1:
-                    if st.button("❌ Cancelar Cupom", use_container_width=True):
-                        st.session_state["carrinho"] = []
-                        st.rerun()
+    with col_pdv2:
+        st.markdown("### 📋 ITENS DO CUPOM COMPRADO")
+        if st.session_state["carrinho"]:
+            import pandas as pd
+            df_cart = pd.DataFrame(st.session_state["carrinho"])
+            st.dataframe(df_cart[["codigo", "nome", "quantidade", "preco", "subtotal"]], use_container_width=True, hide_index=True)
+            
+            valor_total_compra = df_cart["subtotal"].sum()
+            st.markdown(f"<h2 style='text-align: right; color: #10B981;'>TOTAL: R$ {valor_total_compra:.2f}</h2>", unsafe_allow_html=True)
+            
+            st.markdown("---")
+            c_fechar1, c_fechar2, c_fechar3 = st.columns(3)
+            with c_fechar1:
+                forma_pagto = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"])
+            with c_fechar2:
+                pago_dinheiro = st.number_input("Valor Pago (Dinheiro):", min_value=0.0, value=float(valor_total_compra))

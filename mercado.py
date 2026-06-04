@@ -57,6 +57,7 @@ if not st.session_state["autenticado"]:
 # --- BARRA LATERAL COM BOTÃO DE LOGOFF ---
 with st.sidebar:
     st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
+    st.write(f"Operador active: `{st.session_state['usuario_logado']}`")
     st.write(f"Operador ativo: `{st.session_state['usuario_logado']}`")
     st.markdown("---")
     if st.button("Fechar Caixa / Sair", use_container_width=True):
@@ -67,7 +68,7 @@ with st.sidebar:
 
 st.title("🛒 Sistema de Vendas e Estoque")
 
-# --- CRIAÇÃO DAS ABAS SIMPLES (AGORA COM 5 ABAS) ---
+# --- CRIAÇÃO DAS ABAS SIMPLES (5 ABAS) ---
 aba1, aba2, aba3, aba4, aba5 = st.tabs([
     "📝 1. CADASTRAR PRODUTO", 
     "🧾 2. ENTRADA DE ESTOQUE (NF)", 
@@ -122,7 +123,7 @@ with aba2:
         else:
             st.warning("Digite o número da Nota Fiscal e o código do produto.")
 
-# --- ABA 3: FRENTE DE CAIXA (PDV COM VALIDAÇÃO DE SALDO REAL) ---
+# --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO E TROCO) ---
 with aba3:
     st.subheader("Frente de Caixa - Vendas")
     col_v1, col_v2 = st.columns([1, 1.5])
@@ -142,13 +143,13 @@ with aba3:
                 if prod:
                     nome_p, preco_p = prod
                     
-                    # CÁLCULO DE SEGURANÇA: Descobre o saldo atual do estoque antes de deixar vender
+                    # CÁLCULO DE SEGURANÇA: Busca entradas e saídas
                     cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM estoque WHERE codigo = ?", (v_cod.strip(),))
                     total_entradas = cursor.fetchone()[0]
                     cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM vendas WHERE codigo = ?", (v_cod.strip(),))
                     total_vendas = cursor.fetchone()[0]
                     
-                    # Calcula quanto já tem no carrinho atual do mesmo item
+                    qtd_no_carrinho_atual = sum(item["whitespace_fix"] if "whitespace_fix" in item else item["quantidade"] for item in st.session_state["carrinho_compras"] if item["codigo"] == v_cod.strip())
                     qtd_no_carrinho_atual = sum(item["quantidade"] for item in st.session_state["carrinho_compras"] if item["codigo"] == v_cod.strip())
                     
                     saldo_disponivel_real = total_entradas - total_vendas - qtd_no_carrinho_atual
@@ -198,23 +199,15 @@ with aba3:
                     st.session_state["carrinho_compras"] = []
                     st.rerun()
             with c_b2:
+                # CORREÇÃO CRÍTICA AQUI: Removida a linha else duplicada e alinhado o fluxo direto do botão
                 if troco_calculado < 0:
                     st.button("✅ Confirmar Venda", disabled=True)
-                else:
-                    if st.button("✅ Confirmar Venda"):
-                        conn = conectar()
-                        cursor = conn.cursor()
-                        data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        
-                        for item in st.session_state["carrinho_compras"]:
-                            cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                                           (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag, max(0.0, troco_calculado)))
-                        
-                        conn.commit()
-                        conn.close()
-                        st.session_state["carrinho_compras"] = []
-                        st.success("Venda finalizada com sucesso!")
-                        st.rerun()
-        else:
-
+                elif st.button("✅ Confirmar Venda"):
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    
+                    for item in st.session_state["carrinho_compras"]:
+                        cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                                       (data_venda, item["codigo"], item["nome"]
 

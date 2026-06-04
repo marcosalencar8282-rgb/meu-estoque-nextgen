@@ -21,7 +21,7 @@ USUARIOS_PERMITIDOS = {
     "gerente": "Logistica123"
 }
 
-# TELA DE LOGIN SECRETA
+# TELA DE LOGIN
 if not st.session_state["autenticado"]:
     st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>⚡ NEXTGEN SYSTEM</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #64748B;'>Área Restrita - Autenticação Obrigatória</p>", unsafe_allow_html=True)
@@ -170,7 +170,7 @@ with aba_painel:
         st.markdown("<br>", unsafe_allow_html=True)
         st.dataframe(df, use_container_width=True, hide_index=True)
         
-        # Converte para CSV
+        # Converte para CSV compatível com Excel brasileiro
         csv_data = df.to_csv(index=False, sep=";").encode('utf-8-sig')
         st.download_button(
             label="📥 Exportar Relatório para Excel (CSV)",
@@ -249,7 +249,10 @@ with aba_saida:
             cursor.execute("SELECT id_produto FROM produtos WHERE codigo = ?", (cod_sai.strip(),))
             prod = cursor.fetchone()
 
-            if prod:
+            if not prod:
+                st.error("Produto não localizado no sistema.")
+                conn.close()
+            else:
                 id_p = prod[0]
                 
                 # Cálculo de Entradas
@@ -261,8 +264,4 @@ with aba_saida:
                 sai = cursor.fetchone()[0]
                 
                 saldo = ent - sai
-
-                if qtd_sai > saldo:
-                    st.error(f"Operação Recusada! Saldo disponível insuficiente ({saldo} unidades).")
-                else:
 

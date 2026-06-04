@@ -57,7 +57,6 @@ if not st.session_state["autenticado"]:
 # --- BARRA LATERAL COM BOTÃO DE LOGOFF ---
 with st.sidebar:
     st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
-    st.write(f"Operador active: `{st.session_state['usuario_logado']}`")
     st.write(f"Operador ativo: `{st.session_state['usuario_logado']}`")
     st.markdown("---")
     if st.button("Fechar Caixa / Sair", use_container_width=True):
@@ -149,9 +148,7 @@ with aba3:
                     cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM vendas WHERE codigo = ?", (v_cod.strip(),))
                     total_vendas = cursor.fetchone()[0]
                     
-                    qtd_no_carrinho_atual = sum(item["whitespace_fix"] if "whitespace_fix" in item else item["quantidade"] for item in st.session_state["carrinho_compras"] if item["codigo"] == v_cod.strip())
                     qtd_no_carrinho_atual = sum(item["quantidade"] for item in st.session_state["carrinho_compras"] if item["codigo"] == v_cod.strip())
-                    
                     saldo_disponivel_real = total_entradas - total_vendas - qtd_no_carrinho_atual
                     
                     if v_qtd > saldo_disponivel_real:
@@ -199,7 +196,6 @@ with aba3:
                     st.session_state["carrinho_compras"] = []
                     st.rerun()
             with c_b2:
-                # CORREÇÃO CRÍTICA AQUI: Removida a linha else duplicada e alinhado o fluxo direto do botão
                 if troco_calculado < 0:
                     st.button("✅ Confirmar Venda", disabled=True)
                 elif st.button("✅ Confirmar Venda"):
@@ -207,7 +203,20 @@ with aba3:
                     cursor = conn.cursor()
                     data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
                     
+                    # CORREÇÃO CRÍTICA: Laço limpo e fechamento perfeito de parênteses no SQL
                     for item in st.session_state["carrinho_compras"]:
                         cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                                       (data_venda, item["codigo"], item["nome"]
+                                       (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag, max(0.0, troco_calculado)))
+                    
+                    conn.commit()
+                    conn.close()
+                    st.session_state["carrinho_compras"] = []
+                    st.success("Venda finalizada com sucesso!")
+                    st.rerun()
+        else:
+            st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
+
+# --- ABA 4: RELATÓRIO DE VENDAS ---
+with aba4:
+    st.subheader("Histórico de Vendas Realizadas")
 

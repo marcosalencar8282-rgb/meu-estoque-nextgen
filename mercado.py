@@ -3,17 +3,17 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-st.title("🛒 Sistema de Vendas e Estoque")
+st.title("🛒 Sistema de Vendas e Estoque Simplificado")
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
-    return sqlite3.connect("sistema_simples.db")
+    return sqlite3.connect("mercado_super_simples.db")
 
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (codigo TEXT, quantidade INTEGER)")
-cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, quantidade INTEGER, total REAL)")
+cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT)")
 conn.commit()
 conn.close()
 
@@ -74,6 +74,7 @@ with aba3:
     st.subheader("Registrar Venda")
     v_cod = st.text_input("Código do Produto Vendido:", key="v1")
     v_qtd = st.number_input("Quantidade Vendida:", min_value=1, value=1, key="v2")
+    v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
     
     if st.button("Efetivar Venda"):
         if v_cod:
@@ -87,10 +88,10 @@ with aba3:
                 valor_total = preco_p * v_qtd
                 data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
                 
-                # Salva a venda direto
-                cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?)", (data_venda, v_cod.strip(), v_qtd, valor_total))
+                # Salva a venda com o nome do produto e forma de pagamento
+                cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?)", (data_venda, v_cod.strip(), nome_p, v_qtd, valor_total, v_pag))
                 conn.commit()
-                st.success(f"Venda Realizada! {v_qtd}x {nome_p} = R$ {valor_total:.2f}")
+                st.success(f"Venda Realizada! {v_qtd}x {nome_p} no {v_pag} = R$ {valor_total:.2f}")
             else:
                 st.error("Produto não cadastrado no sistema!")
             conn.close()
@@ -102,15 +103,17 @@ with aba4:
     st.subheader("Histórico de Vendas Realizadas")
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT data AS [Data/Hora], codigo AS [Código], quantidade AS [Qtd], total AS [Total R$] FROM vendas ORDER BY rowid DESC")
+    cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento FROM vendas ORDER BY rowid DESC")
     dados = cursor.fetchall()
     conn.close()
     
     if dados:
-        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Qtd", "Total R$"])
+        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto Sold", "Qtd", "Total R$", "Forma de Pagamento"])
+        # Traduzindo cabeçalho da tabela para ficar amigável
+        df.columns = ["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento"]
+        
         st.metric(label="FATURAMENTO TOTAL ACUMULADO", value=f"R$ {df['Total R$'].sum():.2f}")
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhuma venda realizada ainda.")
-
 

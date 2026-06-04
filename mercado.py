@@ -171,10 +171,9 @@ with aba_cadastro:
             finally:
                 conn.close()
 
-# --- ABA 5: ENTRADA DE NOTA FISCAL (COMPLETAMENTE LIVRE E FIXA) ---
+# --- ABA 5: ENTRADA DE NOTA FISCAL ---
 with aba_nota:
     st.markdown("### 🧾 ENTRADA DE NOTA FISCAL (ABASTECER ESTOQUE)")
-    
     nf_e = st.text_input("Número da Nota Fiscal (NF-e):", key="nf_compra")
     sku_e = st.text_input("Código de Barras / SKU do Produto:", key="nf_sku")
     qtd_e = st.number_input("Quantidade de Itens Recebidos:", min_value=1, step=1, value=10, key="nf_qtd")
@@ -227,14 +226,14 @@ with aba_pdv:
                     if status_p == "Inativo":
                         st.error("Produto inativo no sistema!")
                     else:
+                        # CORREÇÃO CRÍTICA: Desempacotamento seguro tratando None como 0
                         cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
-                        ent = cursor.fetchone()[0]
+                        res_ent = cursor.fetchone()
+                        ent = res_ent[0] if res_ent else 0
+                        
                         cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM itens_venda WHERE id_produto = ?", (id_p,))
-                        sai = cursor.fetchone()[0]
+                        res_sai = cursor.fetchone()
+                        sai = res_sai[0] if res_sai else 0
+                        
                         estoque_disponivel = ent - sai
-                        
-                        qtd_no_carrinho = sum(item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
-                        
-                        if (qtd_bipar + qtd_no_carrinho) > estoque_disponivel:
-                            st.error(f"Estoque insuficiente! Disponível: {estoque_disponivel} un.")
 

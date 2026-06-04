@@ -7,38 +7,60 @@ st.set_page_config(
     page_title="NextGen | Controle de Estoque", layout="wide", page_icon="⚡"
 )
 
-# Estilização CSS para um visual Dark/Cyber Arrojado (Estilo SaaS Moderno)
+# --- CONTROLE DE SESSÃO / LOGIN ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+
+# Credenciais de acesso (Mude aqui o usuário e a senha)
+USUARIO_CORRETO = "admin"
+SENHA_CORRETA = "1234"
+
+
+def realizar_login():
+    if (
+        st.session_state["usuario_input"] == USUARIO_CORRETO
+        and st.session_state["senha_input"] == SENHA_CORRETA
+    ):
+        st.session_state["autenticado"] = True
+        st.success("Acesso autorizado!")
+    else:
+        st.error("Usuário ou senha incorretos.")
+
+
+# TELA DE LOGIN (Se não estiver autenticado, bloqueia o sistema)
+if not st.session_state["autenticado"]:
+    st.markdown(
+        "<h1 style='text-align: center; color: #FFFFFF; font-family: Inter;'>⚡ NEXTGEN SYSTEM</h1>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<p style='text-align: center; color: #64748B;'>Área Restrita - Autenticação Obrigatória</p>",
+        unsafe_allow_html=True,
+    )
+
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    with col_l2:
+        with st.form("form_login"):
+            st.text_input("Usuário:", key="usuario_input")
+            st.text_input("Senha:", type="password", key="senha_input")
+            st.form_submit_button("Entrar no Sistema", on_click=realizar_login)
+    st.stop()  # Interrompe a execução do resto do código se não logou
+
+# Estilização CSS para o visual Dark/Cyber (Apenas carrega após o login)
 st.markdown(
     """
     <style>
-    /* Fundo geral e fontes */
     .stApp { background-color: #0B0F19; color: #E2E8F0; }
     font-family: 'Inter', sans-serif;
-    
-    /* Customização dos Títulos */
     h1, h2, h3 { color: #FFFFFF; font-weight: 800; letter-spacing: -0.5px; }
-    
-    /* Cartões / Containers */
     div[data-testid="stFrame"] {
         background-color: #161B26;
         border-radius: 12px;
         padding: 20px;
         border: 1px solid #242F41;
     }
-    
-    /* Abas superiores */
-    button[data-baseweb="tab"] {
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        color: #94A3B8 !important;
-        background-color: transparent !important;
-    }
-    button[aria-selected="true"] {
-        color: #38BDF8 !important; /* Azul Neon */
-        border-bottom-color: #38BDF8 !important;
-    }
-    
-    /* Botões Arrojados */
+    button[data-baseweb="tab"] { font-size: 14px !important; font-weight: 600 !important; color: #94A3B8 !important; }
+    button[aria-selected="true"] { color: #38BDF8 !important; border-bottom-color: #38BDF8 !important; }
     .stButton>button {
         background: linear-gradient(135deg, #38BDF8 0%, #0369A1 100%);
         color: white !important;
@@ -46,21 +68,10 @@ st.markdown(
         padding: 10px 24px;
         font-weight: 700;
         border-radius: 8px;
-        transition: all 0.3s ease;
         box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
     }
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
-    }
-    
-    /* Inputs */
-    input, textarea {
-        background-color: #1E293B !important;
-        color: white !important;
-        border: 1px solid #334155 !important;
-        border-radius: 8px !important;
-    }
+    .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4); }
+    input, textarea { background-color: #1E293B !important; color: white !important; border: 1px solid #334155 !important; }
     </style>
 """,
     unsafe_allow_html=True,
@@ -109,13 +120,19 @@ def inicializar_banco():
 inicializar_banco()
 
 # --- TOPO BRANDING ARROJADO ---
-col_logo, col_titulo = st.columns([1, 11])
+col_logo, col_titulo, col_logout = st.columns([1, 4, 1])
 with col_titulo:
     st.markdown(
         "<h1 style='margin:0; font-size: 2.2rem;'>⚡ NEXTGEN <span style='color: #38BDF8;'>|</span> INVENTORY</h1>"
         "<p style='color: #64748B; margin-top: -5px;'>Gestão de Fluxo de Materiais e Notas Fiscais</p>",
         unsafe_allow_html=True,
     )
+
+with col_logout:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("Sair (Logoff)"):
+        st.session_state["autenticado"] = False
+        st.rerun()
 
 # --- SISTEMA DE ABAS ---
 aba_painel, aba_cadastro, aba_entrada, aba_saida = st.tabs([
@@ -164,7 +181,6 @@ with aba_painel:
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("Painel de Posição de Inventário")
-        # Exibe tabela interativa com busca integrada
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhum item em estoque. Comece cadastrando um produto.")
@@ -225,7 +241,7 @@ with aba_entrada:
                     data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         "INSERT INTO entradas (data, nota_fiscal, id_produto, quantidade) VALUES (?, ?, ?, ?)",
-                        (data_atual, nf.strip(), prod[0], qtd_ent),
+                        (data_atual, nf.strip(), prod, qtd_ent),
                     )
                     conn.commit()
                     st.success(f"NF {nf} processada. {qtd_ent} unidades adicionadas!")
@@ -256,31 +272,10 @@ with aba_saida:
                 prod = cursor.fetchone()
 
                 if prod:
-                    id_p = prod[0]
-                    # Validando o saldo real antes de retirar
+                    id_p = prod
                     cursor.execute(
                         "SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?",
                         (id_p,),
                     )
-                    ent = cursor.fetchone()[0]
+                    ent = cursor.fetchone()
                     cursor.execute(
-                        "SELECT COALESCE(SUM(quantidade), 0) FROM saidas WHERE id_produto = ?",
-                        (id_p,),
-                    )
-                    sai = cursor.fetchone()[0]
-                    saldo = ent - sai
-
-                    if qtd_sai > saldo:
-                        st.error(f"Operação Recusada! Saldo disponível insuficiente ({saldo} unidades).")
-                    else:
-                        data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        cursor.execute(
-                            "INSERT INTO saidas (data, id_produto, quantidade) VALUES (?, ?, ?)",
-                            (data_atual, id_p, qtd_sai),
-                        )
-                        conn.commit()
-                        st.success(f"Baixa efetuada! {qtd_sai} unidades retiradas do sistema.")
-                        st.rerun()
-                else:
-                    st.error("Produto não localizado no sistema.")
-                conn.close()

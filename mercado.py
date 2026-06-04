@@ -95,7 +95,6 @@ with aba3:
                     nome_p, preco_p = prod
                     valor_total = preco_p * v_qtd
                     
-                    # Guarda na memória temporária do carrinho
                     st.session_state["carrinho_compras"].append({
                         "codigo": v_cod.strip(),
                         "nome": nome_p,
@@ -132,7 +131,6 @@ with aba3:
                     cursor = conn.cursor()
                     data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
                     
-                    # Salva todos os itens do carrinho um por um no banco de dados
                     for item in st.session_state["carrinho_compras"]:
                         cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?)", 
                                        (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag))
@@ -146,7 +144,8 @@ with aba3:
             st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
 
 # --- ABA 4: RELATÓRIO DE VENDAS ---
-with aba_4:
+# CORREÇÃO AQUI: Mudado de aba_4 para aba4 para resolver o NameError
+with aba4:
     st.subheader("Histórico de Vendas Realizadas")
     conn = conectar()
     cursor = conn.cursor()
@@ -160,4 +159,5 @@ with aba_4:
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhuma venda realizada ainda.")
+
 

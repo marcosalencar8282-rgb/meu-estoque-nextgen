@@ -55,7 +55,7 @@ st.markdown(
         border: 1px solid #242F41;
     }
     button[data-baseweb="tab"] { font-size: 14px !important; font-weight: 600 !important; color: #94A3B8 !important; }
-    button[aria-selected="true"] { color: #10B981 !important; border-bottom-color: #10B981 !important; } /* Verde Dinheiro */
+    button[aria-selected="true"] { color: #10B981 !important; border-bottom-color: #10B981 !important; }
     .stButton>button {
         background: linear-gradient(135deg, #10B981 0%, #047857 100%);
         color: white !important;
@@ -79,7 +79,6 @@ def conectar():
 
 def inicializar_banco():
     conn, cursor = conectar()
-    # 1. Tabela de Produtos com Preço de Venda
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS produtos (
         id_produto INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +88,6 @@ def inicializar_banco():
         status TEXT DEFAULT 'Ativo'
     )
     """)
-    # 2. Tabela de Entradas (Notas Fiscais / Abastecimento)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS entradas (
         id_entrada INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +98,6 @@ def inicializar_banco():
         FOREIGN KEY (id_produto) REFERENCES produtos (id_produto)
     )
     """)
-    # 3. Tabela de Vendas (Cabeçalho do Cupom)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS vendas (
         id_venda INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,7 +107,6 @@ def inicializar_banco():
         forma_pagamento TEXT NOT NULL
     )
     """)
-    # 4. Tabela de Itens da Venda (Produtos do Cupom)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS itens_venda (
         id_item INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -165,7 +161,7 @@ with aba_pdv:
         sku_bipar = st.text_input("Código de Barras ou SKU do Produto:", key="sku_pdv").strip()
         qtd_bipar = st.number_input("Quantidade:", min_value=1, step=1, value=1, key="qtd_pdv")
         
-        if st.button("Adicionar ao Carrinho (F7)", use_container_width=True):
+        if st.button("Adicionar ao Carrinho", use_container_width=True):
             if not sku_bipar:
                 st.warning("Insira o código do produto.")
             else:
@@ -178,14 +174,12 @@ with aba_pdv:
                     if status_p == "Inativo":
                         st.error("Produto inativo no sistema!")
                     else:
-                        # Calcula estoque atual disponível antes de vender
                         cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM entradas WHERE id_produto = ?", (id_p,))
                         ent = cursor.fetchone()[0]
                         cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM itens_venda WHERE id_produto = ?", (id_p,))
                         sai = cursor.fetchone()[0]
                         estoque_disponivel = ent - sai
                         
-                        # Verifica se o carrinho já tem esse item e soma
                         qtd_no_carrinho = sum(item['quantidade'] for item in st.session_state["carrinho"] if item['id'] == id_p)
                         
                         if (qtd_bipar + qtd_no_carrinho) > estoque_disponivel:
@@ -215,7 +209,6 @@ with aba_pdv:
             valor_total_compra = df_cart["subtotal"].sum()
             st.markdown(f"<h2 style='text-align: right; color: #10B981;'>TOTAL: R$ {valor_total_compra:.2f}</h2>", unsafe_allow_html=True)
             
-            # Fechamento do Cupom
             st.markdown("---")
             c_fechar1, c_fechar2, c_fechar3 = st.columns(3)
             with c_fechar1:
@@ -233,7 +226,12 @@ with aba_pdv:
                     st.session_state["carrinho"] = []
                     st.rerun()
             with c_btn2:
-                if st.button("✅ FINALIZAR VENDA (F10)", use_container_width=True):
+                if st.button("✅ FINALIZAR VENDA", use_container_width=True):
                     conn, cursor = conectar()
                     data_venda = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    cursor.execute("INSERT INTO vendas (data, total, operador, forma_pagamento) VALUES (?, ?, ?, ?)",
+                                   (data_venda, valor_total_compra, st.session_state["usuario_logado"], forma_pagto))
+                    id_da_venda_salva = cursor.lastrowid
+                    
+                    for item in st.session_state["carrinho"]:
               

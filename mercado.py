@@ -26,13 +26,12 @@ USUARIOS_PERMITIDOS = {
 
 # --- CONEXÃO DIRETA COM O BANCO ---
 def conectar():
-    return sqlite3.connect("mercado_troco_v11.db")
+    return sqlite3.connect("mercado_saldo_v12.db")
 
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, quantidade INTEGER)")
-# ATUALIZAÇÃO: Adicionado o campo de troco na tabela de vendas
 cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
 conn.commit()
 conn.close()
@@ -68,12 +67,13 @@ with st.sidebar:
 
 st.title("🛒 Sistema de Vendas e Estoque")
 
-# --- CRIAÇÃO DAS ABAS SIMPLES ---
-aba1, aba2, aba3, aba4 = st.tabs([
+# --- CRIAÇÃO DAS ABAS SIMPLES (AGORA COM 5 ABAS) ---
+aba1, aba2, aba3, aba4, aba5 = st.tabs([
     "📝 1. CADASTRAR PRODUTO", 
     "🧾 2. ENTRADA DE ESTOQUE (NF)", 
     "💻 3. FRENTE DE CAIXA (PDV)", 
-    "📊 4. RELATÓRIO DE VENDAS"
+    "📊 4. RELATÓRIO DE VENDAS",
+    "📈 5. SALDO EM ESTOQUE"
 ])
 
 # --- ABA 1: CADASTRAR PRODUTO ---
@@ -122,7 +122,7 @@ with aba2:
         else:
             st.warning("Digite o número da Nota Fiscal e o código do produto.")
 
-# --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO E TROCO) ---
+# --- ABA 3: FRENTE DE CAIXA (PDV COM VALIDAÇÃO DE SALDO REAL) ---
 with aba3:
     st.subheader("Frente de Caixa - Vendas")
     col_v1, col_v2 = st.columns([1, 1.5])
@@ -141,16 +141,30 @@ with aba3:
                 
                 if prod:
                     nome_p, preco_p = prod
-                    valor_total = preco_p * v_qtd
                     
-                    st.session_state["carrinho_compras"].append({
-                        "codigo": v_cod.strip(),
-                        "nome": nome_p,
-                        "quantidade": v_qtd,
-                        "total": valor_total
-                    })
-                    st.success(f"'{nome_p}' colocado no carrinho!")
-                    st.rerun()
+                    # CÁLCULO DE SEGURANÇA: Descobre o saldo atual do estoque antes de deixar vender
+                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM estoque WHERE codigo = ?", (v_cod.strip(),))
+                    total_entradas = cursor.fetchone()[0]
+                    cursor.execute("SELECT COALESCE(SUM(quantidade), 0) FROM vendas WHERE codigo = ?", (v_cod.strip(),))
+                    total_vendas = cursor.fetchone()[0]
+                    
+                    # Calcula quanto já tem no carrinho atual do mesmo item
+                    qtd_no_carrinho_atual = sum(item["quantidade"] for item in st.session_state["carrinho_compras"] if item["codigo"] == v_cod.strip())
+                    
+                    saldo_disponivel_real = total_entradas - total_vendas - qtd_no_carrinho_atual
+                    
+                    if v_qtd > saldo_disponivel_real:
+                        st.error(f"Estoque insuficiente! Saldo atual desse produto é de apenas {saldo_disponivel_real} unidades.")
+                    else:
+                        valor_total = preco_p * v_qtd
+                        st.session_state["carrinho_compras"].append({
+                            "codigo": v_cod.strip(),
+                            "nome": nome_p,
+                            "quantidade": v_qtd,
+                            "total": valor_total
+                        })
+                        st.success(f"'{nome_p}' colocado no carrinho!")
+                        st.rerun()
                 else:
                     st.error("Produto não cadastrado!")
                 conn.close()
@@ -170,10 +184,8 @@ with aba3:
             st.markdown("#### 💰 Fechamento de Valores")
             v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
             
-            # Campo de entrada para quanto o cliente entregou em dinheiro
             valor_recebido = st.number_input("Valor Pago pelo Cliente (R$):", min_value=0.0, value=soma_total_compra, step=1.0)
             
-            # Cálculo automático do troco na tela
             troco_calculado = valor_recebido - soma_total_compra
             if troco_calculado > 0:
                 st.markdown(f"<p style='color:#F59E0B; font-weight:bold; font-size:20px;'>Troco a Devolver: R$ {troco_calculado:.2f}</p>", unsafe_allow_html=True)
@@ -186,16 +198,14 @@ with aba3:
                     st.session_state["carrinho_compras"] = []
                     st.rerun()
             with c_b2:
-                # Bloqueia a confirmação se o valor pago for menor que o total da compra
                 if troco_calculado < 0:
-                    st.button("✅ Confirmar Venda", disabled=True, help="O valor pago é menor que o total.")
+                    st.button("✅ Confirmar Venda", disabled=True)
                 else:
                     if st.button("✅ Confirmar Venda"):
                         conn = conectar()
                         cursor = conn.cursor()
                         data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
                         
-                        # Salva a venda incluindo o troco correspondente
                         for item in st.session_state["carrinho_compras"]:
                             cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
                                            (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag, max(0.0, troco_calculado)))
@@ -206,22 +216,5 @@ with aba3:
                         st.success("Venda finalizada com sucesso!")
                         st.rerun()
         else:
-            st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
-
-# --- ABA 4: RELATÓRIO DE VENDAS ---
-with aba4:
-    st.subheader("Histórico de Vendas Realizadas")
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento, troco FROM vendas ORDER BY rowid DESC")
-    dados = cursor.fetchall()
-    conn.close()
-    
-    if dados:
-        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento", "Troco R$"])
-        st.metric(label="FATURAMENTO TOTAL ACUMULADO", value=f"R$ {df['Total R$'].sum():.2f}")
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhuma venda realizada ainda.")
 
 

@@ -188,10 +188,9 @@ with aba_painel:
         st.markdown("<br>", unsafe_allow_html=True)
         st.dataframe(df, use_container_width=True, hide_index=True)
         
-        # Converte para CSV compatível com o Excel brasileiro (separado por ponto e vírgula)
+        # Converte para CSV compatível com o Excel brasileiro
         csv_data = df.to_csv(index=False, sep=";").encode('utf-8-sig')
         
-        # Cria o botão de download físico sem dependências externas
         st.download_button(
             label="📥 Exportar Relatório para Excel (CSV)",
             data=csv_data,
@@ -274,3 +273,6 @@ with aba_saida:
         cx1, cx2 = st.columns(2)
         with cx1:
             cod_sai = st.text_input("Código SKU para Baixa:")
+        with cx2:
+            qtd_sai = st.number_input("Quantidade Requisitada:", min_value=1, step=1)
+

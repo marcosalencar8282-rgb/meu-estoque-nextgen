@@ -12,24 +12,25 @@ if "autenticado" not in st.session_state:
 if "usuario_logado" not in st.session_state:
     st.session_state["usuario_logado"] = ""
 
-# LISTA DE USUÁRIOS PERMITIDOS (Incluindo o Laboratório)
+# LISTA DE USUÁRIOS PERMITIDOS
 USUARIOS_PERMITIDOS = {
     "admin": "Master@2026",
     "marcos": "931481",
     "laboratorio": "LabCQ2026"
 }
 
-# --- CONEXÃO COM O BANCO DE DADOS EM PASTA PERMITIDA ---
+# --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("controle_qualidade.db")
+    return sqlite3.connect("controle_qualidade_nf.db")
 
 conn = conectar()
 cursor = conn.cursor()
-# Cria a tabela de inspeção com Lote, Fabricação, Validade e o Status do Laudo
+# ATUALIZAÇÃO: Adicionada a coluna nota_fiscal na tabela de inspeção
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS inspeccao (
         id_laudo INTEGER PRIMARY KEY AUTOINCREMENT,
         data_chegada TEXT,
+        nota_fiscal TEXT,
         codigo TEXT,
         descricao TEXT,
         lote TEXT UNIQUE,
@@ -74,15 +75,17 @@ st.title("🔬 Controle de Qualidade e Liberação de Lotes")
 
 # CRIAÇÃO DAS ABAS DO CQ
 aba1, aba2, aba3 = st.tabs([
-    "📥 1. RECPÇÃO / CADASTRAR LOTE", 
+    "📥 1. RECEPÇÃO / CADASTRAR LOTE", 
     "🧫 2. PAINEL DO LABORATÓRIO", 
     "📋 3. RELATÓRIO GERAL DE LAUDOS"
 ])
 
-# --- ABA 1: RECPÇÃO / CADASTRAR LOTE ---
+# --- ABA 1: RECEPÇÃO / CADASTRAR LOTE ---
 with aba1:
     st.subheader("Entrada de Produto para Inspeção")
     
+    # Inclusão do campo Nota Fiscal
+    q_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="q_nf")
     q_cod = st.text_input("Código do Produto (SKU/EAN):", key="q1")
     q_des = st.text_input("Descrição / Nome do Produto:", key="q2")
     q_lot = st.text_input("Número do Lote do Fabricante:", key="q3")
@@ -94,23 +97,23 @@ with aba1:
         q_val = st.text_input("Data de Validade (Ex: 01/12/2026):", key="q5")
         
     if st.button("Dar Entrada para Análise"):
-        if q_cod and q_des and q_lot:
+        if q_nf and q_cod and q_des and q_lot:
             conn = conectar()
             cursor = conn.cursor()
             try:
                 dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
-                    INSERT INTO inspeccao (data_chegada, codigo, descricao, lote, fabricacao, validade) 
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (dt_atual, q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
+                    INSERT INTO inspeccao (data_chegada, nota_fiscal, codigo, descricao, lote, fabricacao, validade) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (dt_atual, q_nf.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
                 conn.commit()
-                st.success(f"Lote {q_lot} de '{q_des}' enviado para o Laboratório com status 'Em Análise'!")
-            except Exception as e:
+                st.success(f"Lote {q_lot} da NF {q_nf} enviado para o Laboratório com status 'Em Análise'!")
+            except:
                 st.error("Erro: Este número de Lote já está cadastrado no sistema!")
             finally:
                 conn.close()
         else:
-            st.warning("Por favor, preencha o Código, Descrição e o número do Lote.")
+            st.warning("Por favor, preencha a Nota Fiscal, Código, Descrição e o número do Lote.")
 
 # --- ABA 2: PAINEL DO LABORATÓRIO (APROVAR OU REPROVAR) ---
 with aba2:
@@ -118,17 +121,18 @@ with aba2:
     
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT lote, descricao FROM inspeccao WHERE status = 'Em Análise'")
+    # Puxa o lote, descrição e nota fiscal para o laboratório ver
+    cursor.execute("SELECT lote, descricao, nota_fiscal FROM inspeccao WHERE status = 'Em Análise'")
     lotes_pendentes = cursor.fetchall()
     conn.close()
     
     if lotes_pendentes:
-        # Cria uma lista bonita para o químico selecionar o lote pendente
-        lista_opcoes = [f"{row[0]} - {row[1]}" for row in lotes_pendentes]
+        # Exibe as informações da NF de forma clara na caixinha de seleção
+        lista_opcoes = [f"Lote: {row[0]} | Produto: {row[1]} | NF: {row[2]}" for row in lotes_pendentes]
         lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
         
-        # Extrai apenas o número do lote do texto selecionado
-        lote_final = lote_selecionado_txt.split(" - ")[0]
+        # Extrai apenas o número do lote original para dar a baixa
+        lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
         
         st.markdown("---")
         st.markdown("#### ⚖️ Decisão do Laboratório:")
@@ -143,7 +147,7 @@ with aba2:
                                (st.session_state["usuario_logado"], lote_final))
                 conn.commit()
                 conn.close()
-                st.success(f"Lote {lote_final} LIBERADO para comercialização com sucesso!")
+                st.success(f"Lote {lote_final} LIBERADO para uso/comercialização com sucesso!")
                 st.rerun()
                 
         with col_btn2:
@@ -166,7 +170,7 @@ with aba3:
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT data_chegada, codigo, descricao, lote, fabricacao, validade, status, responsavel 
+        SELECT data_chegada, nota_fiscal, codigo, descricao, lote, fabricacao, validade, status, responsavel 
         FROM inspeccao ORDER BY id_laudo DESC
     """)
     dados_cq = cursor.fetchall()
@@ -174,10 +178,9 @@ with aba3:
     
     if dados_cq:
         df_cq = pd.DataFrame(dados_cq, columns=[
-            "Data Chegada", "Código SKU", "Produto", "Lote", "Fabricação", "Validade", "Resultado CQ", "Responsável"
+            "Data Chegada", "Nota Fiscal", "Código SKU", "Produto", "Lote", "Fabricação", "Validade", "Resultado CQ", "Responsável"
         ])
         
-        # Métricas rápidas no topo do relatório
         m1, m2, m3 = st.columns(3)
         with m1:
             st.metric(label="Total de Lotes Inspecionados", value=len(df_cq))

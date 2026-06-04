@@ -74,27 +74,24 @@ def inicializar_banco():
 
 inicializar_banco()
 
-# --- LÓGICA INTERNA DE LOGIN COM SEPARAÇÃO COMPLETA ---
+# --- LÓGICA INTERNA DE LOGIN ---
 if not st.session_state["autenticado"]:
     st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>🛒 NEXTGEN SUPERMERCADO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #64748B;'>Autenticação de Operador de Caixa / Gerência</p>", unsafe_allow_html=True)
 
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
-        with st.form("login_form_novo"):
-            u_input = st.text_input("Operador:")
-            p_input = st.text_input("Senha:", type="password")
-            btn_logar = st.form_submit_button("Abrir Sistema / Caixa", use_container_width=True)
-            
-            if btn_logar:
-                if u_input.strip() in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[u_input.strip()] == p_input.strip():
-                    st.session_state["autenticado"] = True
-                    st.session_state["usuario_logado"] = u_input.strip()
-                    st.rerun()
-                else:
-                    st.error("Operador ou senha incorretos.")
+        u_input = st.text_input("Operador:")
+        p_input = st.text_input("Senha:", type="password")
+        if st.button("Abrir Sistema / Caixa", use_container_width=True):
+            if u_input.strip() in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[u_input.strip()] == p_input.strip():
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_logado"] = u_input.strip()
+                st.rerun()
+            else:
+                st.error("Operador ou senha incorretos.")
 else:
-    # --- VISUAL DO SISTEMA (SÓ CARREGA SE ESTIVER LOGADO) ---
+    # --- VISUAL DO SISTEMA ---
     st.markdown(
         """
         <style>
@@ -224,4 +221,6 @@ else:
                         st.session_state["carrinho"] = []
                         st.rerun()
                 with c_btn2:
-              
+                    if st.button("✅ FINALIZAR VENDA", use_container_width=True):
+                        conn = conectar()
+                        cursor = conn.cursor()

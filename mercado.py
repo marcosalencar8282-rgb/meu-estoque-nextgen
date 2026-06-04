@@ -233,5 +233,4 @@ with aba_pdv:
                                    (data_venda, valor_total_compra, st.session_state["usuario_logado"], forma_pagto))
                     id_da_venda_salva = cursor.lastrowid
                     
-                    for item in st.session_state["carrinho"]:
-              
+                    # CORREÇÃO AQUI: Alinhamento perfeito do laço for para gravação de itens

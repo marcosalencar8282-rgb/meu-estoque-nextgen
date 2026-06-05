@@ -15,12 +15,11 @@ if "perfil_usuario" not in st.session_state:
     st.session_state["perfil_usuario"] = ""
 
 # LISTA DE USUÁRIOS PERMITIDOS E SEUS PERFIS/FUNÇÕES
-# Perfis disponíveis: 'admin' (faz tudo), 'cadastro' (só cadastra), 'laboratorio' (só aprova/reprova), 'visualizar' (só vê relatórios)
 USUARIOS_PERMITIDOS = {
     "admin": {"senha": "Master@2026", "perfil": "admin"},
     "marcos": {"senha": "931481", "perfil": "cadastro"},
     "laboratorio": {"senha": "LabCQ2026", "perfil": "laboratorio"},
-    "visitante": {"senha": "123", "perfil": "visualizar"} # Exemplo de usuário apenas para leitura
+    "visitante": {"senha": "123", "perfil": "visualizar"}
 }
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
@@ -92,10 +91,7 @@ if perfil in ["admin", "laboratorio"]:
 if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Cria dinamicamente apenas as abas que o usuário pode ver
 abas = st.tabs(abas_disponiveis)
-
-# Mapeia qual aba renderizar baseado nos textos das abas criadas
 aba_index = 0
 
 # --- ABA 1: RECEPÇÃO / CADASTRAR LOTE ---
@@ -104,19 +100,23 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
         aba_index += 1
         st.subheader("Entrada de Produto para Inspeção")
         
-        q_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="q_nf")
-        q_for = st.text_input("Nome do Fornecedor / Fabricante:", key="q_for")
-        q_cod = st.text_input("Código do Produto (SKU/EAN):", key="q1")
-        q_des = st.text_input("Descrição / Nome do Produto:", key="q2")
-        q_lot = st.text_input("Número do Lote do Fabricante:", key="q3")
-        
-        c_f1, c_f2 = st.columns(2)
-        with c_f1:
-            q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):", key="q4")
-        with c_f2:
-            q_val = st.text_input("Data de Validade (Ex: 01/12/2026):", key="q5")
+        # O uso do formulário do Streamlit garante o envio em bloco dos dados
+        with st.form("form_cadastro", clear_on_submit=True):
+            q_nf = st.text_input("Número da Nota Fiscal (NF-e):")
+            q_for = st.text_input("Nome do Fornecedor / Fabricante:")
+            q_cod = st.text_input("Código do Produto (SKU/EAN):")
+            q_des = st.text_input("Descrição / Nome do Produto:")
+            q_lot = st.text_input("Número do Lote do Fabricante:")
             
-        if st.button("Dar Entrada para Análise"):
+            c_f1, c_f2 = st.columns(2)
+            with c_f1:
+                q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):")
+            with c_f2:
+                q_val = st.text_input("Data de Validade (Ex: 01/12/2026):")
+                
+            enviar = st.form_submit_button("Dar Entrada para Análise", use_container_width=True)
+            
+        if enviar:
             if q_nf and q_for and q_cod and q_des and q_lot:
                 conn = conectar()
                 cursor = conn.cursor()
@@ -127,13 +127,21 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
                     conn.commit()
-                    st.success(f"Lote {q_lot} da NF {q_nf} enviado para o Laboratório com status 'Em Análise'!")
-                except:
+                    
+                    # Armazena mensagem de sucesso temporária e força atualização instantânea da tela e dos relatórios
+                    st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} cadastrado com sucesso!"
+                    st.rerun()
+                except sqlite3.IntegrityError:
                     st.error("Erro: Este número de Lote já está cadastrado no sistema!")
                 finally:
                     conn.close()
             else:
                 st.warning("Por favor, preencha a Nota Fiscal, Fornecedor, Código, Descrição e o Lote.")
+
+    # Exibe a notificação de sucesso após o rerun para garantir sincronia visual
+    if "sucesso_cadastro" in st.session_state:
+        st.success(st.session_state["sucesso_cadastro"])
+        del st.session_state["sucesso_cadastro"]
 
 # --- ABA 2: PAINEL DO LABORATÓRIO (APROVAR OU REPROVAR) ---
 if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
@@ -150,6 +158,8 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         if lotes_pendentes:
             lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
+            
+            # Correção crucial: mapeia o texto selecionado de volta ao lote exato (string row[0])
             lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
             
             st.markdown("---")
@@ -165,7 +175,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                                    (st.session_state["usuario_logado"], lote_final))
                     conn.commit()
                     conn.close()
-                    st.success(f"Lote {lote_final} LIBERADO para uso/comercialização com sucesso!")
                     st.rerun()
                     
             with col_btn2:
@@ -176,7 +185,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                                    (st.session_state["usuario_logado"], lote_final))
                     conn.commit()
                     conn.close()
-                    st.error(f"Lote {lote_final} BLOQUEADO E REPROVADO pelo controle de qualidade!")
                     st.rerun()
         else:
             st.info("Excelente! Nenhum lote pendente de análise no laboratório no momento.")
@@ -214,4 +222,3 @@ if "📋 3. RELATÓRIO GERAL DE LAUDOS" in abas_disponiveis:
             st.dataframe(df_cq, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum registro de laudo emitido no banco de dados ainda.")
-

@@ -86,16 +86,20 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # SOLUÇÃO DO PROBLEMA: Compara a senha (índice 0) e armazena apenas o perfil (índice 1)
-                if resultado and resultado[0] == p_input:
-                    st.session_state["autenticado"] = True
-                    st.session_state["usuario_logado"] = u_input
-                    st.session_state["perfil_usuario"] = resultado[1]  # Salva apenas a string do perfil ('admin', 'laboratorio')
-                    st.rerun()
+                if resultado:
+                    # Divisão segura sem usar colchetes numéricos
+                    senha_banco, perfil_banco = resultado
+                    if senha_banco == p_input:
+                        st.session_state["autenticado"] = True
+                        st.session_state["usuario_logado"] = u_input
+                        st.session_state["perfil_usuario"] = perfil_banco
+                        st.rerun()
+                    else:
+                        st.error("Usuário ou senha incorretos.")
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
-    # --- SUB-TELA 2: AUTO-CADASTRO (CRIAR PRÓPRIA SENHA) ---
+    # --- SUB-TELA 2: AUTO-CADASTRO ---
     with aba_novo_cadastro:
         col_c1, col_c2, col_c3 = st.columns([1, 1.2, 1])
         with col_c2:
@@ -217,13 +221,9 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lista_opcoes = []
             mapeamento_lotes = {}
             
-            # RESOLUÇÃO DO ERRO TEXTUAL: Extrai os elementos da tupla pelos índices numéricos corretos
+            # Divisão segura dos elementos da tupla sem usar colchetes numéricos
             for item in lotes_pendentes:
-                lote_id = str(item[0])
-                desc_prod = str(item[1])
-                nf_num = str(item[2])
-                forn_nome = str(item[3])
-                
+                lote_id, desc_prod, nf_num, forn_nome = item
                 texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
                 lista_opcoes.append(texto_exibicao)
                 mapeamento_lotes[texto_exibicao] = lote_id
@@ -233,3 +233,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
+            
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:

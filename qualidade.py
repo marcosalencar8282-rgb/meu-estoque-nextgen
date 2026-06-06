@@ -79,12 +79,12 @@ if not st.session_state["autenticado"]:
                 conn.close()
                 
                 if resultado:
-                    # CORREÇÃO DO LOGIN: Separa a senha e o perfil da tupla retornada pelo banco
                     senha_banco, perfil_banco = resultado
                     if senha_banco == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
-                        st.session_state["perfil_usuario"] = str(perfil_banco).strip() # Salva o texto puro 'admin' ou 'laboratorio'
+                        # Garante armazenamento em string limpa
+                        st.session_state["perfil_usuario"] = str(perfil_banco).strip()
                         st.rerun()
                     else:
                         st.error("Usuário ou senha incorretos.")
@@ -214,7 +214,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            # Estrutura protegida de loops baseada no seu padrão original
             lista_opcoes = []
             mapeamento_lotes = {}
             for item in lotes_pendentes:
@@ -230,3 +229,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             st.markdown("#### ⚖️ Decisão do Laboratório:")
             
             col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                if st.button("🟢 APROVAR LOTE", use_container_width=True):
+                    conn = conectar()

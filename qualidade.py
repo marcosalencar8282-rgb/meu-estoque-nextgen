@@ -78,7 +78,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # CORREÇÃO: Validação exata da tupla (senha, perfil)
+                # CORREÇÃO 1: Extraindo corretamente a senha e o perfil da tupla
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -215,7 +215,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lista_lotes = [f"{row['lote']} | {row['descricao']}" for _, row in df_analise.iterrows()]
             escolha_lote = st.selectbox("Lotes aguardando parecer:", lista_lotes)
             
-            # CORREÇÃO CRÍTICA: Extraindo o índice 0 da lista e aplicando o strip na string pura
+            # CORREÇÃO 2: Acessando o primeiro índice da lista e limpando a string
             lote_puro = escolha_lote.split(" | ")[0].strip()
             
             with st.form("form_laboratorio"):

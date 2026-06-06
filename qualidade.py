@@ -78,7 +78,6 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # Ajustado para extrair a senha corretamente da tupla do banco
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -215,7 +214,8 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lista_lotes = [f"{row['lote']} | {row['descricao']}" for _, row in df_analise.iterrows()]
             escolha_lote = st.selectbox("Lotes aguardando parecer:", lista_lotes)
             
-            lote_selecionado = escolha_lote.split(" | ")[0]
+            # CORREÇÃO AQUI: Pegando o elemento [0] para obter a string pura do lote
+            lote_puro = escolha_lote.split(" | ")[0].strip()
             
             with st.form("form_laboratorio"):
                 novo_status = st.selectbox("Resultado da Inspeção:", ["Aprovado", "Reprovado"])
@@ -226,6 +226,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                 if salvar_parecer:
                     conn = conectar()
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, analista_responsavel, lote_selecionado))
+                    cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, analista_responsavel, lote_puro))
                     conn.commit()
                     conn.close()

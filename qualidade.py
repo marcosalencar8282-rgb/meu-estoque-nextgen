@@ -22,7 +22,7 @@ def conectar():
 conn = conectar()
 cursor = conn.cursor()
 
-# Tabela de Inspeção (Sua estrutura original intocada)
+# Tabela de Inspeção (Estrutura original preservada)
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS inspeccao (
         id_laudo INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -213,10 +213,11 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             st.write("Selecione um lote abaixo para emitir o laudo de liberação ou reprovação:")
             
             # Cria uma lista formatada para o selectbox
-            lista_lotes = [f"{row['lote']} - {row['descricao']}" for _, row in df_analise.iterrows()]
+            lista_lotes = [f"{row['lote']} | {row['descricao']}" for _, row in df_analise.iterrows()]
             escolha_lote = st.selectbox("Lotes aguardando parecer:", lista_lotes)
             
-            lote_selecionado = escolha_lote.split(" - ")[0]
+            # Extrai apenas o código do lote puro antes da barra vertical
+            lote_selecionado = escolha_lote.split(" | ")[0]
             
             with st.form("form_laboratorio"):
                 novo_status = st.selectbox("Resultado da Inspeção:", ["Aprovado", "Reprovado"])
@@ -228,5 +229,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                     conn = conectar()
                     cursor = conn.cursor()
                     cursor.execute("""
-                        UPDATE inspeccao 
-                        SET status = ?, responsavel = ?

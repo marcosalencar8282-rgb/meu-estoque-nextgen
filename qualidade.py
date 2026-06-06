@@ -39,7 +39,7 @@ cursor.execute("""
     )
 """)
 
-# NOVA TABELA: Armazenamento persistente de usuários e senhas criadas
+# Tabela de Armazenamento de usuários e senhas
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         usuario TEXT PRIMARY KEY,
@@ -48,7 +48,7 @@ cursor.execute("""
     )
 """)
 
-# Carga de Segurança: Garante os acessos antigos caso a tabela de usuários seja nova
+# Carga de Segurança: Garante os acessos antigos no banco de dados
 usuarios_iniciais = [
     ("admin", "Master@2026", "admin"),
     ("marcos", "931481", "cadastro"),
@@ -60,7 +60,7 @@ for usr, psw, prf in usuarios_iniciais:
     try:
         cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (usr, psw, prf))
     except sqlite3.IntegrityError:
-        pass  # Usuário já existe no banco, ignora a inserção
+        pass
 
 conn.commit()
 conn.close()
@@ -86,7 +86,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # Validação direta contra o banco de dados dinâmico
+                # CORREÇÃO CRUCIAL AQUI: Compara a senha corretamente e extrai o perfil de forma isolada
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -95,7 +95,7 @@ if not st.session_state["autenticado"]:
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
-    # --- SUB-TELA 2: AUTO-CADASTRO (CRIAR PRÓPRIA SENHA) ---
+    # --- SUB-TELA 2: AUTO-CADASTRO ---
     with aba_novo_cadastro:
         col_c1, col_c2, col_c3 = st.columns([1, 1.2, 1])
         with col_c2:
@@ -106,15 +106,14 @@ if not st.session_state["autenticado"]:
             
             novo_perfil = st.selectbox(
                 "Selecione seu Perfil Operacional:", 
-                ["cadastro", "laboratorio", "visualizar"],
-                help="Determina quais abas e ferramentas você poderá acessar no sistema."
+                ["cadastro", "laboratorio", "visualizar"]
             )
             
             if st.button("Cadastrar e Salvar Senha", use_container_width=True):
                 if not novo_u or not novo_p:
-                    st.warning("Todos os campos de usuário e senha devem ser preenchidos.")
+                    st.warning("Todos os campos devem ser preenchidos.")
                 elif novo_p != conf_p:
-                    st.error("Divergência detectada! As senhas informadas não são iguais.")
+                    st.error("As senhas informadas não são iguais.")
                 else:
                     conn = conectar()
                     cursor = conn.cursor()
@@ -122,9 +121,9 @@ if not st.session_state["autenticado"]:
                         cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", 
                                        (novo_u, novo_p, novo_perfil))
                         conn.commit()
-                        st.success(f"Excelente! Usuário `{novo_u}` registrado. Vá para a aba de Login para entrar.")
+                        st.success(f"Usuário `{novo_u}` registrado! Use a aba de Login para entrar.")
                     except sqlite3.IntegrityError:
-                        st.error("Este nome de usuário já está registrado por outro analista.")
+                        st.error("Este nome de usuário já está registrado.")
                     finally:
                         conn.close()
     st.stop()
@@ -189,7 +188,6 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
                     conn.commit()
-                    
                     st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} cadastrado com sucesso!"
                     st.rerun()
                 except sqlite3.IntegrityError:
@@ -216,7 +214,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            # Correção visual: Extrai strings em vez de tuplas puras na listagem
+            # CORREÇÃO AQUI: Mapeia as posições exatas dos elementos da tupla para não gerar erro textual na caixa de seleção
             lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
             
@@ -231,3 +229,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                 if st.button("🟢 APROVAR LOTE", use_container_width=True):
                     conn = conectar()
                     cursor = conn.cursor()
+                    cursor.execute("UPDATE inspeccao SET status = 'APROVADO', responsavel = ? WHERE lote = ?", 
+                                   (st.session_state["usuario_logado"], lote_final))
+                    conn.commit()
+                    conn.close()

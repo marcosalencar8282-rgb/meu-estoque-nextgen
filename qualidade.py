@@ -157,6 +157,11 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
         aba_index += 1
         st.subheader("Entrada de Produto para Inspeção")
         
+        # Exibe mensagem de sucesso persistida se houver
+        if "sucesso_cadastro" in st.session_state:
+            st.success(st.session_state["sucesso_cadastro"])
+            del st.session_state["sucesso_cadastro"]
+
         with st.form("form_cadastro", clear_on_submit=True):
             q_nf = st.text_input("Número da Nota Fiscal (NF-e):")
             q_for = st.text_input("Nome do Fornecedor / Fabricante:")
@@ -192,43 +197,36 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
             else:
                 st.warning("Por favor, preencha a Nota Fiscal, Fornecedor, Código, Descrição e o Lote.")
 
-    if "sucesso_cadastro" in st.session_state:
-        st.success(st.session_state["sucesso_cadastro"])
-        del st.session_state["sucesso_cadastro"]
-
-# --- ABA 2: PAINEL DO LABORATÓRIO (APROVAR E REPROVAR LOTE) ---
+# --- ABA 2: PAINEL DO LABORATÓRIO (Parecer Técnico) ---
 if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
     with abas[aba_index]:
         aba_index += 1
-        st.subheader("Painel de Julgamento Laboratorial")
+        st.subheader("Análise Laboratorial e Parecer Técnico")
         
         conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute("SELECT lote, descricao, nota_fiscal, fornecedor FROM inspeccao WHERE status = 'Em Análise'")
-        lotes_pendentes = cursor.fetchall()
+        df_analise = pd.read_sql_query("SELECT id_laudo, lote, descricao, status FROM inspeccao WHERE status = 'Em Análise'", conn)
         conn.close()
         
-        if lotes_pendentes:
-            lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
-            lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
+        if df_analise.empty:
+            st.info("Não há lotes pendentes de análise laboratorial no momento.")
+        else:
+            st.write("Selecione um lote abaixo para emitir o laudo de liberação ou reprovação:")
             
-            lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
+            # Cria uma lista formatada para o selectbox
+            lista_lotes = [f"{row['lote']} - {row['descricao']}" for _, row in df_analise.iterrows()]
+            escolha_lote = st.selectbox("Lotes aguardando parecer:", lista_lotes)
             
-            st.markdown("---")
-            st.markdown("#### ⚖️ Decisão do Laboratório:")
+            lote_selecionado = escolha_lote.split(" - ")[0]
             
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                if st.button("🟢 APROVAR LOTE", use_container_width=True):
+            with st.form("form_laboratorio"):
+                novo_status = st.selectbox("Resultado da Inspeção:", ["Aprovado", "Reprovado"])
+                analista_responsavel = st.session_state["usuario_logado"]
+                
+                salvar_parecer = st.form_submit_button("Gravar Decisão do Controle de Qualidade", use_container_width=True)
+                
+                if salvar_parecer:
                     conn = conectar()
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE inspeccao SET status = 'APROVADO', responsavel = ? WHERE lote = ?", 
-                                   (st.session_state["usuario_logado"], lote_final))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
-                    
-            with col_btn2:
-                if st.button("🔴 REPROVAR LOTE", use_container_width=True):
-                    conn = conectar()
+                    cursor.execute("""
+                        UPDATE inspeccao 
+                        SET status = ?, responsavel = ?

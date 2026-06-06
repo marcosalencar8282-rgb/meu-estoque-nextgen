@@ -78,6 +78,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
+                # Ajustado para extrair a senha corretamente da tupla do banco
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -86,7 +87,7 @@ if not st.session_state["autenticado"]:
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
-    # --- SUB-TELA 2: AUTO-CADASTRO (CRIAR PRÓPRIA SENHA) ---
+    # --- SUB-TELA 2: AUTO-CADASTRO ---
     with aba_novo_cadastro:
         col_c1, col_c2, col_c3 = st.columns([1, 1.2, 1])
         with col_c2:
@@ -157,7 +158,6 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
         aba_index += 1
         st.subheader("Entrada de Produto para Inspeção")
         
-        # Exibe mensagem de sucesso persistida se houver
         if "sucesso_cadastro" in st.session_state:
             st.success(st.session_state["sucesso_cadastro"])
             del st.session_state["sucesso_cadastro"]
@@ -197,7 +197,7 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
             else:
                 st.warning("Por favor, preencha a Nota Fiscal, Fornecedor, Código, Descrição e o Lote.")
 
-# --- ABA 2: PAINEL DO LABORATÓRIO (Parecer Técnico) ---
+# --- ABA 2: PAINEL DO LABORATÓRIO ---
 if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
     with abas[aba_index]:
         aba_index += 1
@@ -210,22 +210,22 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         if df_analise.empty:
             st.info("Não há lotes pendentes de análise laboratorial no momento.")
         else:
-            st.write("Selecione um lote abaixo para emitir o laudo de liberação ou reprovação:")
+            st.write("Selecione um lote abaixo para emitir o laudo:")
             
-            # Cria uma lista formatada para o selectbox
             lista_lotes = [f"{row['lote']} | {row['descricao']}" for _, row in df_analise.iterrows()]
             escolha_lote = st.selectbox("Lotes aguardando parecer:", lista_lotes)
             
-            # Extrai apenas o código do lote puro antes da barra vertical
             lote_selecionado = escolha_lote.split(" | ")[0]
             
             with st.form("form_laboratorio"):
                 novo_status = st.selectbox("Resultado da Inspeção:", ["Aprovado", "Reprovado"])
                 analista_responsavel = st.session_state["usuario_logado"]
                 
-                salvar_parecer = st.form_submit_button("Gravar Decisão do Controle de Qualidade", use_container_width=True)
+                salvar_parecer = st.form_submit_button("Gravar Decisão do CQ", use_container_width=True)
                 
                 if salvar_parecer:
                     conn = conectar()
                     cursor = conn.cursor()
-                    cursor.execute("""
+                    cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, analista_responsavel, lote_selecionado))
+                    conn.commit()
+                    conn.close()

@@ -62,7 +62,6 @@ if not st.session_state["autenticado"]:
             p_input = st.text_input("Senha:", type="password", key="login_pass").strip()
             
             if st.button("Acessar Módulo CQ", use_container_width=True):
-                # Consulta a lista na memória dinâmica do sistema
                 usuarios_ativos = st.session_state["lista_usuarios"]
                 if u_input in usuarios_ativos and usuarios_ativos[u_input]["senha"] == p_input:
                     st.session_state["autenticado"] = True
@@ -95,7 +94,6 @@ if not st.session_state["autenticado"]:
                 elif novo_u in st.session_state["lista_usuarios"]:
                     st.error("Este nome de usuário já está cadastrado no sistema.")
                 else:
-                    # Registra na memória temporária do servidor Streamlit
                     st.session_state["lista_usuarios"][novo_u] = {"senha": novo_p, "perfil": novo_perfil}
                     st.success(f"Usuário `{novo_u}` criado com sucesso! Use a aba ao lado para fazer o login.")
     st.stop()
@@ -187,10 +185,12 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            lista_opcoes = [f"Lote: {row} | Prod: {row} | Forn: {row} | NF: {row}" for row in lotes_pendentes]
+            lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
             
-            lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)]
+            # CORREÇÃO DEFINITIVA DO PROGRAMMING ERROR: Extrai apenas a string pura do lote correspondente (índice 0)
+            linha_selecionada = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)]
+            lote_final = str(linha_selecionada[0]).strip()
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
@@ -221,5 +221,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
 
 # --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
 if "📋 3. RELATÓRIO GERAL DE LAUDOS" in abas_disponiveis:
-    with abas[aba_index]:
-        aba_index += 1

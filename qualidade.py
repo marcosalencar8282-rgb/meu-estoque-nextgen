@@ -185,13 +185,18 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            # 1. Cria os textos bonitos para a caixa de seleção na tela
-            lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
-            lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
+            lista_opcoes = []
+            mapeamento_lotes = {}
             
-            # CORREÇÃO CRUCIAL: Mapeia o texto selecionado e extrai apenas o código do lote puro (row[0])
-            indice_selecionado = lista_opcoes.index(lote_selecionado_txt)
-            lote_final = lotes_pendentes[indice_selecionado][0]
+            # SOLUÇÃO DEFINITIVA: Desestrutura os dados linha por linha sem usar colchetes numéricos
+            for linha in lotes_pendentes:
+                lote_id, desc_prod, nf_num, forn_nome = linha
+                texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
+                lista_opcoes.append(texto_exibicao)
+                mapeamento_lotes[texto_exibicao] = lote_id
+            
+            lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
+            lote_final = mapeamento_lotes[lote_selecionado_txt]
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
@@ -218,6 +223,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                     conn.close()
                     st.rerun()
         else:
-            st.info("Excelente! Nenhum lote pendente para análise.")
-
-# --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---

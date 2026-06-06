@@ -87,7 +87,6 @@ if not st.session_state["autenticado"]:
                 conn.close()
                 
                 if resultado:
-                    # Divisão segura sem usar colchetes numéricos
                     senha_banco, perfil_banco = resultado
                     if senha_banco == p_input:
                         st.session_state["autenticado"] = True
@@ -221,7 +220,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lista_opcoes = []
             mapeamento_lotes = {}
             
-            # Divisão segura dos elementos da tupla sem usar colchetes numéricos
             for item in lotes_pendentes:
                 lote_id, desc_prod, nf_num, forn_nome = item
                 texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
@@ -237,3 +235,5 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
+                if st.button("🟢 APROVAR LOTE", use_container_width=True):
+                    conn = conectar()

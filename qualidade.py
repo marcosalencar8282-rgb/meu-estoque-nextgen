@@ -86,7 +86,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # CORREÇÃO DA VALIDAÇÃO DO LOGIN: extrai os índices do banco de dados de forma estrita
+                # Validação estrita extraindo os índices corretos da tupla
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -214,12 +214,22 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            # RESTAURADO: Mapeamento textual explícito baseado nos índices numéricos da tupla (row[0], row[1], etc.)
-            lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
-            lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
+            # Lógica refeita com variáveis nomeadas para evitar colchetes numéricos problemáticos
+            lista_opcoes = []
+            mapeamento_lotes = {}
             
-            # RESTAURADO: Captura do valor exato correspondente à string chave do lote no índice 0
-            lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
+            for item in lotes_pendentes:
+                lote_id = str(item[0])
+                desc_prod = str(item[1])
+                nf_num = str(item[2])
+                forn_nome = str(item[3])
+                
+                texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
+                lista_opcoes.append(texto_exibicao)
+                mapeamento_lotes[texto_exibicao] = lote_id
+            
+            lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
+            lote_final = mapeamento_lotes[lote_selecionado_txt]
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
@@ -229,5 +239,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             with col_btn1:
                 if st.button("🟢 APROVAR LOTE", use_container_width=True):
                     conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE inspeccao SET status = 'APROVADO', responsavel = ? WHERE lote = ?", 

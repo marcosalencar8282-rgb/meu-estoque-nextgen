@@ -16,7 +16,9 @@ if "perfil_usuario" not in st.session_state:
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("controle_qualidade_forn.db")
+    conn = sqlite3.connect("controle_qualidade_forn.db")
+    conn.row_factory = sqlite3.Row  # Permite acessar os dados pelo nome da coluna
+    return conn
 
 # Inicialização das Tabelas no SQLite
 conn = conectar()
@@ -87,9 +89,9 @@ if not st.session_state["autenticado"]:
                 conn.close()
                 
                 if resultado:
-                    # Correção Crucial: O resultado vem como uma tupla do banco (ex: ('LabCQ2026', 'laboratorio'))
-                    senha_banco = resultado[0]
-                    perfil_banco = resultado[1]
+                    # Acesso seguro pelo nome das colunas do banco de dados
+                    senha_banco = resultado["senha"]
+                    perfil_banco = resultado["perfil"]
                     
                     if senha_banco == p_input:
                         st.session_state["autenticado"] = True
@@ -146,8 +148,6 @@ with st.sidebar:
         st.session_state["perfil_usuario"] = ""
         st.rerun()
 
-st.title("🔬 Controle de Qualidade e Liberação de Lotes")
-
 # --- GERENCIAMENTO DE ABAS POR PERFIL ---
 perfil = st.session_state["perfil_usuario"]
 
@@ -157,7 +157,7 @@ if perfil in ["admin", "cadastro"]:
 if perfil in ["admin", "laboratorio"]:
     abas_disponiveis.append("🧫 2. PAINEL DO LABORATÓRIO")
 if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
-    abas_disponiveis.append("📋 3. RELATÓ速RIO GERAL DE LAUDOS")
+    abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
 abas = st.tabs(abas_disponiveis)
 aba_index = 0
@@ -223,17 +223,15 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lista_opcoes = []
             mapeamento_lotes = {}
             
+            # Leitura amigável e segura mapeada diretamente pelas colunas SQL
             for item in lotes_pendentes:
-                lote_id = item[0]
-                desc_prod = item[1]
-                nf_num = item[2]
-                forn_nome = item[3]
+                lote_id = item["lote"]
+                desc_prod = item["descricao"]
+                nf_num = item["nota_fiscal"]
+                forn_nome = item["fornecedor"]
                 
                 texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
                 lista_opcoes.append(texto_exibicao)
                 mapeamento_lotes[texto_exibicao] = lote_id
             
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
-            lote_final = mapeamento_lotes[lote_selecionado_txt]
-            
-            st.markdown("---")

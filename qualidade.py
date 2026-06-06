@@ -87,11 +87,14 @@ if not st.session_state["autenticado"]:
                 conn.close()
                 
                 if resultado:
-                    senha_banco, perfil_banco = resultado
+                    # Correção Crucial: O resultado vem como uma tupla do banco (ex: ('LabCQ2026', 'laboratorio'))
+                    senha_banco = resultado[0]
+                    perfil_banco = resultado[1]
+                    
                     if senha_banco == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
-                        st.session_state["perfil_usuario"] = perfil_banco
+                        st.session_state["perfil_usuario"] = str(perfil_banco).strip()
                         st.rerun()
                     else:
                         st.error("Usuário ou senha incorretos.")
@@ -154,7 +157,7 @@ if perfil in ["admin", "cadastro"]:
 if perfil in ["admin", "laboratorio"]:
     abas_disponiveis.append("🧫 2. PAINEL DO LABORATÓRIO")
 if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
-    abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
+    abas_disponiveis.append("📋 3. RELATÓ速RIO GERAL DE LAUDOS")
 
 abas = st.tabs(abas_disponiveis)
 aba_index = 0
@@ -221,7 +224,11 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             mapeamento_lotes = {}
             
             for item in lotes_pendentes:
-                lote_id, desc_prod, nf_num, forn_nome = item
+                lote_id = item[0]
+                desc_prod = item[1]
+                nf_num = item[2]
+                forn_nome = item[3]
+                
                 texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
                 lista_opcoes.append(texto_exibicao)
                 mapeamento_lotes[texto_exibicao] = lote_id
@@ -230,10 +237,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lote_final = mapeamento_lotes[lote_selecionado_txt]
             
             st.markdown("---")
-            st.markdown("#### ⚖️ Decisão do Laboratório:")
-            
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                if st.button("🟢 APROVAR LOTE", use_container_width=True):
-                    conn = conectar()

@@ -16,9 +16,7 @@ if "perfil_usuario" not in st.session_state:
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    conn = sqlite3.connect("controle_qualidade_forn.db")
-    conn.row_factory = sqlite3.Row  # Configuração para ler colunas por nome
-    return conn
+    return sqlite3.connect("controle_qualidade_forn.db")
 
 # Inicialização Limpa das Tabelas
 conn = conectar()
@@ -90,8 +88,7 @@ if not st.session_state["autenticado"]:
                 conn.close()
                 
                 if dados_usuario:
-                    senha_banco = dados_usuario.get("senha")
-                    perfil_banco = dados_usuario.get("perfil")
+                    senha_banco, perfil_banco = dados_usuario
                     
                     if senha_banco == campo_senha:
                         st.session_state["autenticado"] = True
@@ -229,12 +226,15 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_permitidas:
             lista_selecao = []
             mapeamento_lotes = {}
             
+            # SOLUÇÃO DEFINITIVA: Desestruturando a tupla de forma limpa e nativa do Python
             for item in lotes_esperando:
-                lote_id = item.get("lote")
-                desc_prod = item.get("descricao")
+                lote_id, desc_prod = item
                 texto_exibicao = f"Lote: {lote_id} | Produto: {desc_prod}"
                 lista_selecao.append(texto_exibicao)
                 mapeamento_lotes[texto_exibicao] = lote_id
                 
             escolha_lote_txt = st.selectbox("Selecione o Item Pendente para Emitir Parecer:", lista_selecao)
             lote_alvo = mapeamento_lotes.get(escolha_lote_txt)
+            
+            st.markdown("---")
+            st.markdown("#### ⚖️ Decisão do Controle de Qualidade:")

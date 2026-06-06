@@ -86,11 +86,11 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # Validação correta pegando os índices da linha do banco de dados
+                # SOLUÇÃO DO PROBLEMA: Compara a senha (índice 0) e armazena apenas o perfil (índice 1)
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
-                    st.session_state["perfil_usuario"] = resultado[1]
+                    st.session_state["perfil_usuario"] = resultado[1]  # Salva apenas a string do perfil ('admin', 'laboratorio')
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -217,6 +217,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lista_opcoes = []
             mapeamento_lotes = {}
             
+            # RESOLUÇÃO DO ERRO TEXTUAL: Extrai os elementos da tupla pelos índices numéricos corretos
             for item in lotes_pendentes:
                 lote_id = str(item[0])
                 desc_prod = str(item[1])
@@ -232,9 +233,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
-            
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                if st.button("🟢 APROVAR LOTE", use_container_width=True):
-                    conn = conectar()

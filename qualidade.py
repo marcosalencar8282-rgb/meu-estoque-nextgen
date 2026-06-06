@@ -39,7 +39,7 @@ cursor.execute("""
     )
 """)
 
-# Tabela de Armazenamento de usuários e senhas
+# Tabela para salvar os usuários que criarem suas próprias contas e senhas
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         usuario TEXT PRIMARY KEY,
@@ -48,7 +48,7 @@ cursor.execute("""
     )
 """)
 
-# Carga de Segurança: Garante os acessos antigos no banco de dados
+# Carga Automática: Insere seus usuários antigos caso a tabela seja nova
 usuarios_iniciais = [
     ("admin", "Master@2026", "admin"),
     ("marcos", "931481", "cadastro"),
@@ -86,7 +86,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # Validação estrita extraindo os índices corretos da tupla
+                # Validação correta pegando os índices da linha do banco de dados
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -95,7 +95,7 @@ if not st.session_state["autenticado"]:
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
-    # --- SUB-TELA 2: AUTO-CADASTRO ---
+    # --- SUB-TELA 2: AUTO-CADASTRO (CRIAR PRÓPRIA SENHA) ---
     with aba_novo_cadastro:
         col_c1, col_c2, col_c3 = st.columns([1, 1.2, 1])
         with col_c2:
@@ -121,9 +121,9 @@ if not st.session_state["autenticado"]:
                         cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", 
                                        (novo_u, novo_p, novo_perfil))
                         conn.commit()
-                        st.success(f"Usuário `{novo_u}` registrado! Use a aba de Login para entrar.")
+                        st.success(f"Usuário `{novo_u}` registrado com sucesso! Use a aba ao lado para logar.")
                     except sqlite3.IntegrityError:
-                        st.error("Este nome de usuário já está registrado.")
+                        st.error("Este nome de usuário já está registrado por outro funcionário.")
                     finally:
                         conn.close()
     st.stop()
@@ -214,7 +214,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            # Lógica refeita com variáveis nomeadas para evitar colchetes numéricos problemáticos
             lista_opcoes = []
             mapeamento_lotes = {}
             

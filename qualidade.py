@@ -86,7 +86,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # Correção da validação da tupla do banco de dados
+                # CORREÇÃO DA VALIDAÇÃO DO LOGIN: extrai os índices do banco de dados de forma estrita
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -214,11 +214,11 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            # Mapeamento limpo da lista de tuplas
+            # RESTAURADO: Mapeamento textual explícito baseado nos índices numéricos da tupla (row[0], row[1], etc.)
             lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
             
-            # Obtém apenas o valor exato da string do lote (índice 0)
+            # RESTAURADO: Captura do valor exato correspondente à string chave do lote no índice 0
             lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
             
             st.markdown("---")
@@ -231,7 +231,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                     conn = conectar()
                     cursor = conn.cursor()
                     cursor.execute("UPDATE inspeccao SET status = 'APROVADO', responsavel = ? WHERE lote = ?", 
-                                   (st.session_state["usuario_logado"], lote_final))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()

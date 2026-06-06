@@ -16,7 +16,9 @@ if "perfil_usuario" not in st.session_state:
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
-    return sqlite3.connect("controle_qualidade_forn.db")
+    conn = sqlite3.connect("controle_qualidade_forn.db")
+    conn.row_factory = sqlite3.Row  # Configuração para ler colunas por nome
+    return conn
 
 # Inicialização Limpa das Tabelas
 conn = conectar()
@@ -48,7 +50,7 @@ cursor.execute("""
     )
 """)
 
-# Usuários padrão de fábrica do sistema
+# Usuários padrão do sistema
 usuarios_padrao = [
     ("admin", "Master@2026", "admin"),
     ("marcos", "931481", "cadastro"),
@@ -87,11 +89,17 @@ if not st.session_state["autenticado"]:
                 dados_usuario = cursor.fetchone()
                 conn.close()
                 
-                if dados_usuario and dados_usuario[0] == campo_senha:
-                    st.session_state["autenticado"] = True
-                    st.session_state["usuario_logado"] = campo_usuario
-                    st.session_state["perfil_usuario"] = str(dados_usuario[1])
-                    st.rerun()
+                if dados_usuario:
+                    senha_banco = dados_usuario.get("senha")
+                    perfil_banco = dados_usuario.get("perfil")
+                    
+                    if senha_banco == campo_senha:
+                        st.session_state["autenticado"] = True
+                        st.session_state["usuario_logado"] = campo_usuario
+                        st.session_state["perfil_usuario"] = str(perfil_banco)
+                        st.rerun()
+                    else:
+                        st.error("Credenciais incorretas ou usuário inexistente.")
                 else:
                     st.error("Credenciais incorretas ou usuário inexistente.")
 
@@ -102,7 +110,7 @@ if not st.session_state["autenticado"]:
             st.markdown("### Solicitar Novo Acesso")
             reg_usuario = st.text_input("Defina o Nome de Usuário:", key="new_usr").strip().lower()
             reg_senha = st.text_input("Defina a Senha:", type="password", key="new_pwd").strip()
-            reg_confirma = st.text_input("Confirme a Senha:", type="password", key="new_pwd_conf").strip()
+            reg_confirma = st.text_input("Confirme sua Senha:", type="password", key="new_pwd_conf").strip()
             
             reg_perfil = st.selectbox(
                 "Nível de Autorização de Tela:",
@@ -218,21 +226,15 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_permitidas:
         conn.close()
         
         if lotes_esperando:
-            lista_selecao = [f"Lote: {item[0]} | Produto: {item[1]}" for item in lotes_esperando]
+            lista_selecao = []
+            mapeamento_lotes = {}
+            
+            for item in lotes_esperando:
+                lote_id = item.get("lote")
+                desc_prod = item.get("descricao")
+                texto_exibicao = f"Lote: {lote_id} | Produto: {desc_prod}"
+                lista_selecao.append(texto_exibicao)
+                mapeamento_lotes[texto_exibicao] = lote_id
+                
             escolha_lote_txt = st.selectbox("Selecione o Item Pendente para Emitir Parecer:", lista_selecao)
-            
-            # Localiza o lote exato da escolha do usuário
-            indice_escolhido = lista_selecao.index(escolha_lote_txt)
-            lote_alvo = lotes_esperando[indice_escolhido][0]
-            
-            st.markdown("---")
-            st.markdown("#### ⚖️ Decisão do Controle de Qualidade:")
-            
-            # Criação de duas colunas para dispor os botões lado a lado
-            coluna_bt1, coluna_bt2 = st.columns(2)
-            
-            with coluna_bt1:
-                if st.button("🟢 APROVAR LOTE", use_container_width=True):
-                    conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE inspeccao SET status = 'APROVADO', responsavel = ? WHERE lote = ?",
+            lote_alvo = mapeamento_lotes.get(escolha_lote_txt)

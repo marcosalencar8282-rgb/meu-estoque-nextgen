@@ -188,7 +188,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             lista_opcoes = []
             mapeamento_lotes = {}
             
-            # SOLUÇÃO DEFINITIVA: Desestrutura os dados linha por linha sem usar colchetes numéricos
             for linha in lotes_pendentes:
                 lote_id, desc_prod, nf_num, forn_nome = linha
                 texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
@@ -223,3 +222,4 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                     conn.close()
                     st.rerun()
         else:
+            st.info("Excelente! Nenhum lote pendente para análise.")

@@ -78,11 +78,16 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                if resultado and resultado[0] == p_input:
-                    st.session_state["autenticado"] = True
-                    st.session_state["usuario_logado"] = u_input
-                    st.session_state["perfil_usuario"] = resultado[1]
-                    st.rerun()
+                if resultado:
+                    # CORREÇÃO DO LOGIN: Separa a senha e o perfil da tupla retornada pelo banco
+                    senha_banco, perfil_banco = resultado
+                    if senha_banco == p_input:
+                        st.session_state["autenticado"] = True
+                        st.session_state["usuario_logado"] = u_input
+                        st.session_state["perfil_usuario"] = str(perfil_banco).strip() # Salva o texto puro 'admin' ou 'laboratorio'
+                        st.rerun()
+                    else:
+                        st.error("Usuário ou senha incorretos.")
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
@@ -209,26 +214,19 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
+            # Estrutura protegida de loops baseada no seu padrão original
+            lista_opcoes = []
+            mapeamento_lotes = {}
+            for item in lotes_pendentes:
+                lote_id, desc_prod, nf_num, forn_nome = item
+                texto_exibicao = f"Lote: {lote_id} | Prod: {desc_prod} | Forn: {forn_nome} | NF: {nf_num}"
+                lista_opcoes.append(texto_exibicao)
+                mapeamento_lotes[texto_exibicao] = lote_id
+                
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
-            
-            lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
+            lote_final = mapeamento_lotes[lote_selecionado_txt]
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
             
             col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                if st.button("🟢 APROVAR LOTE", use_container_width=True):
-                    conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE inspeccao SET status = 'APROVADO', responsavel = ? WHERE lote = ?", 
-                                   (st.session_state["usuario_logado"], lote_final))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
-                    
-            with col_btn2:
-                if st.button("🔴 REPROVAR LOTE", use_container_width=True):
-                    conn = conectar()

@@ -90,7 +90,7 @@ if not st.session_state["autenticado"]:
                 if not novo_u or not novo_p:
                     st.warning("Por favor, preencha o usuário e a senha.")
                 elif novo_p != conf_p:
-                    st.error("As senhas informadas não conhecidem!")
+                    st.error("As senhas informadas não coincidem!")
                 elif novo_u in st.session_state["lista_usuarios"]:
                     st.error("Este nome de usuário já está cadastrado no sistema.")
                 else:
@@ -185,11 +185,13 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
+            # 1. Cria os textos bonitos para a caixa de seleção na tela
             lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
             
-            linha_selecionada = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)]
-            lote_final = str(linha_selecionada[0]).strip()
+            # CORREÇÃO CRUCIAL: Mapeia o texto selecionado e extrai apenas o código do lote puro (row[0])
+            indice_selecionado = lista_opcoes.index(lote_selecionado_txt)
+            lote_final = lotes_pendentes[indice_selecionado][0]
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
@@ -219,7 +221,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
             st.info("Excelente! Nenhum lote pendente para análise.")
 
 # --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
-if "📋 3. RELATÓRIO GERAL DE LAUDOS" in abas_disponiveis:
-    with abas[aba_index]:
-        aba_index += 1
-        st.subheader("Histórico Geral de Inspeções")

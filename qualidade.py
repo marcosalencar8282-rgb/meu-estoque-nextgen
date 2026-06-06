@@ -14,13 +14,14 @@ if "usuario_logado" not in st.session_state:
 if "perfil_usuario" not in st.session_state:
     st.session_state["perfil_usuario"] = ""
 
-# LISTA DE USUÁRIOS PERMITIDOS E SEUS PERFIS/FUNÇÕES
-USUARIOS_PERMITIDOS = {
-    "admin": {"senha": "Master@2026", "perfil": "admin"},
-    "marcos": {"senha": "931481", "perfil": "cadastro"},
-    "laboratorio": {"senha": "LabCQ2026", "perfil": "laboratorio"},
-    "visitante": {"senha": "123", "perfil": "visualizar"}
-}
+# CARGA DE MEMÓRIA DINÂMICA: Mantém seus usuários padrão e aceita os novos cadastros
+if "lista_usuarios" not in st.session_state:
+    st.session_state["lista_usuarios"] = {
+        "admin": {"senha": "Master@2026", "perfil": "admin"},
+        "marcos": {"senha": "931481", "perfil": "cadastro"},
+        "laboratorio": {"senha": "LabCQ2026", "perfil": "laboratorio"},
+        "visitante": {"senha": "123", "perfil": "visualizar"}
+    }
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
@@ -46,24 +47,57 @@ cursor.execute("""
 conn.commit()
 conn.close()
 
-# TELA DE LOGIN
+# TELA DE LOGIN COM ABA DE CADASTRO
 if not st.session_state["autenticado"]:
     st.markdown("<h1 style='text-align: center;'>🔬 NEXTGEN | CONTROLE DE QUALIDADE</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #64748B;'>Inspeção de Lotes, Validades e Laudos Laboratoriais</p>", unsafe_allow_html=True)
 
-    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
-    with col_l2:
-        u_input = st.text_input("Usuário / Analista:").strip()
-        p_input = st.text_input("Senha:", type="password").strip()
-        
-        if st.button("Acessar Módulo CQ", use_container_width=True):
-            if u_input in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[u_input]["senha"] == p_input:
-                st.session_state["autenticado"] = True
-                st.session_state["usuario_logado"] = u_input
-                st.session_state["perfil_usuario"] = USUARIOS_PERMITIDOS[u_input]["perfil"]
-                st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos.")
+    aba_login, aba_novo_cadastro = st.tabs(["🔑 Acessar Sistema", "🆕 Criar Minha Conta"])
+
+    # --- SUB-TELA 1: LOGIN ---
+    with aba_login:
+        col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+        with col_l2:
+            u_input = st.text_input("Usuário / Analista:", key="login_user").strip()
+            p_input = st.text_input("Senha:", type="password", key="login_pass").strip()
+            
+            if st.button("Acessar Módulo CQ", use_container_width=True):
+                # Consulta a lista na memória dinâmica do sistema
+                usuarios_ativos = st.session_state["lista_usuarios"]
+                if u_input in usuarios_ativos and usuarios_ativos[u_input]["senha"] == p_input:
+                    st.session_state["autenticado"] = True
+                    st.session_state["usuario_logado"] = u_input
+                    st.session_state["perfil_usuario"] = usuarios_ativos[u_input]["perfil"]
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+
+    # --- SUB-TELA 2: NOVO CADASTRO DINÂMICO ---
+    with aba_novo_cadastro:
+        col_c1, col_c2, col_c3 = st.columns([1, 1.2, 1])
+        with col_c2:
+            st.markdown("### Criar Credenciais de Acesso")
+            novo_u = st.text_input("Escolha seu Nome de Usuário:", key="reg_user").strip().lower()
+            novo_p = st.text_input("Escolha sua Senha:", type="password", key="reg_pass").strip()
+            conf_p = st.text_input("Confirme sua Senha:", type="password", key="reg_conf").strip()
+            
+            novo_perfil = st.selectbox(
+                "Selecione o Perfil/Telas Autorizadas:", 
+                ["cadastro", "laboratorio", "visualizar"],
+                key="reg_perfil"
+            )
+            
+            if st.button("Salvar Novo Analista", use_container_width=True):
+                if not novo_u or not novo_p:
+                    st.warning("Por favor, preencha o usuário e a senha.")
+                elif novo_p != conf_p:
+                    st.error("As senhas informadas não coincidem!")
+                elif novo_u in st.session_state["lista_usuarios"]:
+                    st.error("Este nome de usuário já está cadastrado no sistema.")
+                else:
+                    # Registra na memória temporária do servidor Streamlit
+                    st.session_state["lista_usuarios"][novo_u] = {"senha": novo_p, "perfil": novo_perfil}
+                    st.success(f"Usuário `{novo_u}` criado com sucesso! Use a aba ao lado para fazer o login.")
     st.stop()
 
 # BARRA LATERAL (LOGOFF E INFORMAÇÕES)
@@ -153,10 +187,10 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
+            lista_opcoes = [f"Lote: {row} | Prod: {row} | Forn: {row} | NF: {row}" for row in lotes_pendentes]
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
             
-            lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
+            lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)]
             
             st.markdown("---")
             st.markdown("#### ⚖️ Decisão do Laboratório:")
@@ -189,18 +223,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
 if "📋 3. RELATÓRIO GERAL DE LAUDOS" in abas_disponiveis:
     with abas[aba_index]:
         aba_index += 1
-        st.subheader("Histórico Geral de Inspeções")
-        
-        conn = conectar()
-        df = pd.read_sql_query("SELECT * FROM inspeccao ORDER BY id_laudo DESC", conn)
-        conn.close()
-        
-        if not df.empty:
-            df.columns = [
-                "ID Laudo", "Data Chegada", "Nota Fiscal", "Fornecedor", 
-                "Código", "Descrição", "Lote", "Fabricação", "Validade", 
-                "Status", "Responsável"
-            ]
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhum laudo registrado até o momento.")

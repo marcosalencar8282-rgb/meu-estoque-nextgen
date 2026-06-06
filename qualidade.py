@@ -86,7 +86,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # CORREÇÃO CRUCIAL AQUI: Compara a senha corretamente e extrai o perfil de forma isolada
+                # FIX 1: Compara apenas a string da senha e isola o perfil de forma correta
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -214,10 +214,11 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
         conn.close()
         
         if lotes_pendentes:
-            # CORREÇÃO AQUI: Mapeia as posições exatas dos elementos da tupla para não gerar erro textual na caixa de seleção
+            # FIX 2: Correção da listagem visual para separar os índices da tupla corretamente
             lista_opcoes = [f"Lote: {row[0]} | Prod: {row[1]} | Forn: {row[3]} | NF: {row[2]}" for row in lotes_pendentes]
             lote_selecionado_txt = st.selectbox("Selecione o Lote Pendente para Emitir o Laudo:", lista_opcoes)
             
+            # FIX 3: Captura exatamente a string do lote correspondente à seleção para fazer o UPDATE corretamento
             lote_final = lotes_pendentes[lista_opcoes.index(lote_selecionado_txt)][0]
             
             st.markdown("---")
@@ -230,6 +231,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                     conn = conectar()
                     cursor = conn.cursor()
                     cursor.execute("UPDATE inspeccao SET status = 'APROVADO', responsavel = ? WHERE lote = ?", 
-                                   (st.session_state["usuario_logado"], lote_final))
-                    conn.commit()
-                    conn.close()

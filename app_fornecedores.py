@@ -42,9 +42,10 @@ def inicializar_banco():
         cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES ('admin', ?)", (senha_hash,))
         
     conn.commit()
-    return conn
+    conn.close()
 
-conn = inicializar_banco()
+# Inicializa o banco de dados antes de carregar a interface
+inicializar_banco()
 
 # CONTROLE DE SESSÃO DE LOGIN
 if 'logado' not in st.session_state:
@@ -73,7 +74,7 @@ def realizar_logout():
 # --- TELA DE LOGIN ---
 if not st.session_state['logado']:
     st.markdown("<h2 style='text-align: center;'>🔒 Acesso ao Sistema Fiscal</h2>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         with st.form("form_login"):
@@ -92,8 +93,8 @@ else:
     with col_titulo:
         st.title("🏢 Painel de Recebimento de Notas")
     with col_usuario:
-        st.write(f"👤 Conectado como: **{st.session_state['usuario_atual']}**")
-        if st.button("Sair / Logout"):
+        st.write(f"👤 **{st.session_state['usuario_atual']}**")
+        if st.button("Sair / Logout", key="btn_logout"):
             realizar_logout()
 
     # Abas de Navegação do Sistema
@@ -102,19 +103,23 @@ else:
     # ABA 1: LISTAGEM DE NOTAS
     with aba_lista:
         st.subheader("Histórico de Notas em Estoque")
+        
+        # Abrimos a conexão para ler os dados mais recentes do banco
         conn = sqlite3.connect('sistema_fiscal.db')
         df_notas = pd.read_sql_query('''
             SELECT numero_nota AS [Nº Nota], fornecedor AS [Fornecedor], 
                    data_recebimento AS [Data Recebimento], descricao_produto AS [Produto], 
                    quantidade AS [Qtd], valor_total AS [Valor R$], status AS [Status] 
             FROM recebimentos
+            ORDER BY id_recebimento DESC
         ''', conn)
         conn.close()
 
         if not df_notas.empty:
+            # Exibe a tabela com os dados reais salvos
             st.dataframe(df_notas, use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhuma nota fiscal foi cadastrada manualmente ainda.")
+            st.info("Nenhuma nota fiscal foi cadastrada manualmente ainda. Vá na aba ao lado para cadastrar.")
 
     # ABA 2: FORMULÁRIO DE PREENCHIMENTO DOS CAMPOS
     with aba_cadastro:
@@ -124,14 +129,14 @@ else:
             col_1, col_2 = st.columns(2)
             
             with col_1:
-                num_nota = st.number_input("Número da Nota Fiscal:", min_value=1, step=1, value=1)
-                fornecedor = st.text_input("Nome/Razão Social do Fornecedor:")
-                data_rec = st.date_input("Data de Recebimento:", datetime.now())
+                num_nota = st.number_input("Número da Nota Fiscal:", min_value=1, step=1, value=1, key="f_num")
+                fornecedor = st.text_input("Nome/Razão Social do Fornecedor:", key="f_forn")
+                data_rec = st.date_input("Data de Recebimento:", datetime.now(), key="f_data")
                 
             with col_2:
-                desc_produto = st.text_input("Descrição do Produto:")
-                qtd_produto = st.number_input("Quantidade Recebida:", min_value=0.0, step=1.0, format="%.2f")
-                valor_total = st.number_input("Valor Total da Nota (R$):", min_value=0.0, step=0.01, format="%.2f")
+                desc_produto = st.text_input("Descrição do Produto:", key="f_desc")
+                qtd_produto = st.number_input("Quantidade Recebida:", min_value=0.0, step=1.0, format="%.2f", key="f_qtd")
+                valor_total = st.number_input("Valor Total da Nota (R$):", min_value=0.0, step=0.01, format="%.2f", key="f_val")
                 
             botao_salvar = st.form_submit_button("💾 Gravar Recebimento")
             
@@ -160,5 +165,6 @@ else:
                     conn.commit()
                     conn.close()
                     
+                    # Mensagem de sucesso e comando para forçar a atualização imediata da tabela
                     st.success(f"Sucesso! Nota Fiscal Nº {num_nota} registrada no banco de dados.")
-                    st.balloons()
+                    st.rerun()

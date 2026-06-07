@@ -72,19 +72,23 @@ if not st.session_state["autenticado"]:
             p_input = st.text_input("Senha:", type="password", key="login_pass").strip()
             
             if st.button("Acessar Módulo CQ", use_container_width=True):
-                conn = conectar()
-                cursor = conn.cursor()
-                cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_input,))
-                resultado = cursor.fetchone()
-                conn.close()
-                
-                if resultado and resultado[0] == p_input:
-                    st.session_state["autenticado"] = True
-                    st.session_state["usuario_logado"] = u_input
-                    st.session_state["perfil_usuario"] = str(resultado[1]).strip().lower()
-                    st.rerun()
+                if u_input and p_input:
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_input,))
+                    resultado = cursor.fetchone()
+                    conn.close()
+                    
+                    # CORREÇÃO CRÍTICA DO LOGIN: resultado[0] é a senha gravada no banco
+                    if resultado and resultado[0] == p_input:
+                        st.session_state["autenticado"] = True
+                        st.session_state["usuario_logado"] = u_input
+                        st.session_state["perfil_usuario"] = str(resultado[1]).strip().lower() # Extrai o perfil real ('admin', 'cadastro', etc)
+                        st.rerun()
+                    else:
+                        st.error("Usuário ou senha incorretos.")
                 else:
-                    st.error("Usuário ou senha incorretos.")
+                    st.warning("Preencha o usuário e a senha.")
                     
     # --- SUB-TELA 2: AUTO-CADASTRO ---
     with aba_novo_cadastro:
@@ -130,6 +134,7 @@ with st.sidebar:
         st.session_state["autenticado"] = False
         st.session_state["usuario_logado"] = ""
         st.session_state["perfil_usuario"] = ""
+        st.clear() # Limpa completamente o estado travado para deslogar à força
         st.rerun()
 
 st.title("🔬 Controle de Qualidade e Liberação de Lotes")
@@ -145,6 +150,7 @@ if perfil_ativo in ["admin", "laboratorio"]:
 if perfil_ativo in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
+# Blindagem contra listas vazias para evitar que o app apague
 if not abas_disponiveis:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
@@ -215,14 +221,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
                 if concluir_analise:
                     conn = conectar()
                     cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE inspeccao 
-                        SET status = ?, responsavel = ? 
-                        WHERE lote = ?
-                    """, (novo_status, st.session_state["usuario_logado"], lote_selecionado))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
-
-# --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
-if "📋 3. RELATÓRIO GERAL DE LAUDOS" in dic_abas:

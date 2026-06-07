@@ -29,7 +29,7 @@ conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, nome TEXT, quantidade INTEGER)")
-cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantity = quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
+cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
 conn.commit()
 conn.close()
 
@@ -78,17 +78,17 @@ usuario = st.session_state["usuario_logado"]
 if usuario == "admin":
     nomes_abas = ["📝 1. CADASTRAR PRODUTO", "🧾 2. ENTRADA DE ESTOQUE (NF)", "💻 3. FRENTE DE CAIXA (PDV)", "📊 4. RELATÓRIO DE VENDAS", "📈 5. HISTÓRICO DE ENTRADAS"]
     abas = st.tabs(nomes_abas)
-    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = abas, abas, abas, abas, abas
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = abas[0], abas[1], abas[2], abas[3], abas[4]
 
 elif usuario == "lucas":
     nomes_abas = ["🧾 1. ENTRADA DE ESTOQUE (NF)", "📈 2. HISTÓRICO DE ENTRADAS"]
     abas = st.tabs(nomes_abas)
-    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, abas, None, None, abas
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, abas[0], None, None, abas[1]
 
 elif usuario == "marcos":
     nomes_abas = ["💻 1. FRENTE DE CAIXA (PDV)"]
     abas = st.tabs(nomes_abas)
-    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, None, abas, None, None
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, None, abas[0], None, None
 
 # --- ABA 1: CADASTRAR PRODUTO ---
 if aba_cad:
@@ -214,9 +214,10 @@ if aba_pdv:
                         st.toast("🛒 Venda finalizada com sucesso!")
                         st.rerun()
             else:
-                # CORREÇÃO AQUI: Perfeitamente indentado com 16 espaços para ficar correto no Python
                 st.info("O carrinho de compras está vazio. Registre itens na coluna ao lado.")
 
 # --- ABA 4: RELATÓRIO DE VENDAS ---
 if aba_rel:
     with aba_rel:
+        st.subheader("Relatório de Faturamento Geral")
+        conn = conectar()

@@ -66,7 +66,7 @@ def inicializar_banco():
     conn.commit()
     conn.close()
 
-# Inicializa o banco de dados e atualiza as credenciais
+# Inicializa o banco de dados e updates
 inicializar_banco()
 
 # CONTROLE DE SESSÃO DE LOGIN
@@ -118,7 +118,7 @@ else:
         if st.button("Sair / Logout", key="btn_logout"):
             realizar_logout()
 
-    # Abas de Navegação (Apenas as 3 principais)
+    # Abas de Navegação
     aba_lista, aba_cadastro, aba_devolucao = st.tabs([
         "📋 Notas Recebidas", 
         "📥 Cadastrar Recebimento Manual",
@@ -188,16 +188,14 @@ else:
                     st.success(f"Sucesso! Nota Fiscal Nº {num_nota} registrada no banco de dados.")
                     st.rerun()
 
-    # ABA 3: CONTROLE DE DEVOLUÇÕES (CORRIGIDA)
+    # ABA 3: CONTROLE DE DEVOLUÇÕES
     with aba_devolucao:
         st.subheader("Processar Devolução para Fornecedor")
         
-        # Puxamos as notas ativas do banco de dados
         conn = sqlite3.connect('sistema_fiscal.db')
         notas_ativas = pd.read_sql_query("SELECT id_recebimento, numero_nota, fornecedor, descricao_produto FROM recebimentos WHERE status = 'Recebido'", conn)
         conn.close()
         
-        # O FORMULÁRIO AGORA FICA SEMPRE VISÍVEL
         with st.form("form_processa_devolucao"):
             if not notas_ativas.empty:
                 opcoes_devolucao = {
@@ -206,7 +204,6 @@ else:
                 }
                 nota_selecionada_txt = st.selectbox("Escolha a Nota Fiscal que deseja devolver:", list(opcoes_devolucao.keys()))
             else:
-                # Se não houver notas, o campo fica desativado em vez de quebrar a tela
                 st.selectbox("Escolha a Nota Fiscal que deseja devolver:", ["Nenhuma nota disponível em estoque"], disabled=True)
                 nota_selecionada_txt = None
                 
@@ -230,3 +227,8 @@ else:
                     cursor.execute('''
                         INSERT INTO devolucoes (id_recebimento_origem, data_devolucao, motivo)
                         VALUES (?, ?, ?)
+                    ''', (dados_nota_origem['id_recebimento'], data_dev_formatada, motivo_dev))
+                    
+                    cursor.execute('''
+                        UPDATE recebimentos 
+                        SET status = 'Devolvido'

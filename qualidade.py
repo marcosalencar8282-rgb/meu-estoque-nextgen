@@ -78,7 +78,6 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # CORREÇÃO DEFINITIVA: Validação correta acessando o índice da tupla resultado
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -136,10 +135,10 @@ with st.sidebar:
 
 st.title("🔬 Controle de Qualidade e Liberação de Lotes")
 
-# --- GERENCIAMENTO DE ABAS POR PERFIL ---
+# --- GERENCIAMENTO DE ABAS POR PERFIL (CORRIGIDO SEM CONTADORES) ---
 perfil = st.session_state["perfil_usuario"]
-
 abas_disponiveis = []
+
 if perfil in ["admin", "cadastro"]:
     abas_disponiveis.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
 if perfil in ["admin", "laboratorio"]:
@@ -147,13 +146,12 @@ if perfil in ["admin", "laboratorio"]:
 if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-abas = st.tabs(abas_disponiveis)
-aba_index = 0
+# Vincula os nomes das abas aos objetos de layout de forma segura
+dic_abas = {nome: objeto for nome, objeto in zip(abas_disponiveis, st.tabs(abas_autorizadas if 'abas_autorizadas' in locals() else abas_disponiveis))}
 
 # --- ABA 1: RECEPÇÃO / CADASTRAR LOTE ---
-if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
-    with abas[aba_index]:
-        aba_index += 1
+if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dic_abas:
+    with dic_abas["📥 1. RECEPÇÃO / CADASTRAR LOTE"]:
         st.subheader("Entrada de Produto para Inspeção")
         
         if "sucesso_cadastro" in st.session_state:
@@ -194,9 +192,8 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
                         conn.close()
 
 # --- ABA 2: PAINEL DO LABORATÓRIO ---
-if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
-    with abas[aba_index]:
-        aba_index += 1
+if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
+    with dic_abas["🧫 2. PAINEL DO LABORATÓRIO"]:
         st.subheader("Análise e Parecer Técnico de Lotes")
         
         conn = conectar()
@@ -227,6 +224,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
                     st.rerun()
 
 # --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
-if "📋 3. RELATÓRIO GERAL DE LAUDOS" in abas_disponiveis:
-    with abas[aba_index]:
-        aba_index += 1

@@ -112,7 +112,7 @@ if aba_cad:
             else:
                 st.warning("Preencha o código e o nome.")
 
-# --- ABA 2: ENTRADA DE ESTOQUE (NF) ---
+# --- ABA 2: ENTRADA DE ESTOQUE (NF) (CORRIGIDA) ---
 if aba_est:
     with aba_est:
         st.subheader("Entrada de Notas Fiscais")
@@ -128,11 +128,15 @@ if aba_est:
                 prod = cursor.fetchone()
                 
                 if prod:
+                    # CORREÇÃO AQUI: Pegando a string de dentro da tupla retornada do SQLite
                     nome_p = prod[0]
                     data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, e_qtd))
+                    
+                    cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", 
+                                   (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))
                     conn.commit()
                     st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades de '{nome_p}'!")
+                    st.rerun() # Força o Streamlit a atualizar a tabela de histórico na hora
                 else:
                     st.error("Código não encontrado! Cadastre o produto com uma conta Admin primeiro.")
                 conn.close()
@@ -212,11 +216,4 @@ if aba_pdv:
                         st.toast("🛒 Venda finalizada com sucesso!")
                         st.rerun()
             else:
-                st.info("O carrinho de compras está vazio. Registre itens na coluna ao lado.")
-
-# --- ABA 4: RELATÓRIO DE VENDAS ---
-if aba_rel:
-    with aba_rel:
-        st.subheader("Relatório de Faturamento Geral")
-        conn = conectar()
 

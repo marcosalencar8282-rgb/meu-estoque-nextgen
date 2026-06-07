@@ -101,8 +101,8 @@ if not st.session_state["autenticado"]:
                 st.warning("Preencha todos os campos.")
     st.stop()
 
-# --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
-c_user, c_out = st.columns([])
+# --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT (CORRIGIDA) ---
+c_user, c_out = st.columns(2)
 with c_user:
     st.markdown(f"👤 Analista: **{st.session_state['usuario_logado']}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
 with c_out:
@@ -116,7 +116,6 @@ st.markdown("---")
 perf = st.session_state["perfil_usuario"]
 st.markdown("### 🗂️ Navegação do Sistema")
 
-# Criamos 4 colunas em vez de 3 para abrir espaço ao menu do Admin
 btn_cols = st.columns(4)
 
 with btn_cols[0]:
@@ -132,7 +131,6 @@ with btn_cols[2]:
         if st.button("📋 3. Ver Relatório de Laudos", use_container_width=True):
             st.session_state["tela_ativa"] = "relatorio"
 with btn_cols[3]:
-    # EXCLUSIVO: O botão abaixo só é renderizado se quem estiver logado for o admin mestre
     if perf == "admin":
         if st.button("⚙️ 4. Gerenciar Usuários", use_container_width=True):
             st.session_state["tela_ativa"] = "gerenciar_usuarios"
@@ -190,7 +188,7 @@ elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "labo
             cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
             conn.commit()
             conn.close()
-            st.success(f"O lote {lote_sel} foi updated para {novo_status}!")
+            st.success(f"O lote {lote_sel} foi atualizado para {novo_status}!")
             st.rerun()
 
 # --- TELA 3: RELATÓRIO GERAL ---
@@ -219,7 +217,7 @@ elif st.session_state["tela_ativa"] == "relatorio":
         })
         st.dataframe(df_formatado, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS E SENHAS (EXCLUSIVA DO ADMIN) ---
+# --- TELA 4: GERENCIAR USUÁRIOS E SENHAS ---
 elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
     st.subheader("⚙️ Painel de Controle de Acessos e Alteração de Senhas")
     
@@ -243,4 +241,8 @@ elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
         if nova_senha_txt:
             conn = conectar()
             cursor = conn.cursor()
+            cursor.execute("UPDATE usuarios SET senha = ? WHERE usuario = ?", (nova_senha_txt, usuario_alvo))
+            conn.commit()
+            conn.close()
+            st.success(f"A senha do usuário **{usuario_alvo}** foi redefinida com sucesso!")
 

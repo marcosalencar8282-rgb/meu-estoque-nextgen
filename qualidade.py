@@ -79,7 +79,6 @@ if not st.session_state["autenticado"]:
                     resultado = cursor.fetchone()
                     conn.close()
                     
-                    # CORREÇÃO CRÍTICA DO ÍNDICE: resultado[0] é a senha e resultado[1] é o perfil
                     if resultado and resultado[0] == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
@@ -147,7 +146,6 @@ if perfil_ativo in ["admin", "laboratorio"]:
 if perfil_ativo in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Blindagem contra listas vazias
 if not abas_disponiveis:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
@@ -222,3 +220,8 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
 
 # --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
 if "📋 3. RELATÓRIO GERAL DE LAUDOS" in dic_abas:
+    with dic_abas["📋 3. RELATÓRIO GERAL DE LAUDOS"]:
+        st.subheader("Histórico Completo de Laudos Emitidos")
+        
+        conn = conectar()
+

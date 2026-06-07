@@ -79,7 +79,6 @@ if not st.session_state["autenticado"]:
                     resultado = cursor.fetchone()
                     conn.close()
                     
-                    # CORREÇÃO DA VALIDAÇÃO: acessando os índices corretos da tupla resultado
                     if resultado and resultado[0] == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
@@ -131,7 +130,6 @@ with st.sidebar:
     st.write(f"**Perfil:** `{str(st.session_state['perfil_usuario']).upper()}`")
     st.markdown("---")
     if st.button("Sair do Sistema", use_container_width=True):
-        # CORREÇÃO DEFINITIVA DO LOGOUT: Comando oficial para limpar a sessão travada
         st.session_state.clear()
         st.rerun()
 
@@ -148,7 +146,6 @@ if perfil_ativo in ["admin", "laboratorio"]:
 if perfil_ativo in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Blindagem contra listas vazias para evitar que o app apague
 if not abas_disponiveis:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
@@ -184,10 +181,8 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dic_abas:
                     cursor = conn.cursor()
                     try:
                         dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        cursor.execute("""
-                            INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
+                        # Query em linha única para zerar qualquer erro de SyntaxError
+                        cursor.execute("INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
                         conn.commit()
                         st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} cadastrado com sucesso!"
                         st.rerun()
@@ -219,7 +214,11 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
                 if concluir_analise:
                     conn = conectar()
                     cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE inspeccao 
-                        SET status = ?, responsavel = ? 
-                        WHERE lote = ?
+                    cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_selecionado))
+                    conn.commit()
+                    conn.close()
+                    st.rerun()
+
+# --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
+if "📋 3. RELATÓRIO GERAL DE LAUDOS" in dic_abas:
+    with dic_abas["📋 3. RELATÓRIO GERAL DE LAUDOS"]:

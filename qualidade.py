@@ -78,7 +78,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # CORREÇÃO DEFINITIVA: Validação correta acessando o índice [0] da tupla resultado
+                # CORREÇÃO DEFINITIVA: Validação correta acessando o índice da tupla resultado
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -145,7 +145,7 @@ if perfil in ["admin", "cadastro"]:
 if perfil in ["admin", "laboratorio"]:
     abas_disponiveis.append("🧫 2. PAINEL DO LABORATÓRIO")
 if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
-    abas_autorizadas = abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
+    abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
 abas = st.tabs(abas_disponiveis)
 aba_index = 0
@@ -229,3 +229,4 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
 # --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
 if "📋 3. RELATÓRIO GERAL DE LAUDOS" in abas_disponiveis:
     with abas[aba_index]:
+        aba_index += 1

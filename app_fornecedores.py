@@ -8,10 +8,10 @@ import hashlib
 st.set_page_config(page_title="Sistema Fiscal Pro", page_icon="🔒", layout="wide")
 
 # =========================================================
-# CONFIGURAÇÃO DA SUA SENHA DE ACESSO (DEFEINA AQUI)
+# 🔑 ALTERE SUA SENHA DIRETAMENTE AQUI NO CÓDIGO
 # =========================================================
 USUARIO_PADRAO = "admin"
-SENHA_PADRAO = "819314" # <-- Digite aqui a senha que você quer usar!
+SENHA_PADRAO = "ColoqueSuaSenhaAqui" # <-- Mude aqui sempre que quiser trocar a senha!
 # =========================================================
 
 # CONEXÃO E CRIAÇÃO DAS TABELAS DO BANCO DE DADOS
@@ -56,9 +56,9 @@ def inicializar_banco():
     # Gera o hash da senha definida por você lá em cima
     senha_hash = hashlib.sha256(SENHA_PADRAO.encode()).hexdigest()
     
-    # Garante que o usuário do código sempre terá a senha definida atualizada no banco
+    # Atualiza ou insere o usuário admin com a senha atual do código
     cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (USUARIO_PADRAO,))
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone() == 0:
         cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES (?, ?)", (USUARIO_PADRAO, senha_hash))
     else:
         cursor.execute("UPDATE usuarios SET senha = ? WHERE usuario = ?", (senha_hash, USUARIO_PADRAO))
@@ -118,12 +118,11 @@ else:
         if st.button("Sair / Logout", key="btn_logout"):
             realizar_logout()
 
-    # Abas de Navegação
-    aba_lista, aba_cadastro, aba_devolucao, aba_senha = st.tabs([
+    # Abas de Navegação (Apenas as 3 principais)
+    aba_lista, aba_cadastro, aba_devolucao = st.tabs([
         "📋 Notas Recebidas", 
         "📥 Cadastrar Recebimento Manual",
-        "↩️ Registrar Devolução",
-        "⚙️ Alterar Senha"
+        "↩️ Registrar Devolução"
     ])
 
     # ABA 1: LISTAGEM DE NOTAS
@@ -189,47 +188,45 @@ else:
                     st.success(f"Sucesso! Nota Fiscal Nº {num_nota} registrada no banco de dados.")
                     st.rerun()
 
-    # ABA 3: CONTROLE DE DEVOLUÇÕES
+    # ABA 3: CONTROLE DE DEVOLUÇÕES (CORRIGIDA)
     with aba_devolucao:
         st.subheader("Processar Devolução para Fornecedor")
         
+        # Puxamos as notas ativas do banco de dados
         conn = sqlite3.connect('sistema_fiscal.db')
         notas_ativas = pd.read_sql_query("SELECT id_recebimento, numero_nota, fornecedor, descricao_produto FROM recebimentos WHERE status = 'Recebido'", conn)
         conn.close()
         
-        if not notas_ativas.empty:
-            opcoes_devolucao = {
-                f"Nota Nº {row['numero_nota']} - Fornecedor: {row['fornecedor']} ({row['descricao_produto']})": row 
-                for _, row in notas_ativas.iterrows()
-            }
-            
-            nota_selecionada_txt = st.selectbox("Escolha a Nota Fiscal que deseja devolver:", list(opcoes_devolucao.keys()))
-            dados_nota_origem = opcoes_devolucao[nota_selecionada_txt]
-            
-            with st.form("form_processa_devolucao"):
-                motivo_dev = st.text_area("Descreva o motivo da devolução:")
-                data_dev = st.date_input("Data da Devolução:", datetime.now())
+        # O FORMULÁRIO AGORA FICA SEMPRE VISÍVEL
+        with st.form("form_processa_devolucao"):
+            if not notas_ativas.empty:
+                opcoes_devolucao = {
+                    f"Nota Nº {row['numero_nota']} - Fornecedor: {row['fornecedor']} ({row['descricao_produto']})": row 
+                    for _, row in notas_ativas.iterrows()
+                }
+                nota_selecionada_txt = st.selectbox("Escolha a Nota Fiscal que deseja devolver:", list(opcoes_devolucao.keys()))
+            else:
+                # Se não houver notas, o campo fica desativado em vez de quebrar a tela
+                st.selectbox("Escolha a Nota Fiscal que deseja devolver:", ["Nenhuma nota disponível em estoque"], disabled=True)
+                nota_selecionada_txt = None
                 
-                botao_confirmar_dev = st.form_submit_button("↩️ Confirmar Saída por Devolução")
-                
-                if botao_confirmar_dev:
-                    if not motivo_dev.strip():
-                        st.error("Por favor, preencha o motivo da devolução antes de confirmar.")
-                    else:
-                        conn = sqlite3.connect('sistema_fiscal.db')
-                        cursor = conn.cursor()
-                        data_dev_formatada = data_dev.strftime('%Y-%m-%d')
-                        
-                        cursor.execute('''
-                            INSERT INTO devolucoes (id_recebimento_origem, data_devolucao, motivo)
-                            VALUES (?, ?, ?)
-                        ''', (dados_nota_origem['id_recebimento'], data_dev_formatada, motivo_dev))
-                        
-                        cursor.execute('''
-                            UPDATE recebimentos 
-                            SET status = 'Devolvido' 
-                            WHERE id_recebimento = ?
-                        ''', (dados_nota_origem['id_recebimento'],))
-                        
-                        conn.commit()
-                        conn.close()
+            motivo_dev = st.text_area("Descreva o motivo da devolução:")
+            data_dev = st.date_input("Data da Devolução:", datetime.now())
+            
+            botao_confirmar_dev = st.form_submit_button("↩️ Confirmar Saída por Devolução")
+            
+            if botao_confirmar_dev:
+                if nota_selecionada_txt is None or "Nenhuma nota" in nota_selecionada_txt:
+                    st.error("Operação cancelada: Não há notas válidas selecionadas para devolução.")
+                elif not motivo_dev.strip():
+                    st.error("Por favor, preencha o motivo da devolução antes de confirmar.")
+                else:
+                    dados_nota_origem = opcoes_devolucao[nota_selecionada_txt]
+                    
+                    conn = sqlite3.connect('sistema_fiscal.db')
+                    cursor = conn.cursor()
+                    data_dev_formatada = data_dev.strftime('%Y-%m-%d')
+                    
+                    cursor.execute('''
+                        INSERT INTO devolucoes (id_recebimento_origem, data_devolucao, motivo)
+                        VALUES (?, ?, ?)

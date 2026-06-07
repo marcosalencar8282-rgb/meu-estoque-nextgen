@@ -23,9 +23,9 @@ USUARIOS_PERMITIDOS = {
     "marcos": "931481"
 }
 
-# --- CONEXÃO COM O BANCO DE DADOS ---
+# --- CONEXÃO COM O BANCO DE DADOS (VERSÃO NOVA VERSÃO 3 LIMPA SEM CACHE CONTAMINADO) ---
 def conectar():
-    return sqlite3.connect("mercado_modelo_normal.db")
+    return sqlite3.connect("mercado_modelo_v3.db")
 
 conn = conectar()
 cursor = conn.cursor()
@@ -184,7 +184,7 @@ elif tela == "🧾 Entrada de Estoque (NF)":
             cursor.execute("SELECT nome FROM produtos WHERE codigo = ?", (e_cod.strip(),))
             prod = cursor.fetchone()
             if prod:
-                # SOLUÇÃO DEFINITIVA: Extrai estritamente o texto da primeira posição da tupla [0]
+                # EXTRAÇÃO DO TEXTO EXATO DA TUPLA (PEGA APENAS A PRIMEIRA POSIÇÃO)
                 nome_p = prod[0]
                 data_e = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_e, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))

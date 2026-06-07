@@ -78,11 +78,11 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # Validação corrigida extraindo os dados da tupla
+                # CORREÇÃO CRÍTICA: Validação e separação exata da senha e do perfil
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
-                    st.session_state["perfil_usuario"] = resultado[1] # Grava o perfil do banco na sessão
+                    st.session_state["perfil_usuario"] = str(resultado[1]).strip().lower() # Garante texto limpo
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -116,16 +116,16 @@ if not st.session_state["autenticado"]:
                         conn.commit()
                         st.success(f"Usuário `{novo_u}` registrado com sucesso! Use a aba ao lado para logar.")
                     except sqlite3.IntegrityError:
-                        st.error("Este nome de usuário já está registrado.")
+                        st.error("Este nome de usuário já está registrado por outro funcionário.")
                     finally:
                         conn.close()
     st.stop()
 
-# --- BARRA LATERAL FIXA ---
+# BARRA LATERAL (LOGOFF E INFORMAÇÕES)
 with st.sidebar:
     st.markdown("### 🧪 ANALISTA LOGADO")
     st.write(f"**Usuário:** `{st.session_state['usuario_logado']}`")
-    st.write(f"**Perfil:** `{(st.session_state['perfil_usuario']).upper()}`")
+    st.write(f"**Perfil:** `{str(st.session_state['perfil_usuario']).upper()}`")
     st.markdown("---")
     if st.button("Sair do Sistema", use_container_width=True):
         st.session_state["autenticado"] = False
@@ -135,22 +135,25 @@ with st.sidebar:
 
 st.title("🔬 Controle de Qualidade e Liberação de Lotes")
 
-# --- CONSTRUÇÃO DINÂMICA E SEGURA DAS ABAS AUTORIZADAS ---
-perfil = st.session_state["perfil_usuario"]
-abas_autorizadas = []
+# --- GERENCIAMENTO DE ABAS POR PERFIL (BLOQUEIO REAL) ---
+perfil_ativo = st.session_state["perfil_usuario"]
+abas_disponiveis = []
 
-# Define quem pode ver o quê com base no perfil gravado
-if perfil in ["admin", "cadastro"]:
-    abas_autorizadas.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
-if perfil in ["admin", "laboratorio"]:
-    abas_autorizadas.append("🧫 2. PAINEL DO LABORATÓRIO")
-if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
-    abas_autorizadas.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
+if perfil_ativo in ["admin", "cadastro"]:
+    abas_disponiveis.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
+if perfil_ativo in ["admin", "laboratorio"]:
+    abas_disponiveis.append("🧫 2. PAINEL DO LABORATÓRIO")
+if perfil_ativo in ["admin", "cadastro", "laboratorio", "visualizar"]:
+    abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Renderização do dicionário estruturado para evitar erros de renderização ou índice
-dic_abas = {nome: objeto for nome, objeto in zip(abas_autorizadas, st.tabs(abas_autorizadas))}
+# Mecanismo de segurança contra listas vazias
+if not abas_disponiveis:
+    abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# --- ABA 1: RECEPÇÃO ---
+# Dicionário fixo que amarra a permissão do perfil ao objeto Streamlit
+dic_abas = {nome: objeto for nome, objeto in zip(abas_disponiveis, st.tabs(abas_disponiveis))}
+
+# --- ABA 1: RECEPÇÃO / CADASTRAR LOTE ---
 if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dic_abas:
     with dic_abas["📥 1. RECEPÇÃO / CADASTRAR LOTE"]:
         st.subheader("Entrada de Produto para Inspeção")
@@ -219,9 +222,3 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
                         UPDATE inspeccao 
                         SET status = ?, responsavel = ? 
                         WHERE lote = ?
-                    """, (novo_status, st.session_state["usuario_logado"], lote_selecionado))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
-
-# --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---

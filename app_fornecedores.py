@@ -49,7 +49,7 @@ def inicializar_banco():
     # Criar um usuário padrão caso a tabela esteja vazia (User: admin / Senha: admin123)
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone() == 0:
-        senha_hash = hashlib.sha256("admin123".encode()).hexdigest()
+        senha_hash = hashlib.sha256("931481".encode()).hexdigest()
         cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES ('admin', ?)", (senha_hash,))
         
     conn.commit()

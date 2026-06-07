@@ -78,7 +78,6 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # Extração correta da tupla do SQLite para capturar a senha e o perfil
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -135,7 +134,7 @@ with st.sidebar:
 
 st.title("🔬 Controle de Qualidade e Liberação de Lotes")
 
-# --- GERENCIAMENTO DE ABAS POR PERFIL (BLOQUEIO REAL ATIVO) ---
+# --- GERENCIAMENTO DE ABAS POR PERFIL ---
 perfil_ativo = st.session_state["perfil_usuario"]
 abas_disponiveis = []
 
@@ -146,7 +145,6 @@ if perfil_ativo in ["admin", "laboratorio"]:
 if perfil_ativo in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Segurança contra listas vazias
 if not abas_disponiveis:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
@@ -224,3 +222,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
                     """, (novo_status, st.session_state["usuario_logado"], lote_selecionado))
                     conn.commit()
                     conn.close()
+                    st.rerun()
+
+# --- ABA 3: RELATÓRIO GERAL DE LAUDOS (INFORMAÇÕES DETALHADAS) ---
+if "📋 3. RELATÓRIO GERAL DE LAUDOS" in dic_abas:

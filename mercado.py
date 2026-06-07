@@ -29,7 +29,7 @@ conn = conectar()
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS produtos (codigo TEXT UNIQUE, nome TEXT, preco REAL)")
 cursor.execute("CREATE TABLE IF NOT EXISTS estoque (data TEXT, nota_fiscal TEXT, codigo TEXT, nome TEXT, quantidade INTEGER)")
-cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
+cursor.execute("CREATE TABLE IF NOT EXISTS vendas (data TEXT, codigo TEXT, nome TEXT, quantity = quantidade INTEGER, total REAL, pagamento TEXT, troco REAL)")
 conn.commit()
 conn.close()
 
@@ -78,17 +78,17 @@ usuario = st.session_state["usuario_logado"]
 if usuario == "admin":
     nomes_abas = ["📝 1. CADASTRAR PRODUTO", "🧾 2. ENTRADA DE ESTOQUE (NF)", "💻 3. FRENTE DE CAIXA (PDV)", "📊 4. RELATÓRIO DE VENDAS", "📈 5. HISTÓRICO DE ENTRADAS"]
     abas = st.tabs(nomes_abas)
-    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = abas[0], abas[1], abas[2], abas[3], abas[4]
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = abas, abas, abas, abas, abas
 
 elif usuario == "lucas":
     nomes_abas = ["🧾 1. ENTRADA DE ESTOQUE (NF)", "📈 2. HISTÓRICO DE ENTRADAS"]
     abas = st.tabs(nomes_abas)
-    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, abas[0], None, None, abas[1]
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, abas, None, None, abas
 
 elif usuario == "marcos":
     nomes_abas = ["💻 1. FRENTE DE CAIXA (PDV)"]
     abas = st.tabs(nomes_abas)
-    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, None, abas[0], None, None
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, None, abas, None, None
 
 # --- ABA 1: CADASTRAR PRODUTO ---
 if aba_cad:
@@ -112,7 +112,7 @@ if aba_cad:
             else:
                 st.warning("Preencha o código e o nome.")
 
-# --- ABA 2: ENTRADA DE ESTOQUE (NF) (CORRIGIDA) ---
+# --- ABA 2: ENTRADA DE ESTOQUE (NF) ---
 if aba_est:
     with aba_est:
         st.subheader("Entrada de Notas Fiscais")
@@ -128,15 +128,13 @@ if aba_est:
                 prod = cursor.fetchone()
                 
                 if prod:
-                    # CORREÇÃO AQUI: Pegando a string de dentro da tupla retornada do SQLite
                     nome_p = prod[0]
                     data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    
                     cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", 
                                    (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))
                     conn.commit()
                     st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades de '{nome_p}'!")
-                    st.rerun() # Força o Streamlit a atualizar a tabela de histórico na hora
+                    st.rerun()
                 else:
                     st.error("Código não encontrado! Cadastre o produto com uma conta Admin primeiro.")
                 conn.close()
@@ -216,4 +214,9 @@ if aba_pdv:
                         st.toast("🛒 Venda finalizada com sucesso!")
                         st.rerun()
             else:
+                # CORREÇÃO AQUI: Perfeitamente indentado com 16 espaços para ficar correto no Python
+                st.info("O carrinho de compras está vazio. Registre itens na coluna ao lado.")
 
+# --- ABA 4: RELATÓRIO DE VENDAS ---
+if aba_rel:
+    with aba_rel:

@@ -12,7 +12,7 @@ def inicializar_banco():
     conn = sqlite3.connect('sistema_fiscal.db')
     cursor = conn.cursor()
     
-    # Tabela de Usuários (Senha salva com Hash por segurança)
+    # 1. Tabela de Usuários
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,7 +21,7 @@ def inicializar_banco():
         )
     ''')
     
-    # Tabela de Recebimento de Notas
+    # 2. Tabela de Recebimento de Notas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS recebimentos (
             id_recebimento INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,17 +34,28 @@ def inicializar_banco():
             status TEXT DEFAULT 'Recebido'
         )
     ''')
+
+    # 3. Tabela de Histórico de Devoluções
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS devolucoes (
+            id_devolucao INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_recebimento_origem INTEGER NOT NULL,
+            data_devolucao TEXT NOT NULL,
+            motivo TEXT NOT NULL,
+            FOREIGN KEY (id_recebimento_origem) REFERENCES recebimentos (id_recebimento)
+        )
+    ''')
     
     # Criar um usuário padrão caso a tabela esteja vazia (User: admin / Senha: admin123)
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone() == 0:
         senha_hash = hashlib.sha256("admin123".encode()).hexdigest()
         cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES ('admin', ?)", (senha_hash,))
         
     conn.commit()
     conn.close()
 
-# Inicializa o banco de dados antes de carregar a interface
+# Inicializa o banco antes de carregar o visual
 inicializar_banco()
 
 # CONTROLE DE SESSÃO DE LOGIN
@@ -74,7 +85,7 @@ def realizar_logout():
 # --- TELA DE LOGIN ---
 if not st.session_state['logado']:
     st.markdown("<h2 style='text-align: center;'>🔒 Acesso ao Sistema Fiscal</h2>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns()
     
     with col2:
         with st.form("form_login"):
@@ -88,23 +99,25 @@ if not st.session_state['logado']:
 
 # --- TELA PRINCIPAL (APÓS LOGIN) ---
 else:
-    # Barra Superior com informações do Usuário
-    col_titulo, col_usuario = st.columns([4, 1])
+    col_titulo, col_usuario = st.columns()
     with col_titulo:
-        st.title("🏢 Painel de Recebimento de Notas")
+        st.title("🏢 Painel Fiscal de Fornecedores")
     with col_usuario:
-        st.write(f"👤 **{st.session_state['usuario_atual']}**")
+        st.write(f" 👤 **{st.session_state['usuario_atual']}**")
         if st.button("Sair / Logout", key="btn_logout"):
             realizar_logout()
 
-    # Abas de Navegação do Sistema
-    aba_lista, aba_cadastro = st.tabs(["📋 Notas Recebidas", "📥 Cadastrar Recebimento Manual"])
+    # Abas de Navegação
+    aba_lista, aba_cadastro, aba_devolucao = st.tabs([
+        "📋 Notas Recebidas", 
+        "📥 Cadastrar Recebimento Manual",
+        "↩️ Registrar Devolução"
+    ])
 
     # ABA 1: LISTAGEM DE NOTAS
     with aba_lista:
-        st.subheader("Histórico de Notas em Estoque")
+        st.subheader("Histórico Geral de Notas em Estoque")
         
-        # Abrimos a conexão para ler os dados mais recentes do banco
         conn = sqlite3.connect('sistema_fiscal.db')
         df_notas = pd.read_sql_query('''
             SELECT numero_nota AS [Nº Nota], fornecedor AS [Fornecedor], 
@@ -116,12 +129,11 @@ else:
         conn.close()
 
         if not df_notas.empty:
-            # Exibe a tabela com os dados reais salvos
             st.dataframe(df_notas, use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhuma nota fiscal foi cadastrada manualmente ainda. Vá na aba ao lado para cadastrar.")
+            st.info("Nenhuma nota fiscal cadastrada no sistema.")
 
-    # ABA 2: FORMULÁRIO DE PREENCHIMENTO DOS CAMPOS
+    # ABA 2: FORMULÁRIO DE CADASTRO MANUAL
     with aba_cadastro:
         st.subheader("Formulário de Entrada Manual de Nota Fiscal")
         
@@ -141,7 +153,6 @@ else:
             botao_salvar = st.form_submit_button("💾 Gravar Recebimento")
             
             if botao_salvar:
-                # Validação básica de campos obrigatórios
                 if not fornecedor.strip():
                     st.error("Por favor, preencha o nome do fornecedor.")
                 elif not desc_produto.strip():
@@ -151,10 +162,8 @@ else:
                 elif valor_total <= 0:
                     st.error("O valor total da nota deve ser maior que zero.")
                 else:
-                    # Salva os dados digitados diretamente no banco SQLite
                     conn = sqlite3.connect('sistema_fiscal.db')
                     cursor = conn.cursor()
-                    
                     data_formatada = data_rec.strftime('%Y-%m-%d')
                     
                     cursor.execute('''
@@ -165,6 +174,55 @@ else:
                     conn.commit()
                     conn.close()
                     
-                    # Mensagem de sucesso e comando para forçar a atualização imediata da tabela
                     st.success(f"Sucesso! Nota Fiscal Nº {num_nota} registrada no banco de dados.")
                     st.rerun()
+
+    # ABA 3: CONTROLE DE DEVOLUÇÕES
+    with aba_devolucao:
+        st.subheader("Processar Devolução para Fornecedor")
+        
+        conn = sqlite3.connect('sistema_fiscal.db')
+        notas_ativas = pd.read_sql_query("SELECT id_recebimento, numero_nota, fornecedor, descricao_produto FROM recebimentos WHERE status = 'Recebido'", conn)
+        conn.close()
+        
+        if not notas_ativas.empty:
+            opcoes_devolucao = {
+                f"Nota Nº {row['numero_nota']} - Fornecedor: {row['fornecedor']} ({row['descricao_produto']})": row 
+                for _, row in notas_ativas.iterrows()
+            }
+            
+            nota_selecionada_txt = st.selectbox("Escolha a Nota Fiscal que deseja devolver:", list(opcoes_devolucao.keys()))
+            dados_nota_origem = opcoes_devolucao[nota_selecionada_txt]
+            
+            with st.form("form_processa_devolucao"):
+                motivo_dev = st.text_area("Descreva o motivo da devolução:")
+                data_dev = st.date_input("Data da Devolução:", datetime.now())
+                
+                botao_confirmar_dev = st.form_submit_button("↩️ Confirmar Saída por Devolução")
+                
+                if botao_confirmar_dev:
+                    if not motivo_dev.strip():
+                        st.error("Por favor, preencha o motivo da devolução antes de confirmar.")
+                    else:
+                        conn = sqlite3.connect('sistema_fiscal.db')
+                        cursor = conn.cursor()
+                        data_dev_formatada = data_dev.strftime('%Y-%m-%d')
+                        
+                        cursor.execute('''
+                            INSERT INTO devolucoes (id_recebimento_origem, data_devolucao, motivo)
+                            VALUES (?, ?, ?)
+                        ''', (dados_nota_origem['id_recebimento'], data_dev_formatada, motivo_dev))
+                        
+                        cursor.execute('''
+                            UPDATE recebimentos 
+                            SET status = 'Devolvido' 
+                            WHERE id_recebimento = ?
+                        ''', (dados_nota_origem['id_recebimento'],))
+                        
+                        conn.commit()
+                        conn.close()
+                        
+                        st.success("Nota devolvida com sucesso!")
+                        st.rerun()
+        else:
+            st.warning("Não há notas com status 'Recebido' disponíveis para devolução no momento.")

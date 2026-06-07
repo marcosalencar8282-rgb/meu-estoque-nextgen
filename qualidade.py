@@ -40,9 +40,9 @@ cursor.execute("""
     )
 """)
 
-# Garante o Administrador padrão do sistema
+# Garante o Administrador padrão do sistema com o perfil correto 'admin'
 try:
-    cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'Master@2026', 'Administrador')")
+    cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'Master@2026', 'admin')")
 except sqlite3.Error:
     pass
 
@@ -83,7 +83,7 @@ if not st.session_state["autenticado"]:
                     resultado = cursor.fetchone()
                     conn.close()
                     
-                    # Extração correta do valor da tupla do SQLite
+                    # CORREÇÃO DA TUPLA: resultado[0] é a senha, resultado[1] é o perfil
                     if resultado and resultado[0] == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
@@ -105,7 +105,7 @@ if not st.session_state["autenticado"]:
             
             novo_perfil = st.selectbox(
                 "Selecione sua Função Operacional:", 
-                ["Recepção (Cadastros)", "Laboratório (Análises)", "Consulta (Relatórios)", "Administrador"]
+                ["cadastro", "laboratorio", "visualizar", "admin"]
             )
             
             if st.button("Gravar e Ativar Conta", use_container_width=True):
@@ -134,7 +134,7 @@ if not st.session_state["autenticado"]:
 with st.sidebar:
     st.markdown("### 🧪 CONTA ATIVA")
     st.write(f"**Usuário:** `{st.session_state['usuario_logado']}`")
-    st.write(f"**Acesso:** `{st.session_state['perfil_usuario']}`")
+    st.write(f"**Acesso:** `{(st.session_state['perfil_usuario']).upper()}`")
     st.markdown("---")
     if st.button("Sair do Sistema", use_container_width=True):
         st.session_state["autenticado"] = False
@@ -149,21 +149,21 @@ st.title("🔬 Módulo Integrado de Controle de Qualidade")
 perfil = st.session_state["perfil_usuario"]
 abas_autorizadas = []
 
-# Mapeamento estrito de permissões por perfil
-if perfil in ["Administrador", "Recepção (Cadastros)"]:
+# Mapeamento corrigido baseado nos novos termos do banco
+if perfil in ["admin", "cadastro"]:
     abas_autorizadas.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
-if perfil in ["Administrador", "Laboratório (Análises)"]:
+if perfil in ["admin", "laboratorio"]:
     abas_autorizadas.append("🧫 2. PAINEL DO LABORATÓRIO")
-if perfil in ["Administrador", "Recepção (Cadastros)", "Laboratório (Análises)", "Consulta (Relatórios)"]:
+if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_autorizadas.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
-if perfil == "Administrador":
+if perfil == "admin":
     abas_autorizadas.append("⚙️ GERENCIAR CONTAS")
 
-# SOLUÇÃO DO BUG: Se a lista estiver vazia por algum problema de registro, adiciona uma aba de aviso padrão
+# Mecanismo de segurança contra listas vazias
 if not abas_autorizadas:
     abas_autorizadas.append("⚠️ SEM PERMISSÃO")
 
-# Renderização segura das abas mapeadas em dicionário
+# Renderização das abas mapeadas em dicionário
 dicionario_abas = {nome: objeto for nome, objeto in zip(abas_autorizadas, st.tabs(abas_autorizadas))}
 
 
@@ -230,4 +230,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
             st.info("Nenhum lote pendente de análise laboratorial no momento.")
         else:
             st.dataframe(df_analise, use_container_width=True, hide_index=True)
+            
+            st.markdown("### Registrar Laudo Técnico")
+            with st.form("form_laboratorio"):
 

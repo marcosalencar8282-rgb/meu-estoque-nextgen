@@ -227,8 +227,7 @@ else:
                     cursor.execute('''
                         INSERT INTO devolucoes (id_recebimento_origem, data_devolucao, motivo)
                         VALUES (?, ?, ?)
-                    ''', (dados_nota_origem['id_recebimento'], data_dev_formatada, motivo_dev))
+                    ''') # Correção aplicada aqui para evitar strings abertas
                     
-                    cursor.execute('''
-                        UPDATE recebimentos 
-                        SET status = 'Devolvido'
+                    # Usando aspas simples normais para comandos curtos de forma segura
+                    cursor.execute("UPDATE recebimentos SET status = 'Devolvido' WHERE id_recebimento = ?", (dados_nota_origem['id_recebimento'],))

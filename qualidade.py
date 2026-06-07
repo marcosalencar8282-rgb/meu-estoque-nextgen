@@ -165,7 +165,7 @@ if "⚠️ SEM PERMISSÃO" in dicionario_abas:
     with dicionario_abas["⚠️ SEM PERMISSÃO"]:
         st.error("Seu perfil atual não possui permissões associadas. Entre em contato com o Administrador.")
 
-# --- TELA 1: RECEPÇÃO / CADASTRAR LOTE (SEM FORM) ---
+# --- TELA 1: RECEPÇÃO / CADASTRAR LOTE ---
 if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
     with dicionario_abas["📥 1. RECEPÇÃO / CADASTRAR LOTE"]:
         st.subheader("Entrada de Matéria-Prima / Produto para Inspeção")
@@ -174,42 +174,43 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
             st.success(st.session_state["sucesso_cadastro"])
             del st.session_state["sucesso_cadastro"]
 
-        q_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="cad_nf")
-        q_for = st.text_input("Nome do Fornecedor / Fabricante:", key="cad_for")
-        q_cod = st.text_input("Código do Produto (SKU/EAN):", key="cad_cod")
-        q_des = st.text_input("Descrição / Nome do Produto:", key="cad_des")
-        q_lot = st.text_input("Número do Lote do Fabricante:", key="cad_lot")
-        
-        c_f1, c_f2 = st.columns(2)
-        with c_f1:
-            q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):", key="cad_fab")
-        with c_f2:
-            q_val = st.text_input("Data de Validade (Ex: 01/12/2026):", key="cad_val")
+        with st.form("form_cadastro", clear_on_submit=True):
+            q_nf = st.text_input("Número da Nota Fiscal (NF-e):")
+            q_for = st.text_input("Nome do Fornecedor / Fabricante:")
+            q_cod = st.text_input("Código do Produto (SKU/EAN):")
+            q_des = st.text_input("Descrição / Nome do Produto:")
+            q_lot = st.text_input("Número do Lote do Fabricante:")
             
-        enviar = st.button("Dar Entrada para Análise", use_container_width=True, key="btn_cadastrar")
+            c_f1, c_f2 = st.columns(2)
+            with c_f1:
+                q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):")
+            with c_f2:
+                q_val = st.text_input("Data de Validade (Ex: 01/12/2026):")
+                
+            enviar = st.form_submit_button("Dar Entrada para Análise", use_container_width=True)
             
-        if enviar:
-            if q_nf and q_for and q_cod and q_des and q_lot:
-                conn = conectar()
-                cursor = conn.cursor()
-                try:
-                    dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    cursor.execute("""
-                        INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
-                    conn.commit()
-                    st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} registrado com sucesso!"
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("Erro: Este número de Lote já consta no banco de dados!")
-                finally:
-                    conn.close()
-            else:
-                st.warning("Preencha todos os campos obrigatórios para registrar o lote.")
+            if enviar:
+                if q_nf and q_for and q_cod and q_des and q_lot:
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    try:
+                        dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        cursor.execute("""
+                            INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
+                        conn.commit()
+                        st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} registrado com sucesso!"
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("Erro: Este número de Lote já consta no banco de dados!")
+                    finally:
+                        conn.close()
+                else:
+                    st.warning("Preencha todos os campos obrigatórios para registrar o lote.")
 
 
-# --- TELA 2: PAINEL DO LABORATÓRIO (SEM FORM) ---
+# --- TELA 2: PAINEL DO LABORATÓRIO ---
 if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
     with dicionario_abas["🧫 2. PAINEL DO LABORATÓRIO"]:
         st.subheader("Análise e Parecer Técnico Laboratorial")
@@ -224,10 +225,8 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
             st.dataframe(df_analise, use_container_width=True, hide_index=True)
             
             st.markdown("### Registrar Laudo Técnico")
-            lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist(), key="lab_lote")
-            novo_status = st.selectbox("Parecer de Qualidade:", ["Aprovado", "Reprovado"], key="lab_status")
             
-            concluir_analise = st.button("Gravar Decisão e Assinar", use_container_width=True, key="btn_laudo")
-            
-            if concluir_analise:
-                conn = conectar()
+            with st.form("form_laboratorio"):
+                lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist())
+                novo_status = st.selectbox("Parecer de Qualidade:", ["Aprovado", "Reprovado"])
+                concluir_analise = st.form_submit_button("Gravar Decisão e Assinar", use_container_width=True)

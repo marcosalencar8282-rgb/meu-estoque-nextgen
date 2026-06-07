@@ -79,7 +79,6 @@ if not st.session_state["autenticado"]:
                     resultado = cursor.fetchone()
                     conn.close()
                     
-                    # CORREÇÃO DEFINITIVA DO LOGIN: Acessando os índices da tupla corretamente
                     if resultado and resultado[0] == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
@@ -131,7 +130,6 @@ with st.sidebar:
     st.write(f"**Perfil:** `{str(st.session_state['perfil_usuario']).upper()}`")
     st.markdown("---")
     
-    # GERENCIAMENTO DE TELAS BASEADO NO PERFIL (Substitui st.tabs para eliminar bugs de layout)
     perfil_ativo = st.session_state["perfil_usuario"]
     telas_disponiveis = []
     
@@ -215,7 +213,7 @@ elif tela_selecionada == "🧫 2. Painel do Laboratório":
                 conn.close()
                 st.rerun()
 
-# --- TELA 3: RELATÓRIO GERAL DE LAUDOS (VISUALIZAÇÃO COMPLETA GARANTIDA) ---
+# --- TELA 3: RELATÓRIO GERAL DE LAUDOS ---
 elif tela_selecionada == "📋 3. Relatório Geral de Laudos":
     st.subheader("Histórico Completo de Laudos Emitidos")
     
@@ -224,3 +222,8 @@ elif tela_selecionada == "📋 3. Relatório Geral de Laudos":
     conn.close()
     
     if df_dados_gerais.empty:
+        st.info("Nenhum laudo registrado ou emitido no banco de dados.")
+    else:
+        df_laudo_final = df_dados_gerais.rename(columns={
+            "id_laudo": "ID do Laudo",
+            "data_chegada": "Data de Entrada",

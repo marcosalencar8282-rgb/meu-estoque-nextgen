@@ -108,6 +108,7 @@ def renderizar_entrada_estoque():
             prod = cursor.fetchone()
             
             if prod:
+                # CORREÇÃO CRÍTICA AQUI: Extraindo apenas a string de dentro da tupla retornada do SQLite
                 nome_p = prod[0]
                 data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", 
@@ -222,4 +223,3 @@ def renderizar_historico_entradas():
 usuario = st.session_state["usuario_logado"]
 
 if usuario == "admin":
-    aba1, aba2, aba3, aba4, aba5 = st.tabs(["📝 1. CADASTRAR PRODUTO", "🧾 2. ENTRADA DE ESTOQUE (NF)", "💻 3. FRENTE DE CAIXA (PDV)", "📊 4. RELATÓRIO DE VENDAS", "📈 5. HISTÓRICO DE ENTRADAS"])

@@ -108,7 +108,6 @@ def renderizar_entrada_estoque():
             prod = cursor.fetchone()
             
             if prod:
-                # FIX DEFINITIVO: Extraindo apenas a string da primeira posição da tupla [0]
                 nome_p = prod[0]
                 data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))
@@ -218,8 +217,10 @@ def renderizar_historico_entradas():
     else:
         st.info("Nenhuma entrada de estoque registrada.")
 
-# --- DISTRIBUIÇÃO DAS ABAS INDEPENDENTES POR OPERADOR ---
+# --- INICIALIZAÇÃO BLINDADA DO MENU POR OPERADOR ---
 usuario = st.session_state["usuario_logado"]
 
 if usuario == "admin":
+    menu = st.tabs(["📝 1. CADASTRAR PRODUTO", "🧾 2. ENTRADA DE ESTOQUE (NF)", "💻 3. FRENTE DE CAIXA (PDV)", "📊 4. RELATÓRIO DE VENDAS", "📈 5. HISTÓRICO DE ENTRADAS"])
+    with menu[0]: renderizar_cadastro()
 

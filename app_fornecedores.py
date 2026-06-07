@@ -16,7 +16,8 @@ SENHA_PADRAO = "ColoqueSuaSenhaAqui" # <-- Mude aqui sempre que quiser trocar a 
 
 # CONEXÃO E CRIAÇÃO DAS TABELAS DO BANCO DE DADOS
 def inicializar_banco():
-    conn = sqlite3.connect('sistema_fiscal.db')
+    # Mudamos o nome do arquivo para forçar a nuvem a criar um banco novo sem travas
+    conn = sqlite3.connect('sistema_fiscal_v2.db')
     cursor = conn.cursor()
     
     # 1. Tabela de Usuários
@@ -56,12 +57,9 @@ def inicializar_banco():
     # Gera o hash da senha definida por você lá em cima
     senha_hash = hashlib.sha256(SENHA_PADRAO.encode()).hexdigest()
     
-    # Atualiza ou insere o usuário admin com a senha atual do código
-    cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (USUARIO_PADRAO,))
-    if cursor.fetchone() == 0:
-        cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES (?, ?)", (USUARIO_PADRAO, senha_hash))
-    else:
-        cursor.execute("UPDATE usuarios SET senha = ? WHERE usuario = ?", (senha_hash, USUARIO_PADRAO))
+    # Deleta e reinsere de forma limpa para evitar o erro de travamento operacional na nuvem
+    cursor.execute("DELETE FROM usuarios WHERE usuario = ?", (USUARIO_PADRAO,))
+    cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES (?, ?)", (USUARIO_PADRAO, senha_hash))
         
     conn.commit()
     conn.close()
@@ -75,7 +73,7 @@ if 'logado' not in st.session_state:
 
 def realizar_login(usuario, senha):
     senha_hash = hashlib.sha256(senha.encode()).hexdigest()
-    conn = sqlite3.connect('sistema_fiscal.db')
+    conn = sqlite3.connect('sistema_fiscal_v2.db')
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM usuarios WHERE usuario = ? AND senha = ?", (usuario, senha_hash))
     usuario_valido = cursor.fetchone()
@@ -129,7 +127,7 @@ else:
     with aba_lista:
         st.subheader("Histórico Geral de Notas em Estoque")
         
-        conn = sqlite3.connect('sistema_fiscal.db')
+        conn = sqlite3.connect('sistema_fiscal_v2.db')
         df_notas = pd.read_sql_query('''
             SELECT numero_nota AS [Nº Nota], fornecedor AS [Fornecedor], 
                    data_recebimento AS [Data Recebimento], descricao_produto AS [Produto], 
@@ -173,7 +171,7 @@ else:
                 elif valor_total <= 0:
                     st.error("O valor total da nota deve ser maior que zero.")
                 else:
-                    conn = sqlite3.connect('sistema_fiscal.db')
+                    conn = sqlite3.connect('sistema_fiscal_v2.db')
                     cursor = conn.cursor()
                     data_formatada = data_rec.strftime('%Y-%m-%d')
                     
@@ -192,7 +190,7 @@ else:
     with aba_devolucao:
         st.subheader("Processar Devolução para Fornecedor")
         
-        conn = sqlite3.connect('sistema_fiscal.db')
+        conn = sqlite3.connect('sistema_fiscal_v2.db')
         notas_ativas = pd.read_sql_query("SELECT id_recebimento, numero_nota, fornecedor, descricao_produto FROM recebimentos WHERE status = 'Recebido'", conn)
         conn.close()
         
@@ -220,12 +218,16 @@ else:
                 else:
                     dados_nota_origem = opcoes_devolucao[nota_selecionada_txt]
                     
-                    conn = sqlite3.connect('sistema_fiscal.db')
+                    conn = sqlite3.connect('sistema_fiscal_v2.db')
                     cursor = conn.cursor()
                     data_dev_formatada = data_dev.strftime('%Y-%m-%d')
                     
-                    # LINHA CORRIGIDA: Agora as variáveis contendo os dados reais estão mapeadas corretamente dentro do comando SQL
                     cursor.execute('''
                         INSERT INTO devolucoes (id_recebimento_origem, data_devolucao, motivo)
                         VALUES (?, ?, ?)
                     ''', (dados_nota_origem['id_recebimento'], data_dev_formatada, motivo_dev))
+                    
+                    cursor.execute("UPDATE recebimentos SET status = 'Devolvido' WHERE id_recebimento = ?", (dados_nota_origem['id_recebimento'],))
+                    
+                    conn.commit()
+                    conn.close()

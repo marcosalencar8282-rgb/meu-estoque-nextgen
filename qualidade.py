@@ -148,15 +148,13 @@ st.title("🔬 Módulo Integrado de Controle de Qualidade")
 perfil = st.session_state["perfil_usuario"]
 abas_autorizadas = []
 
-# Mapeamento corrigido baseado nos novos termos do banco
+# Mapeamento estrito baseado nos perfis operacionais
 if perfil in ["admin", "cadastro"]:
     abas_autorizadas.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
 if perfil in ["admin", "laboratorio"]:
     abas_autorizadas.append("🧫 2. PAINEL DO LABORATÓRIO")
 if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_autorizadas.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
-if perfil == "admin":
-    abas_autorizadas.append("⚙️ GERENCIAR CONTAS")
 
 # Mecanismo de segurança contra listas vazias
 if not abas_autorizadas:
@@ -220,3 +218,17 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
 if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
     with dicionario_abas["🧫 2. PAINEL DO LABORATÓRIO"]:
         st.subheader("Análise e Parecer Técnico Laboratorial")
+        
+        conn = conectar()
+        df_analise = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM inspeccao WHERE status = 'Em Análise'", conn)
+        conn.close()
+        
+        if df_analise.empty:
+            st.info("Nenhum lote pendente de análise laboratorial no momento.")
+        else:
+            st.dataframe(df_analise, use_container_width=True, hide_index=True)
+            
+            st.markdown("### Registrar Laudo Técnico")
+            with st.form("form_laboratorio"):
+                lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist())
+                novo_status = st.selectbox("Parecer de Qualidade:", ["Aprovado", "Reprovado"])

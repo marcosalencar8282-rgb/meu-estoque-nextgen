@@ -11,7 +11,7 @@ st.set_page_config(page_title="Sistema Fiscal Pro", page_icon="🔒", layout="wi
 # 🔑 ALTERE SUA SENHA DIRETAMENTE AQUI NO CÓDIGO
 # =========================================================
 USUARIO_PADRAO = "admin"
-SENHA_PADRAO = "ColoqueSuaSenhaAqui" # <-- Mude aqui sempre que quiser trocar a senha!
+SENHA_PADRAO = "819314" # <-- Mude aqui sempre que quiser trocar a senha!
 # =========================================================
 
 # CONEXÃO E CRIAÇÃO DAS TABELAS DO BANCO DE DADOS

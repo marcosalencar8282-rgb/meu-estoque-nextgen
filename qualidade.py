@@ -83,7 +83,6 @@ if not st.session_state["autenticado"]:
                     resultado = cursor.fetchone()
                     conn.close()
                     
-                    # CORREÇÃO DA TUPLA: resultado[0] é a senha, resultado[1] é o perfil
                     if resultado and resultado[0] == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
@@ -221,16 +220,3 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
 if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
     with dicionario_abas["🧫 2. PAINEL DO LABORATÓRIO"]:
         st.subheader("Análise e Parecer Técnico Laboratorial")
-        
-        conn = conectar()
-        df_analise = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM inspeccao WHERE status = 'Em Análise'", conn)
-        conn.close()
-        
-        if df_analise.empty:
-            st.info("Nenhum lote pendente de análise laboratorial no momento.")
-        else:
-            st.dataframe(df_analise, use_container_width=True, hide_index=True)
-            
-            st.markdown("### Registrar Laudo Técnico")
-            with st.form("form_laboratorio"):
-

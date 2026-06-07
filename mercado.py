@@ -112,7 +112,7 @@ if aba_cad:
             else:
                 st.warning("Preencha o código e o nome.")
 
-# --- ABA 2: ENTRADA DE ESTOQUE (NF) ---
+# --- ABA 2: ENTRADA DE ESTOQUE (NF) (FIXED) ---
 if aba_est:
     with aba_est:
         st.subheader("Entrada de Notas Fiscais")
@@ -128,8 +128,10 @@ if aba_est:
                 prod = cursor.fetchone()
                 
                 if prod:
-                    nome_p = prod[0]
+                    # SOLUÇÃO DEFINITIVA: Extrai estritamente a string [0] de dentro da resposta do banco
+                    nome_p = str(prod[0])
                     data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    
                     cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", 
                                    (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))
                     conn.commit()
@@ -215,9 +217,3 @@ if aba_pdv:
                         st.rerun()
             else:
                 st.info("O carrinho de compras está vazio. Registre itens na coluna ao lado.")
-
-# --- ABA 4: RELATÓRIO DE VENDAS ---
-if aba_rel:
-    with aba_rel:
-        st.subheader("Relatório de Faturamento Geral")
-        conn = conectar()

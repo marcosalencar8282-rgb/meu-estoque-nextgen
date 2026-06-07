@@ -49,7 +49,6 @@ if not st.session_state["autenticado"]:
                 st.session_state["autenticado"] = True
                 st.session_state["usuario_logado"] = u_input.strip()
                 
-                # Define a tela inicial padrão baseada no operador para não dar erro
                 if u_input.strip() == "lucas":
                     st.session_state["tela_ativa"] = "🧾 Entrada de Estoque (NF)"
                 else:
@@ -77,7 +76,6 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🛠️ SELECIONE A TELA:")
     
-    # Restrição de botões baseada estritamente no tipo de usuário logado
     if usuario == "admin":
         if st.button("💻 1. Frente de Caixa (PDV)", use_container_width=True): st.session_state["tela_ativa"] = "💻 Frente de Caixa (PDV)"
         if st.button("📝 2. Cadastrar Produto", use_container_width=True): st.session_state["tela_ativa"] = "📝 Cadastrar Produto"
@@ -186,7 +184,7 @@ elif tela == "🧾 Entrada de Estoque (NF)":
             cursor.execute("SELECT nome FROM produtos WHERE codigo = ?", (e_cod.strip(),))
             prod = cursor.fetchone()
             if prod:
-                # CORREÇÃO EFETIVA: Extrai o texto puro de dentro da tupla usando [0] para não salvar como ('Arroz',)
+                # SOLUÇÃO DEFINITIVA: Extrai estritamente o texto da primeira posição da tupla [0]
                 nome_p = prod[0]
                 data_e = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_e, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))
@@ -201,3 +199,7 @@ elif tela == "🧾 Entrada de Estoque (NF)":
 
 elif tela == "📊 Relatório de Vendas":
     conn = conectar()
+    df_v = pd.read_sql_query("SELECT data AS [Data/Hora], codigo AS [Cód], nome AS [Produto], quantidade AS [Qtd], total AS [Total R$], pagamento AS [Pagamento] FROM vendas ORDER BY rowid DESC", conn)
+    conn.close()
+    if not df_v.empty:
+        st.metric(label="Faturamento Bruto Total", value=f"R$ {df_v['Total R$'].sum():.2f}")

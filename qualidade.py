@@ -83,6 +83,7 @@ if not st.session_state["autenticado"]:
                     resultado = cursor.fetchone()
                     conn.close()
                     
+                    # Extração correta do valor da tupla do SQLite
                     if resultado and resultado[0] == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
@@ -102,7 +103,6 @@ if not st.session_state["autenticado"]:
             novo_p = st.text_input("Crie sua Senha:", type="password", key="reg_pass").strip()
             conf_p = st.text_input("Confirme sua Senha:", type="password", key="reg_conf").strip()
             
-            # Perfis autorizados para determinar o acesso às telas
             novo_perfil = st.selectbox(
                 "Selecione sua Função Operacional:", 
                 ["Recepção (Cadastros)", "Laboratório (Análises)", "Consulta (Relatórios)", "Administrador"]
@@ -159,9 +159,18 @@ if perfil in ["Administrador", "Recepção (Cadastros)", "Laboratório (Análise
 if perfil == "Administrador":
     abas_autorizadas.append("⚙️ GERENCIAR CONTAS")
 
-# Renderização segura das abas mapeadas em dicionário para evitar erros de indexação
+# SOLUÇÃO DO BUG: Se a lista estiver vazia por algum problema de registro, adiciona uma aba de aviso padrão
+if not abas_autorizadas:
+    abas_autorizadas.append("⚠️ SEM PERMISSÃO")
+
+# Renderização segura das abas mapeadas em dicionário
 dicionario_abas = {nome: objeto for nome, objeto in zip(abas_autorizadas, st.tabs(abas_autorizadas))}
 
+
+# --- TRATAMENTO SE O USUÁRIO ESTIVER SEM ABAS ---
+if "⚠️ SEM PERMISSÃO" in dicionario_abas:
+    with dicionario_abas["⚠️ SEM PERMISSÃO"]:
+        st.error("Seu perfil atual não possui permissões associadas. Entre em contato com o Administrador.")
 
 # --- TELA 1: RECEPÇÃO / CADASTRAR LOTE ---
 if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
@@ -221,8 +230,4 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
             st.info("Nenhum lote pendente de análise laboratorial no momento.")
         else:
             st.dataframe(df_analise, use_container_width=True, hide_index=True)
-            
-            st.markdown("### Registrar Laudo Técnico")
-            with st.form("form_laboratorio"):
-                lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist())
-                novo_status = st.selectbox("Parecer de Qualidade:", ["Aprovado", "Reprovado"])
+

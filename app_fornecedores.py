@@ -85,7 +85,9 @@ def realizar_logout():
 # --- TELA DE LOGIN ---
 if not st.session_state['logado']:
     st.markdown("<h2 style='text-align: center;'>🔒 Acesso ao Sistema Fiscal</h2>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns()
+    
+    # Linha corrigida com o número 3 para evitar o erro de TypeError
+    col1, col2, col3 = st.columns(3)
     
     with col2:
         with st.form("form_login"):
@@ -99,7 +101,7 @@ if not st.session_state['logado']:
 
 # --- TELA PRINCIPAL (APÓS LOGIN) ---
 else:
-    col_titulo, col_usuario = st.columns()
+    col_titulo, col_usuario = st.columns(2)
     with col_titulo:
         st.title("🏢 Painel Fiscal de Fornecedores")
     with col_usuario:

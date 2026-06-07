@@ -214,7 +214,7 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
                 st.warning("Preencha todos os campos obrigatórios para registrar o lote.")
 
 
-# --- TELA 2: PAINEL DO LABORATÓRIO ---
+# --- TELA 2: PAINEL DO LABORATÓRIO (CORRIGIDA) ---
 if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
     with dicionario_abas["🧫 2. PAINEL DO LABORATÓRIO"]:
         st.subheader("Análise e Parecer Técnico Laboratorial")
@@ -229,6 +229,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
             st.dataframe(df_analise, use_container_width=True, hide_index=True)
             
             st.markdown("### Registrar Laudo Técnico")
+            # Toda a lógica foi inserida estritamente dentro do gerenciador do formulário
             with st.form("form_laboratorio"):
                 lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist())
-                novo_status = st.selectbox("Parecer de Qualidade:", ["Aprovado", "Reprovado"])

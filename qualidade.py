@@ -181,7 +181,6 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dic_abas:
                     cursor = conn.cursor()
                     try:
                         dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        # Query em linha única para zerar qualquer erro de SyntaxError
                         cursor.execute("INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
                         conn.commit()
                         st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} cadastrado com sucesso!"
@@ -222,3 +221,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
 # --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
 if "📋 3. RELATÓRIO GERAL DE LAUDOS" in dic_abas:
     with dic_abas["📋 3. RELATÓRIO GERAL DE LAUDOS"]:
+        st.subheader("Histórico Completo de Laudos Emitidos")
+        
+        conn = conectar()

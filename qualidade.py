@@ -79,11 +79,11 @@ if not st.session_state["autenticado"]:
                     resultado = cursor.fetchone()
                     conn.close()
                     
-                    # CORREÇÃO CRÍTICA DO LOGIN: resultado[0] é a senha gravada no banco
+                    # CORREÇÃO DA VALIDAÇÃO: acessando os índices corretos da tupla resultado
                     if resultado and resultado[0] == p_input:
                         st.session_state["autenticado"] = True
                         st.session_state["usuario_logado"] = u_input
-                        st.session_state["perfil_usuario"] = str(resultado[1]).strip().lower() # Extrai o perfil real ('admin', 'cadastro', etc)
+                        st.session_state["perfil_usuario"] = str(resultado[1]).strip().lower()
                         st.rerun()
                     else:
                         st.error("Usuário ou senha incorretos.")
@@ -131,10 +131,8 @@ with st.sidebar:
     st.write(f"**Perfil:** `{str(st.session_state['perfil_usuario']).upper()}`")
     st.markdown("---")
     if st.button("Sair do Sistema", use_container_width=True):
-        st.session_state["autenticado"] = False
-        st.session_state["usuario_logado"] = ""
-        st.session_state["perfil_usuario"] = ""
-        st.clear() # Limpa completamente o estado travado para deslogar à força
+        # CORREÇÃO DEFINITIVA DO LOGOUT: Comando oficial para limpar a sessão travada
+        st.session_state.clear()
         st.rerun()
 
 st.title("🔬 Controle de Qualidade e Liberação de Lotes")
@@ -221,3 +219,7 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
                 if concluir_analise:
                     conn = conectar()
                     cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE inspeccao 
+                        SET status = ?, responsavel = ? 
+                        WHERE lote = ?

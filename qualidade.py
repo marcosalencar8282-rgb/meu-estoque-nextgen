@@ -148,7 +148,6 @@ st.title("🔬 Módulo Integrado de Controle de Qualidade")
 perfil = st.session_state["perfil_usuario"]
 abas_autorizadas = []
 
-# Mapeamento estrito baseado nos perfis operacionais
 if perfil in ["admin", "cadastro"]:
     abas_autorizadas.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
 if perfil in ["admin", "laboratorio"]:
@@ -156,20 +155,17 @@ if perfil in ["admin", "laboratorio"]:
 if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_autorizadas.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Mecanismo de segurança contra listas vazias
 if not abas_autorizadas:
     abas_autorizadas.append("⚠️ SEM PERMISSÃO")
 
-# Renderização das abas mapeadas em dicionário
 dicionario_abas = {nome: objeto for nome, objeto in zip(abas_autorizadas, st.tabs(abas_autorizadas))}
 
 
-# --- TRATAMENTO SE O USUÁRIO ESTIVER SEM ABAS ---
 if "⚠️ SEM PERMISSÃO" in dicionario_abas:
     with dicionario_abas["⚠️ SEM PERMISSÃO"]:
         st.error("Seu perfil atual não possui permissões associadas. Entre em contato com o Administrador.")
 
-# --- TELA 1: RECEPÇÃO / CADASTRAR LOTE ---
+# --- TELA 1: RECEPÇÃO / CADASTRAR LOTE (SEM FORM) ---
 if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
     with dicionario_abas["📥 1. RECEPÇÃO / CADASTRAR LOTE"]:
         st.subheader("Entrada de Matéria-Prima / Produto para Inspeção")
@@ -178,20 +174,19 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
             st.success(st.session_state["sucesso_cadastro"])
             del st.session_state["sucesso_cadastro"]
 
-        with st.form("form_cadastro", clear_on_submit=True):
-            q_nf = st.text_input("Número da Nota Fiscal (NF-e):")
-            q_for = st.text_input("Nome do Fornecedor / Fabricante:")
-            q_cod = st.text_input("Código do Produto (SKU/EAN):")
-            q_des = st.text_input("Descrição / Nome do Produto:")
-            q_lot = st.text_input("Número do Lote do Fabricante:")
+        q_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="cad_nf")
+        q_for = st.text_input("Nome do Fornecedor / Fabricante:", key="cad_for")
+        q_cod = st.text_input("Código do Produto (SKU/EAN):", key="cad_cod")
+        q_des = st.text_input("Descrição / Nome do Produto:", key="cad_des")
+        q_lot = st.text_input("Número do Lote do Fabricante:", key="cad_lot")
+        
+        c_f1, c_f2 = st.columns(2)
+        with c_f1:
+            q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):", key="cad_fab")
+        with c_f2:
+            q_val = st.text_input("Data de Validade (Ex: 01/12/2026):", key="cad_val")
             
-            c_f1, c_f2 = st.columns(2)
-            with c_f1:
-                q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):")
-            with c_f2:
-                q_val = st.text_input("Data de Validade (Ex: 01/12/2026):")
-                
-            enviar = st.form_submit_button("Dar Entrada para Análise", use_container_width=True)
+        enviar = st.button("Dar Entrada para Análise", use_container_width=True, key="btn_cadastrar")
             
         if enviar:
             if q_nf and q_for and q_cod and q_des and q_lot:
@@ -214,7 +209,7 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
                 st.warning("Preencha todos os campos obrigatórios para registrar o lote.")
 
 
-# --- TELA 2: PAINEL DO LABORATÓRIO (CORRIGIDA) ---
+# --- TELA 2: PAINEL DO LABORATÓRIO (SEM FORM) ---
 if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
     with dicionario_abas["🧫 2. PAINEL DO LABORATÓRIO"]:
         st.subheader("Análise e Parecer Técnico Laboratorial")
@@ -229,6 +224,10 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
             st.dataframe(df_analise, use_container_width=True, hide_index=True)
             
             st.markdown("### Registrar Laudo Técnico")
-            # Toda a lógica foi inserida estritamente dentro do gerenciador do formulário
-            with st.form("form_laboratorio"):
-                lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist())
+            lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist(), key="lab_lote")
+            novo_status = st.selectbox("Parecer de Qualidade:", ["Aprovado", "Reprovado"], key="lab_status")
+            
+            concluir_analise = st.button("Gravar Decisão e Assinar", use_container_width=True, key="btn_laudo")
+            
+            if concluir_analise:
+                conn = conectar()

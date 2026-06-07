@@ -21,9 +21,9 @@ USUARIOS_PERMITIDOS = {
     "marcos": "931481"
 }
 
-# --- CONEXÃO COM O BANCO DE DADOS ---
+# --- CONEXÃO COM O BANCO DE DADOS (VERSÃO 2 CONTRA TRAVAMENTOS) ---
 def conectar():
-    return sqlite3.connect("mercado_modelo_normal.db")
+    return sqlite3.connect("mercado_modelo_v2.db")
 
 conn = conectar()
 cursor = conn.cursor()
@@ -108,6 +108,7 @@ def renderizar_entrada_estoque():
             prod = cursor.fetchone()
             
             if prod:
+                # FIX DEFINITIVO: Extraindo apenas a string da primeira posição da tupla [0]
                 nome_p = prod[0]
                 data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))
@@ -115,7 +116,7 @@ def renderizar_entrada_estoque():
                 st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades de '{nome_p}'!")
                 st.rerun()
             else:
-                st.error("Código não encontrado! Cadastre o produto primeiro.")
+                st.error("Código não encontrado! Cadastre o produto primeiro na aba do Admin.")
             conn.close()
         else:
             st.warning("Digite a Nota Fiscal e o código do produto.")
@@ -221,6 +222,4 @@ def renderizar_historico_entradas():
 usuario = st.session_state["usuario_logado"]
 
 if usuario == "admin":
-    aba1, aba2, aba3, aba4, aba5 = st.tabs(["📝 1. CADASTRAR PRODUTO", "🧾 2. ENTRADA DE ESTOQUE (NF)", "💻 3. FRENTE DE CAIXA (PDV)", "📊 4. RELATÓRIO DE VENDAS", "📈 5. HISTÓRICO DE ENTRADAS"])
-    with aba1: renderizar_cadastro()
 

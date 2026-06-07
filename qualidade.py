@@ -78,11 +78,11 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
-                # CORREÇÃO CRÍTICA: Validação e separação exata da senha e do perfil
+                # Extração correta da tupla do SQLite para capturar a senha e o perfil
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
-                    st.session_state["perfil_usuario"] = str(resultado[1]).strip().lower() # Garante texto limpo
+                    st.session_state["perfil_usuario"] = str(resultado[1]).strip().lower()
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
@@ -135,7 +135,7 @@ with st.sidebar:
 
 st.title("🔬 Controle de Qualidade e Liberação de Lotes")
 
-# --- GERENCIAMENTO DE ABAS POR PERFIL (BLOQUEIO REAL) ---
+# --- GERENCIAMENTO DE ABAS POR PERFIL (BLOQUEIO REAL ATIVO) ---
 perfil_ativo = st.session_state["perfil_usuario"]
 abas_disponiveis = []
 
@@ -146,11 +146,10 @@ if perfil_ativo in ["admin", "laboratorio"]:
 if perfil_ativo in ["admin", "cadastro", "laboratorio", "visualizar"]:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Mecanismo de segurança contra listas vazias
+# Segurança contra listas vazias
 if not abas_disponiveis:
     abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
 
-# Dicionário fixo que amarra a permissão do perfil ao objeto Streamlit
 dic_abas = {nome: objeto for nome, objeto in zip(abas_disponiveis, st.tabs(abas_disponiveis))}
 
 # --- ABA 1: RECEPÇÃO / CADASTRAR LOTE ---
@@ -222,3 +221,6 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
                         UPDATE inspeccao 
                         SET status = ?, responsavel = ? 
                         WHERE lote = ?
+                    """, (novo_status, st.session_state["usuario_logado"], lote_selecionado))
+                    conn.commit()
+                    conn.close()

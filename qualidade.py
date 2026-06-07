@@ -224,5 +224,5 @@ if "🧫 2. PAINEL DO LABORATÓRIO" in dic_abas:
                     conn.close()
                     st.rerun()
 
-# --- ABA 3: RELATÓRIO GERAL DE LAUDOS (INFORMAÇÕES DETALHADAS) ---
+# --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
 if "📋 3. RELATÓRIO GERAL DE LAUDOS" in dic_abas:

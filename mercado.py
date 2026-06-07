@@ -55,6 +55,15 @@ if not st.session_state["autenticado"]:
 with st.sidebar:
     st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
     st.write(f"Operador ativo: `{st.session_state['usuario_logado']}`")
+    
+    # Mostra o nível de acesso na barra lateral para ficar claro para o usuário
+    if st.session_state["usuario_logado"] == "admin":
+        st.info("Acesso: **Administrador Geral**")
+    elif st.session_state["usuario_logado"] == "lucas":
+        st.info("Acesso: **Controle de Estoque**")
+    elif st.session_state["usuario_logado"] == "marcos":
+        st.info("Acesso: **Operador de Caixa (PDV)**")
+        
     st.markdown("---")
     if st.button("Fechar Caixa / Sair", use_container_width=True):
         st.session_state["autenticado"] = False
@@ -64,166 +73,146 @@ with st.sidebar:
 
 st.title("🛒 Painel de Controle Comercial")
 
-# AS 5 ABAS SOLICITADAS DE FORMA INDEPENDENTE
-aba1, aba2, aba3, aba4, aba5 = st.tabs([
-    "📝 1. CADASTRAR PRODUTO", 
-    "🧾 2. ENTRADA DE ESTOQUE (NF)", 
-    "💻 3. FRENTE DE CAIXA (PDV)", 
-    "📊 4. RELATÓRIO DE VENDAS",
-    "📈 5. HISTÓRICO DE ENTRADAS"
-])
+# --- LÓGICA DE FILTRO DE ABAS POR USUÁRIO ---
+usuario = st.session_state["usuario_logado"]
 
-# --- ABA 1: CADASTRAR PRODUTO ---
-with aba1:
-    st.subheader("Cadastro de Prateleira")
-    c_cod = st.text_input("Código do Produto:", key="c1")
-    c_nom = st.text_input("Nome do Produto:", key="c2")
-    c_pre = st.number_input("Preço de Venda (R$):", min_value=0.1, value=5.0, key="c3")
-    
-    if st.button("Gravar Produto"):
-        if c_cod and c_nom:
-            conn = conectar()
-            cursor = conn.cursor()
-            try:
-                cursor.execute("INSERT INTO produtos VALUES (?, ?, ?)", (c_cod.strip(), c_nom.strip(), c_pre))
-                conn.commit()
-                st.success(f"Produto '{c_nom}' cadastrado!")
-            except:
-                st.error("Este código já existe!")
-            conn.close()
-        else:
-            st.warning("Preencha o código e o nome.")
+# Define quais abas vão aparecer na tela de cada um deles
+if usuario == "admin":
+    nomes_abas = ["📝 1. CADASTRAR PRODUTO", "🧾 2. ENTRADA DE ESTOQUE (NF)", "💻 3. FRENTE DE CAIXA (PDV)", "📊 4. RELATÓRIO DE VENDAS", "📈 5. HISTÓRICO DE ENTRADAS"]
+    abas = st.tabs(nomes_abas)
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = abas[0], abas[1], abas[2], abas[3], abas[4]
 
-# --- ABA 2: ENTRADA DE ESTOQUE (NF) ---
-with aba2:
-    st.subheader("Entrada de Notas Fiscais")
-    e_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="e_nf")
-    e_cod = st.text_input("Código do Produto para Abastecer:", key="e1")
-    e_qtd = st.number_input("Quantidade que está Entrando:", min_value=1, value=10, key="e2")
-    
-    if st.button("Confirmar Entrada"):
-        if e_nf and e_cod:
-            conn = conectar()
-            cursor = conn.cursor()
-            cursor.execute("SELECT nome FROM produtos WHERE codigo = ?", (e_cod.strip(),))
-            prod = cursor.fetchone()
-            
-            if prod:
-                nome_p = prod[0]
-                data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
-                cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, e_qtd))
-                conn.commit()
-                st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades de '{nome_p}'!")
-            else:
-                st.error("Código não encontrado! Cadastre o produto na aba 1 primeiro.")
-            conn.close()
-        else:
-            st.warning("Digite a Nota Fiscal e o código do produto.")
+elif usuario == "lucas": # Tela exclusiva de Estoque
+    nomes_abas = ["🧾 1. ENTRADA DE ESTOQUE (NF)", "📈 2. HISTÓRICO DE ENTRADAS"]
+    abas = st.tabs(nomes_abas)
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, abas[0], None, None, abas[1]
 
-# --- ABA 3: FRENTE DE CAIXA (PDV COM CARRINHO E TROCO) ---
-with aba3:
-    st.subheader("Frente de Caixa - Vendas")
-    col_v1, col_v2 = st.columns([1, 1.5])
-    
-    with col_v1:
-        st.markdown("#### 🔍 Registrar Item")
-        v_cod = st.text_input("Código do Produto Vendido:", key="v1")
-        v_qtd = st.number_input("Quantidade Vendida:", min_value=1, value=1, key="v2")
+elif usuario == "marcos": # Tela exclusiva de Vendas (Frente de Caixa)
+    nomes_abas = ["💻 1. FRENTE DE CAIXA (PDV)"]
+    abas = st.tabs(nomes_abas)
+    aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, None, abas[0], None, None
+
+
+# --- EXIBIÇÃO DA ABA 1: CADASTRAR PRODUTO ---
+if aba_cad:
+    with aba_cad:
+        st.subheader("Cadastro de Prateleira")
+        c_cod = st.text_input("Código do Produto:", key="c1")
+        c_nom = st.text_input("Nome do Produto:", key="c2")
+        c_pre = st.number_input("Preço de Venda (R$):", min_value=0.1, value=5.0, key="c3")
         
-        if st.button("Adicionar ao Carrinho"):
-            if v_cod:
+        if st.button("Gravar Produto"):
+            if c_cod and c_nom:
                 conn = conectar()
                 cursor = conn.cursor()
-                cursor.execute("SELECT nome, preco FROM produtos WHERE codigo = ?", (v_cod.strip(),))
+                try:
+                    cursor.execute("INSERT INTO produtos VALUES (?, ?, ?)", (c_cod.strip(), c_nom.strip(), c_pre))
+                    conn.commit()
+                    st.success(f"Produto '{c_nom}' cadastrado!")
+                except:
+                    st.error("Este código já existe!")
+                conn.close()
+            else:
+                st.warning("Preencha o código e o nome.")
+
+# --- EXIBIÇÃO DA ABA 2: ENTRADA DE ESTOQUE (NF) ---
+if aba_est:
+    with aba_est:
+        st.subheader("Entrada de Notas Fiscais")
+        e_nf = st.text_input("Número da Nota Fiscal (NF-e):", key="e_nf")
+        e_cod = st.text_input("Código do Produto para Abastecer:", key="e1")
+        e_qtd = st.number_input("Quantidade que está Entrando:", min_value=1, value=10, key="e2")
+        
+        if st.button("Confirmar Entrada"):
+            if e_nf and e_cod:
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("SELECT nome FROM produtos WHERE codigo = ?", (e_cod.strip(),))
                 prod = cursor.fetchone()
                 
                 if prod:
-                    nome_p, preco_p = prod
-                    valor_total = preco_p * v_qtd
-                    
-                    st.session_state["carrinho_compras"].append({
-                        "codigo": v_cod.strip(),
-                        "nome": nome_p,
-                        "quantidade": v_qtd,
-                        "total": valor_total
-                    })
-                    st.success(f"'{nome_p}' colocado no carrinho!")
-                    st.rerun()
+                    nome_p = prod[0]
+                    data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, e_qtd))
+                    conn.commit()
+                    st.success(f"Estoque abastecido via NF {e_nf} com +{e_qtd} unidades de '{nome_p}'!")
                 else:
-                    st.error("Produto não cadastrado!")
+                    st.error("Código não encontrado! Cadastre o produto com uma conta Admin primeiro.")
                 conn.close()
             else:
-                st.warning("Digite o código do produto.")
+                st.warning("Digite a Nota Fiscal e o código do produto.")
 
-    with col_v2:
-        st.markdown("#### 📋 Cupom Fiscal / Carrinho")
-        if st.session_state["carrinho_compras"]:
-            df_cupom = pd.DataFrame(st.session_state["carrinho_compras"])
-            st.dataframe(df_cupom[["codigo", "nome", "quantidade", "total"]], use_container_width=True, hide_index=True)
+# --- EXIBIÇÃO DA ABA 3: FRENTE DE CAIXA (PDV) ---
+if aba_pdv:
+    with aba_pdv:
+        st.subheader("Frente de Caixa - Vendas")
+        col_v1, col_v2 = st.columns([1, 1.5])
+        
+        with col_v1:
+            st.markdown("#### 🔍 Registrar Item")
+            v_cod = st.text_input("Código do Produto Vendido:", key="v1")
+            v_qtd = st.number_input("Quantidade Vendida:", min_value=1, value=1, key="v2")
             
-            soma_total_compra = float(df_cupom["total"].sum())
-            st.markdown(f"### VALOR TOTAL: R$ {soma_total_compra:.2f}")
-            
-            v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
-            valor_recebido = st.number_input("Valor Pago pelo Cliente (R$):", min_value=0.0, value=soma_total_compra, step=1.0)
-            
-            troco_calculado = valor_recebido - soma_total_compra
-            if troco_calculado > 0:
-                st.markdown(f"<p style='color:#F59E0B; font-weight:bold; font-size:20px;'>Troco: R$ {troco_calculado:.2f}</p>", unsafe_allow_html=True)
-            
-            c_b1, c_b2 = st.columns(2)
-            with c_b1:
-                if st.button("❌ Cancelar Tudo"):
-                    st.session_state["carrinho_compras"] = []
-                    st.rerun()
-            with c_b2:
-                if st.button("✅ Confirmar Venda"):
+            if st.button("Adicionar ao Carrinho"):
+                if v_cod:
                     conn = conectar()
                     cursor = conn.cursor()
-                    data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    cursor.execute("SELECT nome, preco FROM produtos WHERE codigo = ?", (v_cod.strip(),))
+                    prod = cursor.fetchone()
                     
-                    for item in st.session_state["carrinho_compras"]:
-                        cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                                       (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag, max(0.0, troco_calculado)))
-                    
-                    conn.commit()
+                    if prod:
+                        nome_p, preco_p = prod
+                        valor_total = preco_p * v_qtd
+                        
+                        st.session_state["carrinho_compras"].append({
+                            "codigo": v_cod.strip(),
+                            "nome": nome_p,
+                            "quantidade": v_qtd,
+                            "total": valor_total
+                        })
+                        st.success(f"'{nome_p}' colocado no carrinho!")
+                        st.rerun()
+                    else:
+                        st.error("Produto não cadastrado!")
                     conn.close()
-                    st.session_state["carrinho_compras"] = []
-                    st.success("Venda finalizada com sucesso!")
-                    st.rerun()
-        else:
-            st.info("Carrinho vazio. Adicione o primeiro item ao lado.")
+                else:
+                    st.warning("Digite o código do produto.")
 
-# --- ABA 4: RELATÓRIO DE VENDAS ---
-with aba4:
-    st.subheader("Histórico de Vendas Realizadas")
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("SELECT data, codigo, nome, quantidade, total, pagamento, troco FROM vendas ORDER BY rowid DESC")
-    dados = cursor.fetchall()
-    conn.close()
-    
-    if dados:
-        df = pd.DataFrame(dados, columns=["Data/Hora", "Código", "Produto", "Qtd", "Total R$", "Forma de Pagamento", "Troco R$"])
-        st.metric(label="FATURAMENTO TOTAL ACUMULADO", value=f"R$ {df['Total R$'].sum():.2f}")
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    else:
-        st.metric(label="FATURAMENTO TOTAL ACUMULADO", value="R$ 0,00")
-        st.info("Nenhuma venda realizada ainda.")
-
-# --- ABA 5: HISTÓRICO DE ENTRADAS ---
-with aba5:
-    st.subheader("Registro de Entradas de Mercadorias")
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("SELECT data, nota_fiscal, codigo, nome, quantidade FROM estoque ORDER BY rowid DESC")
-    dados_est = cursor.fetchall()
-    conn.close()
-    
-    if dados_est:
-        df_est = pd.DataFrame(dados_est, columns=["Data/Hora", "Nota Fiscal", "Código", "Produto", "Quantidade"])
-        st.dataframe(df_est, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhuma nota fiscal deu entrada ainda.")
-
+        with col_v2:
+            st.markdown("#### 📋 Cupom Fiscal / Carrinho")
+            if st.session_state["carrinho_compras"]:
+                df_cupom = pd.DataFrame(st.session_state["carrinho_compras"])
+                st.dataframe(df_cupom[["codigo", "nome", "quantidade", "total"]], use_container_width=True, hide_index=True)
+                
+                soma_total_compra = float(df_cupom["total"].sum())
+                st.markdown(f"### VALOR TOTAL: R$ {soma_total_compra:.2f}")
+                
+                v_pag = st.selectbox("Forma de Pagamento:", ["Dinheiro", "Cartão de Crédito", "Cartão de Débito", "PIX"], key="v3")
+                valor_recebido = st.number_input("Valor Pago pelo Cliente (R$):", min_value=0.0, value=soma_total_compra, step=1.0)
+                
+                troco_calculado = valor_recebido - soma_total_compra
+                if troco_calculado > 0:
+                    st.markdown(f"<p style='color:#F59E0B; font-weight:bold; font-size:20px;'>Troco: R$ {troco_calculado:.2f}</p>", unsafe_allow_html=True)
+                
+                c_b1, c_b2 = st.columns(2)
+                with c_b1:
+                    if st.button("❌ Cancelar Tudo"):
+                        st.session_state["carrinho_compras"] = []
+                        st.rerun()
+                with c_b2:
+                    if st.button("✅ Confirmar Venda"):
+                        conn = conectar()
+                        cursor = conn.cursor()
+                        data_venda = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        
+                        for item in st.session_state["carrinho_compras"]:
+                            cursor.execute("INSERT INTO vendas VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                                           (data_venda, item["codigo"], item["nome"], item["quantidade"], item["total"], v_pag, max(0.0, troco_calculado)))
+                        
+                        conn.commit()
+                        conn.close()
+                        st.session_state["carrinho_compras"] = []
+                        st.toast("🛒 Venda finalizada com sucesso!")
+                        st.rerun()
+            else:
 

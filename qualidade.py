@@ -3,14 +3,22 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-# Configuração da página profissional
+# Configuração da página leve
 st.set_page_config(page_title="NextGen | Controle de Qualidade", layout="wide", page_icon="🔬")
+
+# --- CONTROLE DE SESSÃO / LOGIN ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+if "usuario_logado" not in st.session_state:
+    st.session_state["usuario_logado"] = ""
+if "perfil_usuario" not in st.session_state:
+    st.session_state["perfil_usuario"] = ""
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
     return sqlite3.connect("controle_qualidade_forn.db")
 
-# Inicialização das Tabelas no SQLite (Garante o salvamento permanente)
+# Inicialização das Tabelas no SQLite
 conn = conectar()
 cursor = conn.cursor()
 
@@ -31,7 +39,7 @@ cursor.execute("""
     )
 """)
 
-# Tabela de Usuários
+# Tabela de Usuários (Guarda os logins e senhas criados dinamicamente)
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         usuario TEXT PRIMARY KEY,
@@ -40,7 +48,7 @@ cursor.execute("""
     )
 """)
 
-# Garante o usuário Administrador padrão
+# Garante o usuário Administrador padrão caso o banco seja novo
 try:
     cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'Master@2026', 'admin')")
 except sqlite3.Error:
@@ -49,16 +57,6 @@ except sqlite3.Error:
 conn.commit()
 conn.close()
 
-
-# --- CONTROLE DE SESSÃO / LOGIN ---
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
-if "usuario_logado" not in st.session_state:
-    st.session_state["usuario_logado"] = ""
-if "perfil_usuario" not in st.session_state:
-    st.session_state["perfil_usuario"] = ""
-
-
 # TELA DE ACESSO (LOGIN / CRIAÇÃO DE CONTA)
 if not st.session_state["autenticado"]:
     st.markdown("<h1 style='text-align: center;'>🔬 NEXTGEN | CONTROLE DE QUALIDADE</h1>", unsafe_allow_html=True)
@@ -66,6 +64,7 @@ if not st.session_state["autenticado"]:
 
     aba_login, aba_novo_cadastro = st.tabs(["🔑 Acessar Sistema", "🆕 Criar Minha Conta"])
 
+    # --- SUB-TELA 1: LOGIN ---
     with aba_login:
         col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
         with col_l2:
@@ -79,6 +78,7 @@ if not st.session_state["autenticado"]:
                 resultado = cursor.fetchone()
                 conn.close()
                 
+                # CORREÇÃO DEFINITIVA: Validação correta acessando o índice [0] da tupla resultado
                 if resultado and resultado[0] == p_input:
                     st.session_state["autenticado"] = True
                     st.session_state["usuario_logado"] = u_input
@@ -87,6 +87,7 @@ if not st.session_state["autenticado"]:
                 else:
                     st.error("Usuário ou senha incorretos.")
                     
+    # --- SUB-TELA 2: AUTO-CADASTRO ---
     with aba_novo_cadastro:
         col_c1, col_c2, col_c3 = st.columns([1, 1.2, 1])
         with col_c2:
@@ -97,7 +98,7 @@ if not st.session_state["autenticado"]:
             
             novo_perfil = st.selectbox(
                 "Selecione seu Perfil Operacional:", 
-                ["cadastro", "laboratorio", "visualizar", "admin"]
+                ["cadastro", "laboratorio", "visualizar"]
             )
             
             if st.button("Cadastrar e Salvar Senha", use_container_width=True):
@@ -121,26 +122,11 @@ if not st.session_state["autenticado"]:
                         conn.close()
     st.stop()
 
-
-# --- BARRA LATERAL (CONTROLE DE MENUS) ---
+# BARRA LATERAL (LOGOFF E INFORMAÇÕES)
 with st.sidebar:
     st.markdown("### 🧪 ANALISTA LOGADO")
-    st.write(f"**Usuário:** `{st.session_state['usuario_logado']}`")
-    st.write(f"**Perfil:** `{(st.session_state['perfil_usuario']).upper()}`")
-    st.markdown("---")
-    
-    perfil = st.session_state["perfil_usuario"]
-    menus_disponiveis = []
-    
-    if perfil in ["admin", "cadastro"]:
-        menus_disponiveis.append("📥 1. Recepção / Cadastrar Lote")
-    if perfil in ["admin", "laboratorio"]:
-        menus_disponiveis.append("🧫 2. Painel do Laboratório")
-    if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
-        menus_disponiveis.append("📋 3. Relatório Geral de Laudos")
-        
-    menu_selecionado = st.radio("Selecione a Tela de Trabalho:", menus_disponiveis)
-    
+    st.write(f"Usuário: `{st.session_state['usuario_logado']}`")
+    st.write(f"Perfil: `{(st.session_state['perfil_usuario']).upper()}`")
     st.markdown("---")
     if st.button("Sair do Sistema", use_container_width=True):
         st.session_state["autenticado"] = False
@@ -148,84 +134,98 @@ with st.sidebar:
         st.session_state["perfil_usuario"] = ""
         st.rerun()
 
+st.title("🔬 Controle de Qualidade e Liberação de Lotes")
 
-# --- TELA 1: RECEPÇÃO ---
-if menu_selecionado == "📥 1. Recepção / Cadastrar Lote":
-    st.subheader("Entrada de Produto para Inspeção")
-    
-    if "sucesso_cadastro" in st.session_state:
-        st.success(st.session_state["sucesso_cadastro"])
-        del st.session_state["sucesso_cadastro"]
+# --- GERENCIAMENTO DE ABAS POR PERFIL ---
+perfil = st.session_state["perfil_usuario"]
 
-    with st.form("form_cadastro", clear_on_submit=True):
-        q_nf = st.text_input("Número da Nota Fiscal (NF-e):")
-        q_for = st.text_input("Nome do Fornecedor / Fabricante:")
-        q_cod = st.text_input("Código do Produto (SKU/EAN):")
-        q_des = st.text_input("Descrição / Nome do Produto:")
-        q_lot = st.text_input("Número do Lote do Fabricante:")
-        q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):")
-        q_val = st.text_input("Data de Validade (Ex: 01/12/2026):")
-            
-        enviar = st.form_submit_button("Dar Entrada para Análise", use_container_width=True)
+abas_disponiveis = []
+if perfil in ["admin", "cadastro"]:
+    abas_disponiveis.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
+if perfil in ["admin", "laboratorio"]:
+    abas_disponiveis.append("🧫 2. PAINEL DO LABORATÓRIO")
+if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
+    abas_autorizadas = abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
+
+abas = st.tabs(abas_disponiveis)
+aba_index = 0
+
+# --- ABA 1: RECEPÇÃO / CADASTRAR LOTE ---
+if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
+    with abas[aba_index]:
+        aba_index += 1
+        st.subheader("Entrada de Produto para Inspeção")
         
-        if enviar:
-            if q_nf and q_for and q_cod and q_des and q_lot:
-                conn = conectar()
-                cursor = conn.cursor()
-                try:
-                    dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    cursor.execute("""
-                        INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
-                    conn.commit()
-                    st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} cadastrado com sucesso!"
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("Erro: Este número de Lote já está cadastrado no sistema!")
-                finally:
-                    conn.close()
-            else:
-                st.warning("Preencha todos os campos obrigatórios.")
+        if "sucesso_cadastro" in st.session_state:
+            st.success(st.session_state["sucesso_cadastro"])
+            del st.session_state["sucesso_cadastro"]
 
-
-# --- TELA 2: PAINEL DO LABORATÓRIO ---
-elif menu_selecionado == "🧫 2. Painel do Laboratório":
-    st.subheader("Análise e Parecer Técnico de Lotes")
-    
-    if "ultimo_laudo_gerado" in st.session_state:
-        st.markdown("### 📄 LAUDO EMITIDO AGORA (SALVO NO HISTÓRICO)")
-        st.dataframe(st.session_state["ultimo_laudo_gerado"], use_container_width=True, hide_index=True)
-        st.markdown("---")
-        if st.button("Fazer Nova Análise"):
-            del st.session_state["ultimo_laudo_gerado"]
-            st.rerun()
-    
-    conn = conectar()
-    df_analise = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM inspeccao WHERE status = 'Em Análise'", conn)
-    conn.close()
-    
-    if df_analise.empty:
-        st.info("Não há nenhum lote pendente de análise laboratorial no momento.")
-    else:
-        st.markdown("#### Lotes Aguardando Parecer Técnico")
-        st.dataframe(df_analise, use_container_width=True, hide_index=True)
-        
-        st.markdown("### Atualizar Status do Lote")
-        with st.form("form_laboratorio"):
-            lote_selecionado = st.selectbox("Selecione o Lote para dar o Parecer:", df_analise["lote"].tolist())
-            novo_status = st.selectbox("Parecer do Laboratório:", ["Aprovado", "Reprovado"])
-            concluir_analise = st.form_submit_button("Gravar Decisão no Sistema", use_container_width=True)
+        with st.form("form_cadastro", clear_on_submit=True):
+            q_nf = st.text_input("Número da Nota Fiscal (NF-e):")
+            q_for = st.text_input("Nome do Fornecedor / Fabricante:")
+            q_cod = st.text_input("Código do Produto (SKU/EAN):")
+            q_des = st.text_input("Descrição / Nome do Produto:")
+            q_lot = st.text_input("Número do Lote do Fabricante:")
             
-            if concluir_analise:
-                conn = conectar()
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE inspeccao 
-                    SET status = ?, responsavel = ? 
-                    WHERE lote = ?
-                """, (novo_status, st.session_state["usuario_logado"], lote_selecionado))
-                conn.commit()
+            c_f1, c_f2 = st.columns(2)
+            with c_f1:
+                q_fab = st.text_input("Data de Fabricação (Ex: 01/06/2026):")
+            with c_f2:
+                q_val = st.text_input("Data de Validade (Ex: 01/12/2026):")
                 
-                df_resultado = pd.read_sql_query("SELECT * FROM inspeccao WHERE lote = ?", conn, params=(lote_selecionado,))
-                conn.close()
+            enviar = st.form_submit_button("Dar Entrada para Análise", use_container_width=True)
+            
+            if enviar:
+                if q_nf and q_for and q_cod and q_des and q_lot:
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    try:
+                        dt_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        cursor.execute("""
+                            INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
+                        conn.commit()
+                        st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} cadastrado com sucesso!"
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("Erro: Este número de Lote já está cadastrado no sistema!")
+                    finally:
+                        conn.close()
+
+# --- ABA 2: PAINEL DO LABORATÓRIO ---
+if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
+    with abas[aba_index]:
+        aba_index += 1
+        st.subheader("Análise e Parecer Técnico de Lotes")
+        
+        conn = conectar()
+        df_analise = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM inspeccao WHERE status = 'Em Análise'", conn)
+        conn.close()
+        
+        if df_analise.empty:
+            st.info("Não há nenhum lote pendente de análise laboratorial no momento.")
+        else:
+            st.dataframe(df_analise, use_container_width=True, hide_index=True)
+            
+            st.markdown("### Atualizar Status do Lote")
+            with st.form("form_laboratorio"):
+                lote_selecionado = st.selectbox("Selecione o Lote para dar o Parecer:", df_analise["lote"].tolist())
+                novo_status = st.selectbox("Parecer do Laboratório:", ["Aprovado", "Reprovado"])
+                concluir_analise = st.form_submit_button("Gravar Decisão no Sistema", use_container_width=True)
+                
+                if concluir_analise:
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE inspeccao 
+                        SET status = ?, responsavel = ? 
+                        WHERE lote = ?
+                    """, (novo_status, st.session_state["usuario_logado"], lote_selecionado))
+                    conn.commit()
+                    conn.close()
+                    st.rerun()
+
+# --- ABA 3: RELATÓRIO GERAL DE LAUDOS ---
+if "📋 3. RELATÓRIO GERAL DE LAUDOS" in abas_disponiveis:
+    with abas[aba_index]:

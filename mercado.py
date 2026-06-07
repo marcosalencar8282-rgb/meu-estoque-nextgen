@@ -56,7 +56,6 @@ with st.sidebar:
     st.markdown("### 🛒 OPERAÇÃO DE CAIXA")
     st.write(f"Operador ativo: `{st.session_state['usuario_logado']}`")
     
-    # Mostra o nível de acesso na barra lateral para ficar claro para o usuário
     if st.session_state["usuario_logado"] == "admin":
         st.info("Acesso: **Administrador Geral**")
     elif st.session_state["usuario_logado"] == "lucas":
@@ -76,24 +75,22 @@ st.title("🛒 Painel de Controle Comercial")
 # --- LÓGICA DE FILTRO DE ABAS POR USUÁRIO ---
 usuario = st.session_state["usuario_logado"]
 
-# Define quais abas vão aparecer na tela de cada um deles
 if usuario == "admin":
     nomes_abas = ["📝 1. CADASTRAR PRODUTO", "🧾 2. ENTRADA DE ESTOQUE (NF)", "💻 3. FRENTE DE CAIXA (PDV)", "📊 4. RELATÓRIO DE VENDAS", "📈 5. HISTÓRICO DE ENTRADAS"]
     abas = st.tabs(nomes_abas)
     aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = abas[0], abas[1], abas[2], abas[3], abas[4]
 
-elif usuario == "lucas": # Tela exclusiva de Estoque
+elif usuario == "lucas":
     nomes_abas = ["🧾 1. ENTRADA DE ESTOQUE (NF)", "📈 2. HISTÓRICO DE ENTRADAS"]
     abas = st.tabs(nomes_abas)
     aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, abas[0], None, None, abas[1]
 
-elif usuario == "marcos": # Tela exclusiva de Vendas (Frente de Caixa)
+elif usuario == "marcos":
     nomes_abas = ["💻 1. FRENTE DE CAIXA (PDV)"]
     abas = st.tabs(nomes_abas)
     aba_cad, aba_est, aba_pdv, aba_rel, aba_hist = None, None, abas[0], None, None
 
-
-# --- EXIBIÇÃO DA ABA 1: CADASTRAR PRODUTO ---
+# --- ABA 1: CADASTRAR PRODUTO ---
 if aba_cad:
     with aba_cad:
         st.subheader("Cadastro de Prateleira")
@@ -115,7 +112,7 @@ if aba_cad:
             else:
                 st.warning("Preencha o código e o nome.")
 
-# --- EXIBIÇÃO DA ABA 2: ENTRADA DE ESTOQUE (NF) ---
+# --- ABA 2: ENTRADA DE ESTOQUE (NF) ---
 if aba_est:
     with aba_est:
         st.subheader("Entrada de Notas Fiscais")
@@ -142,7 +139,7 @@ if aba_est:
             else:
                 st.warning("Digite a Nota Fiscal e o código do produto.")
 
-# --- EXIBIÇÃO DA ABA 3: FRENTE DE CAIXA (PDV) ---
+# --- ABA 3: FRENTE DE CAIXA (PDV) ---
 if aba_pdv:
     with aba_pdv:
         st.subheader("Frente de Caixa - Vendas")
@@ -215,4 +212,11 @@ if aba_pdv:
                         st.toast("🛒 Venda finalizada com sucesso!")
                         st.rerun()
             else:
+                st.info("O carrinho de compras está vazio. Registre itens na coluna ao lado.")
+
+# --- ABA 4: RELATÓRIO DE VENDAS ---
+if aba_rel:
+    with aba_rel:
+        st.subheader("Relatório de Faturamento Geral")
+        conn = conectar()
 

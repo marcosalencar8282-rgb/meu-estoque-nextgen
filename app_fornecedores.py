@@ -7,6 +7,13 @@ import hashlib
 # CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Sistema Fiscal Pro", page_icon="🔒", layout="wide")
 
+# =========================================================
+# CONFIGURAÇÃO DA SUA SENHA DE ACESSO (DEFEINA AQUI)
+# =========================================================
+USUARIO_PADRAO = "admin"
+SENHA_PADRAO = "ColoqueSuaSenhaAqui" # <-- Digite aqui a senha que você quer usar!
+# =========================================================
+
 # CONEXÃO E CRIAÇÃO DAS TABELAS DO BANCO DE DADOS
 def inicializar_banco():
     conn = sqlite3.connect('sistema_fiscal.db')
@@ -46,16 +53,20 @@ def inicializar_banco():
         )
     ''')
     
-    # Criar um usuário padrão caso a tabela esteja vazia (User: admin / Senha: admin123)
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone() == 0:
-        senha_hash = hashlib.sha256("931481".encode()).hexdigest()
-        cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES ('admin', ?)", (senha_hash,))
+    # Gera o hash da senha definida por você lá em cima
+    senha_hash = hashlib.sha256(SENHA_PADRAO.encode()).hexdigest()
+    
+    # Garante que o usuário do código sempre terá a senha definida atualizada no banco
+    cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (USUARIO_PADRAO,))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO usuarios (usuario, senha) VALUES (?, ?)", (USUARIO_PADRAO, senha_hash))
+    else:
+        cursor.execute("UPDATE usuarios SET senha = ? WHERE usuario = ?", (senha_hash, USUARIO_PADRAO))
         
     conn.commit()
     conn.close()
 
-# Inicializa o banco antes de carregar o visual
+# Inicializa o banco de dados e atualiza as credenciais
 inicializar_banco()
 
 # CONTROLE DE SESSÃO DE LOGIN
@@ -86,7 +97,6 @@ def realizar_logout():
 if not st.session_state['logado']:
     st.markdown("<h2 style='text-align: center;'>🔒 Acesso ao Sistema Fiscal</h2>", unsafe_allow_html=True)
     
-    # Linha corrigida com o número 3 para evitar o erro de TypeError
     col1, col2, col3 = st.columns(3)
     
     with col2:
@@ -97,7 +107,6 @@ if not st.session_state['logado']:
             
             if botao_entrar:
                 realizar_login(usuario_input, senha_input)
-        st.info("💡 Credenciais padrão para teste:\nUsuário: admin\nSenha: admin123")
 
 # --- TELA PRINCIPAL (APÓS LOGIN) ---
 else:
@@ -110,10 +119,11 @@ else:
             realizar_logout()
 
     # Abas de Navegação
-    aba_lista, aba_cadastro, aba_devolucao = st.tabs([
+    aba_lista, aba_cadastro, aba_devolucao, aba_senha = st.tabs([
         "📋 Notas Recebidas", 
         "📥 Cadastrar Recebimento Manual",
-        "↩️ Registrar Devolução"
+        "↩️ Registrar Devolução",
+        "⚙️ Alterar Senha"
     ])
 
     # ABA 1: LISTAGEM DE NOTAS
@@ -223,8 +233,3 @@ else:
                         
                         conn.commit()
                         conn.close()
-                        
-                        st.success("Nota devolvida com sucesso!")
-                        st.rerun()
-        else:
-            st.warning("Não há notas com status 'Recebido' disponíveis para devolução no momento.")

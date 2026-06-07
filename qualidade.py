@@ -1,9 +1,9 @@
-import sqlite3
+ import sqlite3
 from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-# Configuração da página leve e estável
+# Configuração da página profissional e limpa
 st.set_page_config(page_title="NextGen | CQ", layout="wide", page_icon="🔬")
 
 # --- CONEXÃO BANCO DE DADOS ---
@@ -40,18 +40,6 @@ except sqlite3.Error:
     pass
 conn.commit()
 conn.close()
-
-# --- BOTÃO TEMPORÁRIO PARA ZERAR O HISTÓRICO DE TESTES ---
-st.warning("⚠️ ÁREA DE REDEFINIÇÃO DE SISTEMA")
-if st.button("🚨 CLIQUE AQUI PARA APAGAR TODOS OS LOTES DE TESTE E COMPLEMENTARMENTE ZERAR O HISTÓRICO", use_container_width=True):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM inspeccao")  # Limpa apenas os registros de laudos e lotes
-    conn.commit()
-    conn.close()
-    st.success("✨ Sucesso! O histórico de lotes foi totalmente limpo e zerado!")
-    st.rerun()
-st.markdown("---")
 
 # --- CONTROLE DE SESSÃO ---
 if "autenticado" not in st.session_state:
@@ -113,7 +101,7 @@ if not st.session_state["autenticado"]:
                 st.warning("Preencha todos os campos.")
     st.stop()
 
-# --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
+# --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT (CORRIGIDA) ---
 c_user, c_out = st.columns(2)
 with c_user:
     st.markdown(f"👤 Analista: **{st.session_state['usuario_logado']}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
@@ -130,19 +118,19 @@ st.markdown("### 🗂️ Navegação do Sistema")
 
 btn_cols = st.columns(4)
 
-with btn_cols:
+with btn_cols[0]:
     if perf in ["admin", "cadastro"]:
         if st.button("📥 1. Cadastrar Novo Lote", use_container_width=True):
             st.session_state["tela_ativa"] = "cadastro"
-with btn_cols:
+with btn_cols[1]:
     if perf in ["admin", "laboratorio"]:
         if st.button("🧫 2. Painel do Laboratório", use_container_width=True):
             st.session_state["tela_ativa"] = "laboratorio"
-with btn_cols:
+with btn_cols[2]:
     if perf in ["admin", "cadastro", "laboratorio", "visualizar"]:
         if st.button("📋 3. Ver Relatório de Laudos", use_container_width=True):
             st.session_state["tela_ativa"] = "relatorio"
-with btn_cols:
+with btn_cols[3]:
     if perf == "admin":
         if st.button("⚙️ 4. Gerenciar Usuários", use_container_width=True):
             st.session_state["tela_ativa"] = "gerenciar_usuarios"
@@ -229,9 +217,9 @@ elif st.session_state["tela_ativa"] == "relatorio":
         })
         st.dataframe(df_formatado, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS ---
+# --- TELA 4: GERENCIAR USUÁRIOS E SENHAS ---
 elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
-    st.subheader("⚙️ Painel de Controle de Acessos")
+    st.subheader("⚙️ Painel de Controle de Acessos e Alteração de Senhas")
     
     conn = conectar()
     df_usr = pd.read_sql_query("SELECT usuario, perfil FROM usuarios", conn)
@@ -241,9 +229,19 @@ elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
     st.dataframe(df_usr, use_container_width=True, hide_index=True)
     st.markdown("---")
     
-    col_esquerda, col_direita = st.columns(2)
+    st.markdown("#### 🔑 Alterar Senha de Funcionário")
+    col_u, col_p = st.columns(2)
     
-    with col_esquerda:
-        st.markdown("#### 🔑 Alterar Senha de Funcionário")
-        usuario_alvo = st.selectbox("Selecione o Usuário:", df_usr["usuario"].tolist(), key="sel_senha")
-
+    with col_u:
+        usuario_alvo = st.selectbox("Selecione o Usuário que esqueceu a senha:", df_usr["usuario"].tolist())
+    with col_p:
+        nova_senha_txt = st.text_input("Digite a Nova Senha para esta conta:", type="password")
+        
+    if st.button("Gravar Nova Senha", use_container_width=True):
+        if nova_senha_txt:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE usuarios SET senha = ? WHERE usuario = ?", (nova_senha_txt, usuario_alvo))
+            conn.commit()
+            conn.close()
+            st.success(f"A senha do usuário **{usuario_alvo}** foi redefinida com sucesso!")

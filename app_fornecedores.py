@@ -214,7 +214,7 @@ else:
             
             if botao_confirmar_dev:
                 if nota_selecionada_txt is None or "Nenhuma nota" in nota_selecionada_txt:
-                    st.error("Operação cancelada: Não há notas válidas selecionadas para devolução.")
+                    st.error("Operação cancelada: Não há notas válidas em estoque para devolver.")
                 elif not motivo_dev.strip():
                     st.error("Por favor, preencha o motivo da devolução antes de confirmar.")
                 else:
@@ -224,10 +224,8 @@ else:
                     cursor = conn.cursor()
                     data_dev_formatada = data_dev.strftime('%Y-%m-%d')
                     
+                    # LINHA CORRIGIDA: Agora as variáveis contendo os dados reais estão mapeadas corretamente dentro do comando SQL
                     cursor.execute('''
                         INSERT INTO devolucoes (id_recebimento_origem, data_devolucao, motivo)
                         VALUES (?, ?, ?)
-                    ''') # Correção aplicada aqui para evitar strings abertas
-                    
-                    # Usando aspas simples normais para comandos curtos de forma segura
-                    cursor.execute("UPDATE recebimentos SET status = 'Devolvido' WHERE id_recebimento = ?", (dados_nota_origem['id_recebimento'],))
+                    ''', (dados_nota_origem['id_recebimento'], data_dev_formatada, motivo_dev))

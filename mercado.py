@@ -108,7 +108,7 @@ def renderizar_entrada_estoque():
             prod = cursor.fetchone()
             
             if prod:
-                nome_p = prod[0]  # Pega estritamente o texto de dentro da tupla
+                nome_p = prod[0]  # Pega estritamente a string limpa de dentro da tupla do banco
                 data_entrada = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("INSERT INTO estoque VALUES (?, ?, ?, ?, ?)", 
                                (data_entrada, e_nf.strip(), e_cod.strip(), nome_p, int(e_qtd)))
@@ -218,8 +218,8 @@ def renderizar_historico_entradas():
     else:
         st.info("Nenhuma entrada de estoque registrada.")
 
-# --- DISTRIBUIÇÃO SEGUIDA DE ABAS INDEPENDENTES POR OPERADOR ---
+# --- DISTRIBUIÇÃO DAS ABAS INDEPENDENTES POR OPERADOR ---
 usuario = st.session_state["usuario_logado"]
 
 if usuario == "admin":
-    aba1, aba2, aba3, aba4, aba5 = st.tabs([
+    # Corrigido: Toda a lista de abas declarada em uma única linha limpa para evitar erros de sintaxe

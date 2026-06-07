@@ -102,7 +102,7 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
-c_user, c_out = st.columns([4, 1])
+c_user, c_out = st.columns([])
 with c_user:
     st.markdown(f"👤 Analista: **{st.session_state['usuario_logado']}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
 with c_out:
@@ -115,7 +115,9 @@ st.markdown("---")
 # --- GERENCIAMENTO DE MENUS LINEARES ---
 perf = st.session_state["perfil_usuario"]
 st.markdown("### 🗂️ Navegação do Sistema")
-btn_cols = st.columns(3)
+
+# Criamos 4 colunas em vez de 3 para abrir espaço ao menu do Admin
+btn_cols = st.columns(4)
 
 with btn_cols[0]:
     if perf in ["admin", "cadastro"]:
@@ -129,6 +131,11 @@ with btn_cols[2]:
     if perf in ["admin", "cadastro", "laboratorio", "visualizar"]:
         if st.button("📋 3. Ver Relatório de Laudos", use_container_width=True):
             st.session_state["tela_ativa"] = "relatorio"
+with btn_cols[3]:
+    # EXCLUSIVO: O botão abaixo só é renderizado se quem estiver logado for o admin mestre
+    if perf == "admin":
+        if st.button("⚙️ 4. Gerenciar Usuários", use_container_width=True):
+            st.session_state["tela_ativa"] = "gerenciar_usuarios"
 
 st.markdown("---")
 
@@ -162,7 +169,7 @@ if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"
 
 # --- TELA 2: PAINEL DO LABORATÓRIO ---
 elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "laboratorio"]:
-    st.subheader("🧫 Avaliação Técnica de Lotes")
+    st.subheader("🧫 Avaliação Técnico de Lotes")
     
     conn = conectar()
     df_pendentes = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM inspeccao WHERE status = 'Em Análise'", conn)
@@ -183,10 +190,10 @@ elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "labo
             cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
             conn.commit()
             conn.close()
-            st.success(f"O lote {lote_sel} foi atualizado para {novo_status}!")
+            st.success(f"O lote {lote_sel} foi updated para {novo_status}!")
             st.rerun()
 
-# --- TELA 3: RELATÓRIO GERAL (CONTEÚDO VISÍVEL COMPLETO) ---
+# --- TELA 3: RELATÓRIO GERAL ---
 elif st.session_state["tela_ativa"] == "relatorio":
     st.subheader("📋 Histórico Completo de Laudos Emitidos")
     
@@ -211,3 +218,29 @@ elif st.session_state["tela_ativa"] == "relatorio":
             "responsavel": "Analista"
         })
         st.dataframe(df_formatado, use_container_width=True, hide_index=True)
+
+# --- TELA 4: GERENCIAR USUÁRIOS E SENHAS (EXCLUSIVA DO ADMIN) ---
+elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
+    st.subheader("⚙️ Painel de Controle de Acessos e Alteração de Senhas")
+    
+    conn = conectar()
+    df_usr = pd.read_sql_query("SELECT usuario, perfil FROM usuarios", conn)
+    conn.close()
+    
+    st.markdown("#### Usuários Ativos no Sistema")
+    st.dataframe(df_usr, use_container_width=True, hide_index=True)
+    st.markdown("---")
+    
+    st.markdown("#### 🔑 Alterar Senha de Funcionário")
+    col_u, col_p = st.columns(2)
+    
+    with col_u:
+        usuario_alvo = st.selectbox("Selecione o Usuário que esqueceu a senha:", df_usr["usuario"].tolist())
+    with col_p:
+        nova_senha_txt = st.text_input("Digite a Nova Senha para esta conta:", type="password")
+        
+    if st.button("Gravar Nova Senha", use_container_width=True):
+        if nova_senha_txt:
+            conn = conectar()
+            cursor = conn.cursor()
+

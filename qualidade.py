@@ -3,26 +3,18 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-# Configuração da página leve
+# Configuração da página
 st.set_page_config(page_title="NextGen | Controle de Qualidade", layout="wide", page_icon="🔬")
-
-# --- CONTROLE DE SESSÃO / LOGIN ---
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
-if "usuario_logado" not in st.session_state:
-    st.session_state["usuario_logado"] = ""
-if "perfil_usuario" not in st.session_state:
-    st.session_state["perfil_usuario"] = ""
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def conectar():
     return sqlite3.connect("controle_qualidade_forn.db")
 
-# Inicialização das Tabelas no SQLite
+# Inicialização do Banco de Dados
 conn = conectar()
 cursor = conn.cursor()
 
-# Tabela de Inspeção (Estrutura original preservada)
+# Tabela de Inspeção de Lotes
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS inspeccao (
         id_laudo INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,7 +31,7 @@ cursor.execute("""
     )
 """)
 
-# Tabela de Usuários (Guarda os logins e senhas criados dinamicamente)
+# Tabela de Usuários Autorizados
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         usuario TEXT PRIMARY KEY,
@@ -48,66 +40,81 @@ cursor.execute("""
     )
 """)
 
-# Garante o usuário Administrador padrão caso o banco seja novo
+# Garante o Administrador padrão do sistema
 try:
-    cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'Master@2026', 'admin')")
+    cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'Master@2026', 'Administrador')")
 except sqlite3.Error:
     pass
 
 conn.commit()
 conn.close()
 
-# TELA DE ACESSO (LOGIN / CRIAÇÃO DE CONTA)
+
+# --- CONTROLE DE SESSÃO (ESTADO DO STREAMLIT) ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+if "usuario_logado" not in st.session_state:
+    st.session_state["usuario_logado"] = ""
+if "perfil_usuario" not in st.session_state:
+    st.session_state["perfil_usuario"] = ""
+
+
+# --- TELA DE ACESSO (LOGIN / AUTO-CADASTRO) ---
 if not st.session_state["autenticado"]:
     st.markdown("<h1 style='text-align: center;'>🔬 NEXTGEN | CONTROLE DE QUALIDADE</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #64748B;'>Inspeção de Lotes, Validades e Laudos Laboratoriais</p>", unsafe_allow_html=True)
+    st.markdown("---")
 
-    aba_login, aba_novo_cadastro = st.tabs(["🔑 Acessar Sistema", "🆕 Criar Minha Conta"])
+    aba_login, aba_novo_cadastro = st.tabs(["🔑 Acessar Sistema", "🆕 Criar Minha Conta (Auto-Cadastro)"])
 
-    # --- SUB-TELA 1: LOGIN ---
+    # 1. Fluxo de Login
     with aba_login:
-        col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
-        with col_l2:
+        col1, col2, col3 = st.columns([1, 1.2, 1])
+        with col2:
+            st.markdown("### Entrar no Sistema")
             u_input = st.text_input("Usuário / Analista:", key="login_user").strip().lower()
             p_input = st.text_input("Senha:", type="password", key="login_pass").strip()
             
             if st.button("Acessar Módulo CQ", use_container_width=True):
-                conn = conectar()
-                cursor = conn.cursor()
-                cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_input,))
-                resultado = cursor.fetchone()
-                conn.close()
-                
-                # CORREÇÃO 1: Validação correta acessando o índice da tupla resultado
-                if resultado and resultado[0] == p_input:
-                    st.session_state["autenticado"] = True
-                    st.session_state["usuario_logado"] = u_input
-                    st.session_state["perfil_usuario"] = resultado[1]
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha incorretos.")
+                if u_input and p_input:
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_input,))
+                    resultado = cursor.fetchone()
+                    conn.close()
                     
-    # --- SUB-TELA 2: AUTO-CADASTRO ---
+                    if resultado and resultado[0] == p_input:
+                        st.session_state["autenticado"] = True
+                        st.session_state["usuario_logado"] = u_input
+                        st.session_state["perfil_usuario"] = resultado[1]
+                        st.rerun()
+                    else:
+                        st.error("Usuário ou senha incorretos.")
+                else:
+                    st.warning("Preencha todos os campos para entrar.")
+                    
+    # 2. Fluxo de Auto-Cadastro de Novos Usuários
     with aba_novo_cadastro:
-        col_c1, col_c2, col_c3 = st.columns([1, 1.2, 1])
-        with col_c2:
-            st.markdown("### Registrar Novo Analista")
-            novo_u = st.text_input("Escolha seu Usuário de Acesso:", key="reg_user").strip().lower()
+        col1, col2, col3 = st.columns([1, 1.2, 1])
+        with col2:
+            st.markdown("### Criar Novo Usuário")
+            novo_u = st.text_input("Escolha seu Usuário:", key="reg_user").strip().lower()
             novo_p = st.text_input("Crie sua Senha:", type="password", key="reg_pass").strip()
             conf_p = st.text_input("Confirme sua Senha:", type="password", key="reg_conf").strip()
             
+            # Perfis autorizados para determinar o acesso às telas
             novo_perfil = st.selectbox(
-                "Selecione seu Perfil Operacional:", 
-                ["cadastro", "laboratorio", "visualizar"]
+                "Selecione sua Função Operacional:", 
+                ["Recepção (Cadastros)", "Laboratório (Análises)", "Consulta (Relatórios)", "Administrador"]
             )
             
-            if st.button("Cadastrar e Salvar Senha", use_container_width=True):
-                if not novo_u or not novo_p:
-                    st.warning("Todos os campos devem ser preenchidos.")
+            if st.button("Gravar e Ativar Conta", use_container_width=True):
+                if not novo_u or not novo_p or not conf_p:
+                    st.warning("Todos os campos de cadastro devem ser preenchidos.")
                 elif novo_p != conf_p:
-                    st.error("As senhas informadas não são iguais.")
+                    st.error("As senhas informadas não coincidem.")
                 elif novo_u == "admin":
-                    st.error("O usuário 'admin' é restrito do sistema.")
+                    st.error("O nome de usuário 'admin' é exclusivo do sistema.")
                 else:
                     conn = conectar()
                     cursor = conn.cursor()
@@ -115,18 +122,19 @@ if not st.session_state["autenticado"]:
                         cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", 
                                        (novo_u, novo_p, novo_perfil))
                         conn.commit()
-                        st.success(f"Usuário `{novo_u}` registrado com sucesso! Use a aba ao lado para logar.")
+                        st.success(f"Conta `{novo_u}` criada como **{novo_perfil}**! Vá para a aba ao lado e faça seu login.")
                     except sqlite3.IntegrityError:
-                        st.error("Este nome de usuário já está registrado por outro funcionário.")
+                        st.error("Este nome de usuário já está sendo utilizado por outro analista.")
                     finally:
                         conn.close()
     st.stop()
 
-# BARRA LATERAL (LOGOFF E INFORMAÇÕES)
+
+# --- BARRA LATERAL (PAINEL DO USUÁRIO LOGADO) ---
 with st.sidebar:
-    st.markdown("### 🧪 ANALISTA LOGADO")
-    st.write(f"Usuário: `{st.session_state['usuario_logado']}`")
-    st.write(f"Perfil: `{(st.session_state['perfil_usuario']).upper()}`")
+    st.markdown("### 🧪 CONTA ATIVA")
+    st.write(f"**Usuário:** `{st.session_state['usuario_logado']}`")
+    st.write(f"**Acesso:** `{st.session_state['perfil_usuario']}`")
     st.markdown("---")
     if st.button("Sair do Sistema", use_container_width=True):
         st.session_state["autenticado"] = False
@@ -134,29 +142,31 @@ with st.sidebar:
         st.session_state["perfil_usuario"] = ""
         st.rerun()
 
-st.title("🔬 Controle de Qualidade e Liberação de Lotes")
 
-# --- GERENCIAMENTO DE ABAS POR PERFIL ---
+# --- TELA PRINCIPAL - CONTROLE DE ABAS AUTORIZADAS ---
+st.title("🔬 Módulo Integrado de Controle de Qualidade")
+
 perfil = st.session_state["perfil_usuario"]
+abas_autorizadas = []
 
-abas_disponiveis = []
-if perfil in ["admin", "cadastro"]:
-    abas_disponiveis.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
-if perfil in ["admin", "laboratorio"]:
-    abas_disponiveis.append("🧫 2. PAINEL DO LABORATÓRIO")
-if perfil in ["admin", "cadastro", "laboratorio", "visualizar"]:
-    abas_disponiveis.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
-if perfil == "admin":
-    abas_disponiveis.append("⚙️ GERENCIAR USUÁRIOS")
+# Mapeamento estrito de permissões por perfil
+if perfil in ["Administrador", "Recepção (Cadastros)"]:
+    abas_autorizadas.append("📥 1. RECEPÇÃO / CADASTRAR LOTE")
+if perfil in ["Administrador", "Laboratório (Análises)"]:
+    abas_autorizadas.append("🧫 2. PAINEL DO LABORATÓRIO")
+if perfil in ["Administrador", "Recepção (Cadastros)", "Laboratório (Análises)", "Consulta (Relatórios)"]:
+    abas_autorizadas.append("📋 3. RELATÓRIO GERAL DE LAUDOS")
+if perfil == "Administrador":
+    abas_autorizadas.append("⚙️ GERENCIAR CONTAS")
 
-abas = st.tabs(abas_disponiveis)
-aba_index = 0
+# Renderização segura das abas mapeadas em dicionário para evitar erros de indexação
+dicionario_abas = {nome: objeto for nome, objeto in zip(abas_autorizadas, st.tabs(abas_autorizadas))}
 
-# --- ABA 1: RECEPÇÃO / CADASTRAR LOTE ---
-if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
-    with abas[aba_index]:
-        aba_index += 1
-        st.subheader("Entrada de Produto para Inspeção")
+
+# --- TELA 1: RECEPÇÃO / CADASTRAR LOTE ---
+if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in dicionario_abas:
+    with dicionario_abas["📥 1. RECEPÇÃO / CADASTRAR LOTE"]:
+        st.subheader("Entrada de Matéria-Prima / Produto para Inspeção")
         
         if "sucesso_cadastro" in st.session_state:
             st.success(st.session_state["sucesso_cadastro"])
@@ -188,43 +198,31 @@ if "📥 1. RECEPÇÃO / CADASTRAR LOTE" in abas_disponiveis:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (dt_atual, q_nf.strip(), q_for.strip(), q_cod.strip(), q_des.strip(), q_lot.strip(), q_fab.strip(), q_val.strip()))
                     conn.commit()
-                    st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} cadastrado com sucesso!"
+                    st.session_state["sucesso_cadastro"] = f"Lote {q_lot.strip()} registrado com sucesso!"
                     st.rerun()
                 except sqlite3.IntegrityError:
-                    st.error("Erro: Este número de Lote já está cadastrado no sistema!")
+                    st.error("Erro: Este número de Lote já consta no banco de dados!")
                 finally:
                     conn.close()
             else:
-                st.warning("Por favor, preencha a Nota Fiscal, Fornecedor, Código, Descrição e o Lote.")
+                st.warning("Preencha todos os campos obrigatórios para registrar o lote.")
 
-# --- ABA 2: PAINEL DO LABORATÓRIO ---
-if "🧫 2. PAINEL DO LABORATÓRIO" in abas_disponiveis:
-    with abas[aba_index]:
-        aba_index += 1
-        st.subheader("Análise Laboratorial e Parecer Técnico")
+
+# --- TELA 2: PAINEL DO LABORATÓRIO ---
+if "🧫 2. PAINEL DO LABORATÓRIO" in dicionario_abas:
+    with dicionario_abas["🧫 2. PAINEL DO LABORATÓRIO"]:
+        st.subheader("Análise e Parecer Técnico Laboratorial")
         
         conn = conectar()
-        df_analise = pd.read_sql_query("SELECT id_laudo, lote, descricao, status FROM inspeccao WHERE status = 'Em Análise'", conn)
+        df_analise = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM inspeccao WHERE status = 'Em Análise'", conn)
         conn.close()
         
         if df_analise.empty:
-            st.info("Não há lotes pendentes de análise laboratorial no momento.")
+            st.info("Nenhum lote pendente de análise laboratorial no momento.")
         else:
-            st.write("Selecione um lote abaixo para emitir o laudo:")
+            st.dataframe(df_analise, use_container_width=True, hide_index=True)
             
-            lista_lotes = [f"{row['lote']} | {row['descricao']}" for _, row in df_analise.iterrows()]
-            escolha_lote = st.selectbox("Lotes aguardando parecer:", lista_lotes)
-            
-            # CORREÇÃO CRÍTICA 2: Pegando o primeiro item da lista antes de aplicar o strip
-            lote_puro = escolha_lote.split(" | ")[0].strip()
-            
+            st.markdown("### Registrar Laudo Técnico")
             with st.form("form_laboratorio"):
-                novo_status = st.selectbox("Resultado da Inspeção:", ["Aprovado", "Reprovado"])
-                analista_responsavel = st.session_state["usuario_logado"]
-                
-                salvar_parecer = st.form_submit_button("Gravar Decisão do CQ", use_container_width=True)
-                
-                if salvar_parecer:
-                    conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, analista_responsavel, lote_puro))
+                lote_selecionado = st.selectbox("Selecione o Lote Alvo:", df_analise["lote"].tolist())
+                novo_status = st.selectbox("Parecer de Qualidade:", ["Aprovado", "Reprovado"])

@@ -103,8 +103,8 @@ if cargo_atual == "Supervisor":
 tela = st.sidebar.radio("Menu de Telas Disponíveis:", opcoes_menu)
 st.markdown("---")
 
-# --- TELA 1: ENTRADA DE INSUMO ---
-if tela == "📥 Registrar Entrada de Material":
+# --- TELA 1: ENTRADA DE INSUMO (CORRIGIDA) ---
+if tela == "📥 Registrar Entrada de Insumo":
     st.subheader("📥 Formulário de Recebimento e Triagem (Quarentena)")
     
     c1, c2, c3 = st.columns(3)
@@ -148,8 +148,8 @@ elif tela == "🧫 Avaliação e Parecer Técnico":
     else:
         lote_selecionado = st.selectbox("Selecione o Lote Alvo para Análise:", lotes_disponiveis)
         resultado = st.selectbox("Veredito Final da Inspeção:", ["Aprovado", "Reprovado"])
-        justificativa = st.text_area("Parâmetros Analisados / Justificativa Técnica do Laudo:", 
-                                   placeholder="Descreva obrigatoriamente os ensaios executados, desvios detectados ou referências normativas...")
+        justificativa = st.text_area("Parâmetros Analisados / Justificativa Técnico do Laudo:", 
+                                   placeholder="Descreva os ensaios executados, referências normativas...")
         
         if st.button("Homologar Parecer e Emitir Laudo", use_container_width=True):
             if justificativa.strip() != "":
@@ -209,7 +209,7 @@ elif tela == "⚙️ Gerenciador de Usuários":
             st.warning("Preencha o nome de usuário e a senha para efetuar o cadastro.")
             
     st.markdown("---")
-    st.markdown("### ❌ Quadro de Operadores Ativos e Exclusão")
+    st.markdown("### 📋 Quadro de Operadores Ativos e Exclusão")
     
     df_users = pd.read_sql_query("SELECT usuario as 'Usuário', funcao as 'Função' FROM usuarios WHERE usuario != 'admin'", conn)
     
@@ -224,5 +224,4 @@ elif tela == "⚙️ Gerenciador de Usuários":
             conn.commit()
             st.success(f"Sucesso! A conta do operador '{user_remover}' foi apagada.")
             st.rerun()
-
 

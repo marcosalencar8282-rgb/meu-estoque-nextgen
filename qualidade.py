@@ -1,113 +1,214 @@
-from flask import Flask, render_template, request, redirect, session, url_for
-from werkzeug.security import generate_password_hash, check_password_hash
+import streamlit as st
 import sqlite3
+import hashlib
+import pandas as pd
 
-app = Flask(__name__)
-app.secret_key = "senha_secreta_master"
+st.set_page_config(page_title="Sistema de Qualidade", layout="wide")
 
 def conectar():
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+    return sqlite3.connect("qualidade.db")
 
-@app.route("/")
-def home():
-    if "usuario" not in session:
-        return redirect("/login")
-    return render_template("dashboard.html")
+def criar_banco():
+    conn = conectar()
+    c = conn.cursor()
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        usuario = request.form["usuario"]
-        senha = request.form["senha"]
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT,
+        usuario TEXT UNIQUE,
+        senha TEXT,
+        perfil TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS notas(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero TEXT,
+        fornecedor TEXT,
+        produto TEXT,
+        quantidade INTEGER
+    )
+    """)
+
+    senha_master = hashlib.sha256("master123".encode()).hexdigest()
+
+    c.execute("""
+    INSERT OR IGNORE INTO usuarios
+    (id,nome,usuario,senha,perfil)
+    VALUES
+    (1,'Administrador Master','master',?,'MASTER')
+    """,(senha_master,))
+
+    conn.commit()
+    conn.close()
+
+criar_banco()
+
+def criptografar(texto):
+    return hashlib.sha256(texto.encode()).hexdigest()
+
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+
+if not st.session_state.logado:
+
+    st.title("Login")
+
+    usuario = st.text_input("Usuário")
+    senha = st.text_input("Senha", type="password")
+
+    if st.button("Entrar"):
 
         conn = conectar()
-        user = conn.execute(
+        c = conn.cursor()
+
+        c.execute(
             "SELECT * FROM usuarios WHERE usuario=?",
             (usuario,)
-        ).fetchone()
-        conn.close()
-
-        if user and check_password_hash(user["senha"], senha):
-            session["usuario"] = user["usuario"]
-            session["perfil"] = user["perfil"]
-            return redirect("/")
-
-    return render_template("login.html")
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/login")
-
-@app.route("/usuarios")
-def usuarios():
-    if session.get("perfil") != "MASTER":
-        return "Acesso negado"
-
-    conn = conectar()
-    lista = conn.execute("SELECT * FROM usuarios").fetchall()
-    conn.close()
-
-    return render_template("usuarios.html", usuarios=lista)
-
-@app.route("/novo_usuario", methods=["GET", "POST"])
-def novo_usuario():
-    if session.get("perfil") != "MASTER":
-        return "Acesso negado"
-
-    if request.method == "POST":
-        nome = request.form["nome"]
-        usuario = request.form["usuario"]
-        senha = generate_password_hash(request.form["senha"])
-        perfil = request.form["perfil"]
-
-        conn = conectar()
-        conn.execute(
-            "INSERT INTO usuarios(nome,usuario,senha,perfil) VALUES(?,?,?,?)",
-            (nome, usuario, senha, perfil)
         )
-        conn.commit()
+
+        user = c.fetchone()
         conn.close()
 
-        return redirect("/usuarios")
+        if user and user[3] == criptografar(senha):
+            st.session_state.logado = True
+            st.session_state.usuario = user[2]
+            st.session_state.perfil = user[4]
+            st.rerun()
+        else:
+            st.error("Usuário ou senha inválidos")
 
-    return render_template("novo_usuario.html")
+else:
 
-@app.route("/notas")
-def notas():
-    conn = conectar()
-    dados = conn.execute(
-        "SELECT * FROM notas ORDER BY id DESC"
-    ).fetchall()
-    conn.close()
+    st.sidebar.success(
+        f"Logado: {st.session_state.usuario}"
+    )
 
-    return render_template("notas.html", notas=dados)
+    menu = st.sidebar.selectbox(
+        "Menu",
+        [
+            "Dashboard",
+            "Notas",
+            "Cadastrar Nota",
+            "Usuários"
+        ]
+    )
 
-@app.route("/nova_nota", methods=["GET", "POST"])
-def nova_nota():
-    if request.method == "POST":
-        numero = request.form["numero"]
-        fornecedor = request.form["fornecedor"]
-        produto = request.form["produto"]
-        quantidade = request.form["quantidade"]
+    if menu == "Dashboard":
+        st.title("Sistema de Qualidade")
 
-        conn = conectar()
-        conn.execute(
-            """
+    elif menu == "Cadastrar Nota":
+
+        st.title("Nova Nota")
+
+        numero = st.text_input("Número")
+
+        fornecedor = st.text_input("Fornecedor")
+
+        produto = st.text_input("Produto")
+
+        quantidade = st.number_input(
+            "Quantidade",
+            min_value=1
+        )
+
+        if st.button("Salvar"):
+
+            conn = conectar()
+            c = conn.cursor()
+
+            c.execute("""
             INSERT INTO notas
-            (numero, fornecedor, produto, quantidade)
-            VALUES (?, ?, ?, ?)
+            (numero,fornecedor,produto,quantidade)
+            VALUES(?,?,?,?)
             """,
-            (numero, fornecedor, produto, quantidade)
+            (
+                numero,
+                fornecedor,
+                produto,
+                quantidade
+            ))
+
+            conn.commit()
+            conn.close()
+
+            st.success("Nota cadastrada")
+
+    elif menu == "Notas":
+
+        conn = conectar()
+
+        df = pd.read_sql_query(
+            "SELECT * FROM notas",
+            conn
         )
-        conn.commit()
+
         conn.close()
 
-        return redirect("/notas")
+        st.dataframe(df)
 
-    return render_template("nova_nota.html")
+    elif menu == "Usuários":
 
-if __name__ == "__main__":
-    app.run(debug=True)
+        if st.session_state.perfil != "MASTER":
+            st.error("Acesso negado")
+            st.stop()
+
+        st.title("Gerenciamento de Usuários")
+
+        nome = st.text_input("Nome")
+
+        usuario = st.text_input("Usuário Novo")
+
+        senha = st.text_input(
+            "Senha",
+            type="password"
+        )
+
+        perfil = st.selectbox(
+            "Perfil",
+            ["ADMIN","USUARIO"]
+        )
+
+        if st.button("Cadastrar Usuário"):
+
+            try:
+
+                conn = conectar()
+                c = conn.cursor()
+
+                c.execute("""
+                INSERT INTO usuarios
+                (nome,usuario,senha,perfil)
+                VALUES(?,?,?,?)
+                """,
+                (
+                    nome,
+                    usuario,
+                    criptografar(senha),
+                    perfil
+                ))
+
+                conn.commit()
+                conn.close()
+
+                st.success("Usuário criado")
+
+            except:
+                st.error("Usuário já existe")
+
+        conn = conectar()
+
+        df = pd.read_sql_query(
+            "SELECT id,nome,usuario,perfil FROM usuarios",
+            conn
+        )
+
+        conn.close()
+
+        st.dataframe(df)
+
+    if st.sidebar.button("Sair"):
+        st.session_state.clear()
+        st.rerun()

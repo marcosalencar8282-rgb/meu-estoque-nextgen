@@ -35,6 +35,7 @@ cursor.execute("""
         funcao TEXT
     )
 """)
+
 # Garante o administrador padrão caso o banco seja novo
 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = 'admin'")
 if cursor.fetchone()[0] == 0:
@@ -80,7 +81,7 @@ if not st.session_state["logado"]:
 # --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
 c_info, c_logout = st.columns([3, 1])
 with c_info:
-    st.markdown(f"👤 Operador: **{st.session_state['user'].upper()}** | Cargo: **{st.session_state['cargo'].upper()}**")
+    st.markdown(f"**Operador:** {st.session_state['user'].upper()} | **Cargo:** {st.session_state['cargo'].upper()}")
 with c_logout:
     if st.button("Sair do Sistema", use_container_width=True):
         st.session_state.clear()
@@ -144,7 +145,8 @@ if st.session_state["tela_ativa"] == "cadastro" and cargo_atual in ["Técnico", 
                 """, (data_hoje, nota_fiscal, fornecedor, nome_insumo, num_lote, data_fab, data_val, qtd_insumo))
                 conn.commit()
                 conn.close()
-                st.success(f"Material {nome_insumo} registrado em quarentena com sucesso!")
+                st.success(f"Material {nome_insumo} do fornecedor {fornecedor} registrado com sucesso!")
+                st.rerun()
             else:
                 conn.close()
                 st.error("Erro: Este número de lote já existe no sistema.")
@@ -235,7 +237,7 @@ elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and cargo_atual == "
             st.warning("Preencha todos os campos.")
             
     st.markdown("---")
-    st.markdown("### 📋 Quadro de Operadores Ativos")
+    st.markdown("### 📋 Quadro de Operadores e Exclusão")
     
     conn = conectar()
     df_users = pd.read_sql_query("SELECT usuario as 'Usuário', funcao as 'Função' FROM usuarios WHERE usuario != 'admin'", conn)
@@ -247,6 +249,5 @@ elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and cargo_atual == "
         st.dataframe(df_users, use_container_width=True, hide_index=True)
         user_remover = st.selectbox("Selecione uma conta para remover do sistema:", df_users["Usuário"].tolist())
         if st.button("❌ Deletar Conta Selecionada", use_container_width=True):
-            conn = conectar()
 
 

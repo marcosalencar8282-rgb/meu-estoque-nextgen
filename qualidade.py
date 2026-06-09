@@ -23,7 +23,7 @@ cursor.execute("""
     )
 """)
 
-# --- ATUALIZAÇÃO AUTOMÁTICA DA TABELA (INCLUINDO FORNECEDOR) ---
+# --- ATUALIZAÇÃO AUTOMÁTICA DA TABELA ---
 novas_colunas = {
     "nota_fiscal": "TEXT",
     "fornecedor": "TEXT",
@@ -36,7 +36,6 @@ for coluna, tipo in novas_colunas.items():
     try:
         cursor.execute(f"ALTER TABLE laudos ADD COLUMN {coluna} {tipo}")
     except sqlite3.OperationalError:
-        # Se a coluna já existir no banco, ele ignora e continua
         pass
 
 # Criação da tabela de usuários
@@ -48,10 +47,10 @@ cursor.execute("""
     )
 """)
 
-# Garante o usuário administrador padrão no sistema
+# Garante o usuário administrador master no sistema
 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = 'admin'")
 if cursor.fetchone()[0] == 0:
-    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES ('admin', 'admin123', 'Administrador')")
+    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES ('admin', 'admin123', 'Supervisor')")
     conn.commit()
 
 # --- ESTRUTURA DE LOGIN SIMPLES ---
@@ -59,6 +58,8 @@ if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "user" not in st.session_state:
     st.session_state["user"] = ""
+if "cargo" not in st.session_state:
+    st.session_state["cargo"] = ""
 
 if not st.session_state["logado"]:
     st.title("🔬 LOGIN | CONTROLE DE QUALIDADE")
@@ -66,11 +67,14 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha:", type="password").strip()
     
     if st.button("Entrar no Sistema", use_container_width=True):
-        cursor.execute("SELECT senha FROM usuarios WHERE usuario = ?", (u,))
+        cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
         dados = cursor.fetchone()
+        
+        # CORREÇÃO CRUCIAL: dados[0] pega a senha e dados[1] pega a função de forma limpa
         if dados and dados[0] == p:
             st.session_state["logado"] = True
             st.session_state["user"] = u
+            st.session_state["cargo"] = str(dados[1]).strip().capitalize()
             st.rerun()
         else:
             st.error("Usuário ou senha incorretos.")
@@ -78,20 +82,49 @@ if not st.session_state["logado"]:
 
 # --- PAINEL PRINCIPAL (LOGADO) ---
 st.title("🔬 SISTEMA DE QUALIDADE E LAUDOS")
-st.write(f"👤 Operador ativo: **{st.session_state['user'].upper()}**")
+st.write(f"👤 Operador: **{st.session_state['user'].upper()}** | Cargo: **{st.session_state['cargo'].upper()}**")
 
 if st.button("🚪 Sair do Sistema"):
     st.session_state["logado"] = False
+    st.session_state["user"] = ""
+    st.session_state["cargo"] = ""
     st.rerun()
 
 st.markdown("---")
 
-# --- BARRA LATERAL PARA MUDAR DE TELA ---
-tela = st.sidebar.radio("Navegação do Sistema:", ["📥 1. Entrada de Insumo", "🧫 2. Emitir Laudo Técnico", "📋 3. Histórico de Laudos", "⚙️ 4. Gerenciar Usuários"])
+# --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO RÍGIDO) ---
+cargo_atual = st.session_state["cargo"]
+
+# Define rigidamente quais telas aparecem no menu de rádio com base no cargo limpo
+opcoes_autorizadas = ["📋 3. Histórico de Laudos"]
+
+if cargo_atual in ["Técnico", "Supervisor"]:
+    opcoes_autorizadas.insert(0, "📥 1. Entrada de Insumo")
+if cargo_atual in ["Analista", "Supervisor"]:
+    opcoes_autorizadas.insert(1, "🧫 2. Emitir Laudo Técnico")
+if cargo_atual == "Supervisor":
+    opcoes_autorizadas.append("⚙️ 4. Gerenciar Usuários")
+
+# Renderiza apenas as opções permitidas para o funcionário logado
+tela = st.sidebar.radio("Navegação Autorizada:", opcoes_autorizadas)
 
 st.markdown("---")
 
-# --- TELA 1: ENTRADA DE INSUMO (FORNECEDOR INCLUÍDO) ---
+# --- TRAVA DE SEGURANÇA SEGUNDA CAMADA (IMPEDE BURLES EM NÍVEL DE CÓDIGO) ---
+if tela == "📥 1. Entrada de Insumo" and cargo_atual not in ["Técnico", "Supervisor"]:
+    st.error("Acesso negado. Sua função não possui autorização para esta tela.")
+    st.stop()
+
+if tela == "🧫 2. Emitir Laudo Técnico" and cargo_atual not in ["Analista", "Supervisor"]:
+    st.error("Acesso negado. Sua função não possui autorização para esta tela.")
+    st.stop()
+
+if tela == "⚙️ 4. Gerenciar Usuários" and cargo_atual != "Supervisor":
+    st.error("Acesso negado. Apenas o Supervisor pode gerenciar contas.")
+    st.stop()
+
+
+# --- TELA 1: ENTRADA DE INSUMO ---
 if tela == "📥 1. Entrada de Insumo":
     st.subheader("📥 Registrar Entrada de Material (Quarentena)")
     
@@ -117,7 +150,7 @@ if tela == "📥 1. Entrada de Insumo":
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (data_hoje, nota_fiscal, fornecedor, nome_insumo, num_lote, data_fab, data_val, qtd_insumo))
                 conn.commit()
-                st.success(f"Material {nome_insumo} do fornecedor {fornecedor} registrado em quarentena!")
+                st.success(f"Material {nome_insumo} registrado em quarentena!")
                 st.rerun()
             else:
                 st.error("Erro: Este número de lote já existe no sistema.")
@@ -190,7 +223,7 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
                 if cursor.fetchone()[0] == 0:
                     cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, nova_f))
                     conn.commit()
-                    st.success(f"Usuário {novo_u} cadastrado com sucesso!")
+                    st.success(f"Usuário {novo_u} cadastrado como {nova_f} com sucesso!")
                     st.rerun()
                 else:
                     st.error("Este nome de usuário já existe.")
@@ -207,8 +240,3 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
             st.dataframe(df_users, use_container_width=True, hide_index=True)
             user_remover = st.selectbox("Selecione para remover do sistema:", df_users["Usuário"].tolist())
             if st.button("❌ Deletar Conta"):
-                cursor.execute("DELETE FROM usuarios WHERE usuario = ?", (user_remover,))
-                conn.commit()
-                st.success(f"Conta de {user_remover} removida.")
-                st.rerun()
-

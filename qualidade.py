@@ -7,7 +7,10 @@ import pandas as pd
 st.set_page_config(page_title="CQ Lab", layout="wide", page_icon="🔬")
 
 # --- CONEXÃO DIRETA COM O BANCO DE DADOS ---
-conn = sqlite3.connect("sistema_laboratorio_simples.db")
+def conectar():
+    return sqlite3.connect("sistema_laboratorio_simples.db")
+
+conn = conectar()
 cursor = conn.cursor()
 
 # Criação da tabela base caso não exista
@@ -53,7 +56,9 @@ if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES ('admin', 'admin123', 'Supervisor')")
     conn.commit()
 
-# --- ESTRUTURA DE LOGIN SIMPLES ---
+conn.close()
+
+# --- CONTROLE DE SESSÃO (STATE) ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "user" not in st.session_state:
@@ -61,27 +66,30 @@ if "user" not in st.session_state:
 if "cargo" not in st.session_state:
     st.session_state["cargo"] = ""
 
+# --- TELA DE ACESSO (LOGIN) ---
 if not st.session_state["logado"]:
     st.title("🔬 LOGIN | CONTROLE DE QUALIDADE")
     u = st.text_input("Usuário:").strip().lower()
     p = st.text_input("Senha:", type="password").strip()
     
     if st.button("Entrar no Sistema", use_container_width=True):
-        cursor.execute("SELECT senha FROM usuarios WHERE usuario = ?", (u,))
-        dados_senha = cursor.fetchone()
-        
-        # Valida primeiro se a senha bate
-        if dados_senha and dados_senha[0] == p:
-            # Busca estritamente o texto limpo da função para evitar problemas com tuplas
-            cursor.execute("SELECT funcao FROM usuarios WHERE usuario = ?", (u,))
-            dados_funcao = cursor.fetchone()
+        if u and p:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
+            dados = cursor.fetchone()
+            conn.close()
             
-            st.session_state["logado"] = True
-            st.session_state["user"] = u
-            st.session_state["cargo"] = str(dados_funcao[0]).strip()
-            st.rerun()
+            # CORREÇÃO DA TUPLA: dados[0] é a senha e dados[1] é o cargo limpo em texto
+            if dados and dados[0] == p:
+                st.session_state["logado"] = True
+                st.session_state["user"] = u
+                st.session_state["cargo"] = str(dados[1]).strip()
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
         else:
-            st.error("Usuário ou senha incorretos.")
+            st.warning("Preencha todos os campos.")
     st.stop()
 
 # --- PAINEL PRINCIPAL (LOGADO) ---
@@ -99,7 +107,7 @@ st.markdown("---")
 # --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO RÍGIDO) ---
 cargo_atual = st.session_state["cargo"]
 
-# O Histórico de Laudos (Relatório) é a base visível para todos
+# O Histórico de Laudos (Relatório) é a base visível para todos os cargos
 opcoes_autorizadas = ["📋 3. Histórico de Laudos"]
 
 # Técnico e Supervisor acessam o Cadastro/Entrada
@@ -150,17 +158,23 @@ if tela == "📥 1. Entrada de Insumo":
         
     if st.button("Enviar para Inspeção", use_container_width=True):
         if nome_insumo and num_lote and nota_fiscal and fornecedor:
+            conn = conectar()
+            cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM laudos WHERE lote = ?", (num_lote,))
-            if cursor.fetchone()[0] == 0:
+            existe_lote = cursor.fetchone()[0]
+            
+            if existe_lote == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
                     INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (data_hoje, nota_fiscal, fornecedor, nome_insumo, num_lote, data_fab, data_val, qtd_insumo))
                 conn.commit()
+                conn.close()
                 st.success(f"Material {nome_insumo} registrado em quarentena!")
                 st.rerun()
             else:
+                conn.close()
                 st.error("Erro: Este número de lote já existe no sistema.")
         else:
             st.warning("Preencha Nota Fiscal, Fornecedor, Nome do Insumo e Lote para prosseguir.")
@@ -169,8 +183,13 @@ if tela == "📥 1. Entrada de Insumo":
 elif tela == "🧫 2. Emitir Laudo Técnico":
     st.subheader("🧫 Avaliação de Parâmetros e Liberação de Laudo")
     
+    conn = conectar()
+    cursor = conn.cursor()
     cursor.execute("SELECT lote FROM laudos WHERE status = 'Em Quarentena'")
-    lotes_pendentes = [item[0] for item in cursor.fetchall()]
+    registros_lotes = cursor.fetchall()
+    conn.close()
+    
+    lotes_pendentes = [item[0] for item in registros_lotes]
     
     if not lotes_pendentes:
         st.info("Nenhum lote aguardando análise laboratorial no momento.")
@@ -181,8 +200,11 @@ elif tela == "🧫 2. Emitir Laudo Técnico":
         
         if st.button("Homologar Laudo Definitivo", use_container_width=True):
             if justificativa.strip() != "":
+                conn = conectar()
+                cursor = conn.cursor()
                 cursor.execute("UPDATE laudos SET status = ?, analista = ?, parametros = ? WHERE lote = ?", (resultado, st.session_state["user"], justificativa, lote_selecionado))
                 conn.commit()
+                conn.close()
                 st.success(f"O lote {lote_selecionado} foi classificado como {resultado}!")
                 st.rerun()
             else:
@@ -192,6 +214,7 @@ elif tela == "🧫 2. Emitir Laudo Técnico":
 elif tela == "📋 3. Histórico de Laudos":
     st.subheader("📋 Arquivo de Laudos Registrados")
     
+    conn = conectar()
     df = pd.read_sql_query("""
         SELECT 
             id as ID, 
@@ -208,6 +231,7 @@ elif tela == "📋 3. Histórico de Laudos":
             parametros as 'Parâmetros Analisados' 
         FROM laudos ORDER BY id DESC
     """, conn)
+    conn.close()
     
     if df.empty:
         st.info("Nenhum registro encontrado no banco de dados.")
@@ -227,17 +251,10 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
         
         if st.button("Salvar Usuário"):
             if novo_u and novo_p:
+                conn = conectar()
+                cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
-                if cursor.fetchone()[0] == 0:
-                    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, nova_f))
-                    conn.commit()
-                    st.success(f"Usuário {novo_u} cadastrado como {nova_f} com sucesso!")
-                    st.rerun()
-                else:
-                    st.error("Este nome de usuário já existe.")
-            else:
-                st.warning("Preencha usuário e senha.")
+                existe_user = cursor.fetchone()[0]
                 
-    with g2:
-        st.markdown("**Quadro de Operadores:**")
-        df_users = pd.read_sql_query("SELECT usuario as 'Usuário', funcao as 'Função' FROM usuarios WHERE usuario != 'admin'", conn)
+                if existe_user == 0:
+

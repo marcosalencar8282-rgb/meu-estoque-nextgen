@@ -161,9 +161,9 @@ if tela == "📥 1. Entrada de Insumo":
             conn = conectar()
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM laudos WHERE lote = ?", (num_lote,))
-            existe_lote = cursor.fetchone()
+            existe_lote = cursor.fetchone()[0]
             
-            if existe_lote[0] == 0:
+            if existe_lote == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
                     INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
@@ -238,20 +238,21 @@ elif tela == "📋 3. Histórico de Laudos":
     else:
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS ---
+# --- TELA 4: GERENCIAR USUÁRIOS (BLOCO BLINDADO) ---
 elif tela == "⚙️ 4. Gerenciar Usuários":
     st.subheader("⚙️ Gerenciador de Usuários do Laboratório")
-    st.markdown("### 🆕 Cadastrar Novo Funcionário")
     
-    novo_u = st.text_input("Nome de Usuário:").strip().lower()
-    novo_p = st.text_input("Senha Provisória:", type="password").strip()
-    nova_f = st.selectbox("Função:", ["Técnico", "Analista", "Supervisor"])
-    
-    if st.button("Salvar Usuário", use_container_width=True):
-        if novo_u and novo_p:
-            conn = conectar()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
-            if cursor.fetchone()[0] == 0:
+    # Formulário Isolado para Cadastrar Funcionário
+    with st.form("cadastro_usuario_form"):
+        st.markdown("### 🆕 Cadastrar Novo Funcionário")
+        novo_u = st.text_input("Nome de Usuário:").strip().lower()
+        novo_p = st.text_input("Senha Provisória:", type="password").strip()
+        nova_f = st.selectbox("Função:", ["Técnico", "Analista", "Supervisor"])
+        salvar = st.form_submit_button("Salvar Usuário", use_container_width=True)
+        
+        if salvar:
+            if novo_u and novo_p:
+                conn = conectar()
+                cursor = conn.cursor()
 
 

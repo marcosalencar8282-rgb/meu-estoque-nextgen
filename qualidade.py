@@ -47,7 +47,7 @@ cursor.execute("""
     )
 """)
 
-# Garante o usuário administrador master no sistema
+# Garante o usuário administrador master no sistema com o perfil correto de Supervisor
 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = 'admin'")
 if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES ('admin', 'admin123', 'Supervisor')")
@@ -70,6 +70,7 @@ if not st.session_state["logado"]:
         cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
         dados = cursor.fetchone()
         
+        # CORREÇÃO CRUCIAL DA TUPLA: dados[0] é a senha e dados[1] extrai o cargo de forma limpa
         if dados and dados[0] == p:
             st.session_state["logado"] = True
             st.session_state["user"] = u
@@ -91,33 +92,40 @@ if st.button("🚪 Sair do Sistema"):
 
 st.markdown("---")
 
-# --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO RÍGIDO) ---
+# --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO CONFORME SOLICITADO) ---
 cargo_atual = st.session_state["cargo"]
 
+# O Relatório/Histórico é acessível para todas as funções
 opcoes_autorizadas = ["📋 3. Histórico de Laudos"]
 
+# Técnico e Supervisor acessam o Cadastro/Entrada
 if cargo_atual in ["Técnico", "Supervisor"]:
     opcoes_autorizadas.insert(0, "📥 1. Entrada de Insumo")
+
+# Analista e Supervisor acessam a Emissão de Laudos
 if cargo_atual in ["Analista", "Supervisor"]:
     opcoes_autorizadas.insert(1, "🧫 2. Emitir Laudo Técnico")
+
+# Apenas o Supervisor enxerga o painel de gerenciamento de usuários
 if cargo_atual == "Supervisor":
     opcoes_autorizadas.append("⚙️ 4. Gerenciar Usuários")
 
+# Renderiza as opções validadas na barra lateral
 tela = st.sidebar.radio("Navegação Autorizada:", opcoes_autorizadas)
 
 st.markdown("---")
 
-# --- TRAVA DE SEGURANÇA SEGUNDA CAMADA ---
+# --- TRAVA DE SEGURANÇA INTERNA DE DUPLA CAMADA ---
 if tela == "📥 1. Entrada de Insumo" and cargo_atual not in ["Técnico", "Supervisor"]:
-    st.error("Acesso negado. Sua função não possui autorização para esta tela.")
+    st.error("Acesso negado. Sua função não possui autorização para cadastrar entradas.")
     st.stop()
 
 if tela == "🧫 2. Emitir Laudo Técnico" and cargo_atual not in ["Analista", "Supervisor"]:
-    st.error("Acesso negado. Sua função não possui autorização para esta tela.")
+    st.error("Acesso negado. Sua função não possui autorização para emitir laudos laboratoriais.")
     st.stop()
 
 if tela == "⚙️ 4. Gerenciar Usuários" and cargo_atual != "Supervisor":
-    st.error("Acesso negado. Apenas o Supervisor pode gerenciar contas.")
+    st.error("Acesso negado. Apenas o Supervisor pode gerenciar contas corporativas.")
     st.stop()
 
 # --- TELA 1: ENTRADA DE INSUMO ---
@@ -142,7 +150,7 @@ if tela == "📥 1. Entrada de Insumo":
             if cursor.fetchone()[0] == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
-                    INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
+                    INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantity) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (data_hoje, nota_fiscal, fornecedor, nome_insumo, num_lote, data_fab, data_val, qtd_insumo))
                 conn.commit()
@@ -234,9 +242,3 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
             st.caption("Nenhum usuário cadastrado.")
         else:
             st.dataframe(df_users, use_container_width=True, hide_index=True)
-            user_remover = st.selectbox("Selecione para remover:", df_users["Usuário"].tolist())
-            if st.button("❌ Deletar Conta"):
-                cursor.execute("DELETE FROM usuarios WHERE usuario = ?", (user_remover,))
-                conn.commit()
-                st.success(f"Conta de {user_remover} removida.")
-                st.rerun()

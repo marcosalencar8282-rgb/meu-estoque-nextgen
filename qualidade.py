@@ -41,9 +41,13 @@ cursor.execute("""
     )
 """)
 
-# Garante a existência e força os privilégios do admin master
-cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'admin123', 'administrador')")
-cursor.execute("UPDATE usuarios SET perfil = 'administrador' WHERE usuario = 'admin'")
+# Garante a existência e força os privilégios do admin master sem usar try
+cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = 'admin'")
+existe_admin = cursor.fetchone()[0]
+if existe_admin == 0:
+    cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'admin123', 'administrador')")
+else:
+    cursor.execute("UPDATE usuarios SET perfil = 'administrador' WHERE usuario = 'admin'")
 
 conn.commit()
 conn.close()
@@ -87,7 +91,7 @@ if not st.session_state["autenticado"]:
             st.warning("Preencha os campos obrigatórios para prosseguir.")
     st.stop()
 
-# --- MENU LATERAL DE NAVEGAÇÃO NATIVO (DESTRAVADO) ---
+# --- MENU LATERAL DE NAVEGAÇÃO NATIVO ---
 perf = st.session_state["perfil_usuario"]
 
 st.sidebar.title("🔬 BioQuali CQ")
@@ -168,19 +172,24 @@ if menu_ativo == "📥 Entrada de Materiais":
         if doc and forn and sku and desc and lot:
             conn = conectar()
             cursor = conn.cursor()
-            try:
+            
+            # Validação manual antes de inserir o lote para evitar erro de integridade
+            cursor.execute("SELECT COUNT(*) FROM laudos WHERE lote = ?", (lot,))
+            existe_lote = cursor.fetchone()[0]
+            
+            if existe_lote == 0:
                 data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
                     INSERT INTO laudos (data_cadastro, documento, fornecedor, item_sku, descricao, lote, data_fab, data_val)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (data_atual, doc, forn, sku, desc, lot, fab, val))
                 conn.commit()
+                conn.close()
                 st.success(f"Lote {lot} inserido na fila de inspeção!")
                 st.rerun()
-            except sqlite3.IntegrityError:
-                st.error("Impasse: Este identificador de lote já consta no banco.")
-            finally:
+            else:
                 conn.close()
+                st.error("Impasse: Este identificador de lote já consta no banco.")
         else:
             st.warning("Preencha todos os campos obrigatórios da triagem.")
 
@@ -203,7 +212,7 @@ elif menu_ativo == "🧫 Análise Técnica":
         with col_an2:
             veredito = st.selectbox("Veredito de Liberação (Status):", ["Aprovado", "Reprovado"])
             
-        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprovação:", 
+        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprevação:", 
                            placeholder="Digite os desvios, ensaios realizados ou referências normativas analisadas...")
         
         if st.button("Garantir e Emitir Laudo Final", use_container_width=True):
@@ -253,11 +262,4 @@ elif menu_ativo == "⚙️ Gestão de Contas":
         f_nova = st.selectbox("Função/Perfil:", ["recebimento", "analista", "visualizar"])
         
         if st.button("Cadastrar Novo Usuário", use_container_width=True):
-            if u_novo and p_novo:
-                conn = conectar()
-                cursor = conn.cursor()
-                try:
-                    cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (u_novo, p_novo, f_nova))
-                    conn.commit()
-                    st.success(f"Conta corporativa para '{u_novo}' gerada!")
 

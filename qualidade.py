@@ -1,214 +1,240 @@
+```python
 import streamlit as st
-import sqlite3
-import hashlib
-import pandas as pd
+from utils.banco import (
+    criar_banco,
+    buscar_usuario,
+    contar_notas,
+    contar_usuarios
+)
 
-st.set_page_config(page_title="Sistema de Qualidade", layout="wide")
+from utils.seguranca import verificar_senha
 
-def conectar():
-    return sqlite3.connect("qualidade.db")
+st.set_page_config(
+    page_title="Sistema de Qualidade",
+    page_icon="📋",
+    layout="wide"
+)
 
-def criar_banco():
-    conn = conectar()
-    c = conn.cursor()
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS usuarios(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT,
-        usuario TEXT UNIQUE,
-        senha TEXT,
-        perfil TEXT
-    )
-    """)
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS notas(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        numero TEXT,
-        fornecedor TEXT,
-        produto TEXT,
-        quantidade INTEGER
-    )
-    """)
-
-    senha_master = hashlib.sha256("master123".encode()).hexdigest()
-
-    c.execute("""
-    INSERT OR IGNORE INTO usuarios
-    (id,nome,usuario,senha,perfil)
-    VALUES
-    (1,'Administrador Master','master',?,'MASTER')
-    """,(senha_master,))
-
-    conn.commit()
-    conn.close()
+# ==========================================
+# BANCO
+# ==========================================
 
 criar_banco()
 
-def criptografar(texto):
-    return hashlib.sha256(texto.encode()).hexdigest()
+# ==========================================
+# SESSÃO
+# ==========================================
 
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
-if not st.session_state.logado:
+if "usuario" not in st.session_state:
+    st.session_state.usuario = ""
 
-    st.title("Login")
+if "perfil" not in st.session_state:
+    st.session_state.perfil = ""
 
-    usuario = st.text_input("Usuário")
-    senha = st.text_input("Senha", type="password")
+if "nome" not in st.session_state:
+    st.session_state.nome = ""
 
-    if st.button("Entrar"):
+# ==========================================
+# LOGIN
+# ==========================================
 
-        conn = conectar()
-        c = conn.cursor()
+def tela_login():
 
-        c.execute(
-            "SELECT * FROM usuarios WHERE usuario=?",
-            (usuario,)
+    col1, col2, col3 = st.columns([1,2,1])
+
+    with col2:
+
+        st.title("📋 Sistema de Qualidade")
+
+        st.markdown("---")
+
+        usuario = st.text_input(
+            "Usuário",
+            placeholder="Digite seu usuário"
         )
-
-        user = c.fetchone()
-        conn.close()
-
-        if user and user[3] == criptografar(senha):
-            st.session_state.logado = True
-            st.session_state.usuario = user[2]
-            st.session_state.perfil = user[4]
-            st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos")
-
-else:
-
-    st.sidebar.success(
-        f"Logado: {st.session_state.usuario}"
-    )
-
-    menu = st.sidebar.selectbox(
-        "Menu",
-        [
-            "Dashboard",
-            "Notas",
-            "Cadastrar Nota",
-            "Usuários"
-        ]
-    )
-
-    if menu == "Dashboard":
-        st.title("Sistema de Qualidade")
-
-    elif menu == "Cadastrar Nota":
-
-        st.title("Nova Nota")
-
-        numero = st.text_input("Número")
-
-        fornecedor = st.text_input("Fornecedor")
-
-        produto = st.text_input("Produto")
-
-        quantidade = st.number_input(
-            "Quantidade",
-            min_value=1
-        )
-
-        if st.button("Salvar"):
-
-            conn = conectar()
-            c = conn.cursor()
-
-            c.execute("""
-            INSERT INTO notas
-            (numero,fornecedor,produto,quantidade)
-            VALUES(?,?,?,?)
-            """,
-            (
-                numero,
-                fornecedor,
-                produto,
-                quantidade
-            ))
-
-            conn.commit()
-            conn.close()
-
-            st.success("Nota cadastrada")
-
-    elif menu == "Notas":
-
-        conn = conectar()
-
-        df = pd.read_sql_query(
-            "SELECT * FROM notas",
-            conn
-        )
-
-        conn.close()
-
-        st.dataframe(df)
-
-    elif menu == "Usuários":
-
-        if st.session_state.perfil != "MASTER":
-            st.error("Acesso negado")
-            st.stop()
-
-        st.title("Gerenciamento de Usuários")
-
-        nome = st.text_input("Nome")
-
-        usuario = st.text_input("Usuário Novo")
 
         senha = st.text_input(
             "Senha",
-            type="password"
+            type="password",
+            placeholder="Digite sua senha"
         )
 
-        perfil = st.selectbox(
-            "Perfil",
-            ["ADMIN","USUARIO"]
+        entrar = st.button(
+            "Entrar",
+            use_container_width=True
         )
 
-        if st.button("Cadastrar Usuário"):
+        if entrar:
 
-            try:
+            if not usuario or not senha:
+                st.error("Preencha usuário e senha")
+                return
 
-                conn = conectar()
-                c = conn.cursor()
+            dados = buscar_usuario(usuario)
 
-                c.execute("""
-                INSERT INTO usuarios
-                (nome,usuario,senha,perfil)
-                VALUES(?,?,?,?)
-                """,
-                (
-                    nome,
-                    usuario,
-                    criptografar(senha),
-                    perfil
-                ))
+            if not dados:
+                st.error("Usuário não encontrado")
+                return
 
-                conn.commit()
-                conn.close()
+            senha_ok = verificar_senha(
+                senha,
+                dados["senha"]
+            )
 
-                st.success("Usuário criado")
+            if not senha_ok:
+                st.error("Senha inválida")
+                return
 
-            except:
-                st.error("Usuário já existe")
+            st.session_state.logado = True
+            st.session_state.usuario = dados["usuario"]
+            st.session_state.perfil = dados["perfil"]
+            st.session_state.nome = dados["nome"]
 
-        conn = conectar()
+            st.rerun()
 
-        df = pd.read_sql_query(
-            "SELECT id,nome,usuario,perfil FROM usuarios",
-            conn
+# ==========================================
+# LOGOUT
+# ==========================================
+
+def logout():
+
+    st.session_state.logado = False
+    st.session_state.usuario = ""
+    st.session_state.perfil = ""
+    st.session_state.nome = ""
+
+    st.rerun()
+
+# ==========================================
+# DASHBOARD
+# ==========================================
+
+def dashboard():
+
+    st.title("📊 Dashboard")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.metric(
+            "Total de Notas",
+            contar_notas()
         )
 
-        conn.close()
+    with c2:
+        st.metric(
+            "Total de Usuários",
+            contar_usuarios()
+        )
 
-        st.dataframe(df)
+    st.markdown("---")
 
-    if st.sidebar.button("Sair"):
-        st.session_state.clear()
-        st.rerun()
+    st.subheader("Bem-vindo")
+
+    st.info(
+        f"Usuário logado: "
+        f"{st.session_state.nome}"
+    )
+
+    st.write(
+        f"Perfil: {st.session_state.perfil}"
+    )
+
+# ==========================================
+# MENU LATERAL
+# ==========================================
+
+def menu_lateral():
+
+    with st.sidebar:
+
+        st.title("📋 Qualidade")
+
+        st.success(
+            f"Usuário: "
+            f"{st.session_state.usuario}"
+        )
+
+        st.write(
+            f"Perfil: "
+            f"{st.session_state.perfil}"
+        )
+
+        st.markdown("---")
+
+        paginas = [
+            "Dashboard",
+            "Notas"
+        ]
+
+        if st.session_state.perfil == "MASTER":
+            paginas.append("Usuários")
+
+        escolha = st.radio(
+            "Menu",
+            paginas
+        )
+
+        st.markdown("---")
+
+        if st.button(
+            "Sair",
+            use_container_width=True
+        ):
+            logout()
+
+        return escolha
+
+# ==========================================
+# TELA NOTAS
+# ==========================================
+
+def tela_notas():
+
+    st.title("📦 Notas Fiscais")
+
+    st.info(
+        "A página completa de notas "
+        "será criada no arquivo "
+        "pages/notas.py"
+    )
+
+# ==========================================
+# TELA USUÁRIOS
+# ==========================================
+
+def tela_usuarios():
+
+    st.title("👥 Usuários")
+
+    st.info(
+        "A página completa de usuários "
+        "será criada no arquivo "
+        "pages/usuarios.py"
+    )
+
+# ==========================================
+# APP
+# ==========================================
+
+if not st.session_state.logado:
+
+    tela_login()
+
+else:
+
+    opcao = menu_lateral()
+
+    if opcao == "Dashboard":
+        dashboard()
+
+    elif opcao == "Notas":
+        tela_notas()
+
+    elif opcao == "Usuários":
+        tela_usuarios()
+```
+

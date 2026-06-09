@@ -3,7 +3,7 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-# Configuração da página padrão, leve e estável (Estilo Formulário Compacto)
+# Configuração da página padrão, leve e estável
 st.set_page_config(page_title="BioQuali | CQ", layout="wide", page_icon="🔬")
 
 # --- CONEXÃO E INICIALIZAÇÃO DO BANCO DE DADOS ---
@@ -41,11 +41,9 @@ cursor.execute("""
     )
 """)
 
-# Inserção do administrador padrão se não existir
-try:
-    cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'admin123', 'administrador')")
-except sqlite3.Error:
-    pass
+# Garante a existência e força os privilégios do admin master
+cursor.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, perfil) VALUES ('admin', 'admin123', 'administrador')")
+cursor.execute("UPDATE usuarios SET perfil = 'administrador' WHERE usuario = 'admin'")
 
 conn.commit()
 conn.close()
@@ -261,5 +259,4 @@ def mostrar_gestao():
         st.markdown("**Adicionar Novo Operador:**")
         u_novo = st.text_input("Novo Usuário:", key="add_u").strip().lower()
         p_novo = st.text_input("Nova Senha:", type="password", key="add_p").strip()
-        f_nova = st.selectbox("Função/Perfil:", ["recebimento", "analista", "visualizar"])
 

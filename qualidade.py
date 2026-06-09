@@ -112,7 +112,7 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
-c_info, c_logout = st.columns([3, 1])
+c_info, c_logout = st.columns(2)
 with c_info:
     st.markdown(f"👤 Analista: **{st.session_state['usuario_logado'].upper()}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
 with c_logout:
@@ -122,7 +122,7 @@ with c_logout:
 
 st.markdown("---")
 
-# --- PANEL DE RESUMOS VIA SQL DIRETO (SEM PANDAS / SEM TRAVAMENTOS) ---
+# --- PAINEL DE RESUMOS VIA SQL DIRETO ---
 conn = conectar()
 cursor = conn.cursor()
 
@@ -161,18 +161,22 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     if perf in ["admin", "cadastro"]:
         if st.button("📥 1. Cadastrar Novo Lote", use_container_width=True):
+            st.session_state["tela_active"] = "cadastro"
             st.session_state["tela_ativa"] = "cadastro"
 with c2:
     if perf in ["admin", "laboratorio"]:
         if st.button("🧫 2. Painel do Laboratório", use_container_width=True):
+            st.session_state["tela_active"] = "laboratorio"
             st.session_state["tela_ativa"] = "laboratorio"
 with c3:
     if perf in ["admin", "cadastro", "laboratorio", "visualizar"]:
         if st.button("📋 3. Ver Relatório de Laudos", use_container_width=True):
+            st.session_state["tela_active"] = "relatorio"
             st.session_state["tela_ativa"] = "relatorio"
 with c4:
     if perf == "admin":
         if st.button("⚙️ 4. Gerenciar Usuários", use_container_width=True):
+            st.session_state["tela_active"] = "gerenciar_usuarios"
             st.session_state["tela_ativa"] = "gerenciar_usuarios"
 
 st.markdown("---")
@@ -245,7 +249,7 @@ elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "labo
             cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
             conn.commit()
             conn.close()
-            st.success("Status atualizado!")
+            st.success("Status updated!")
             st.rerun()
 
 # --- TELA 3: RELATÓRIO GERAL ---
@@ -263,11 +267,3 @@ elif st.session_state["tela_ativa"] == "relatorio":
 
 # --- TELA 4: GERENCIAR USUÁRIOS (COMPACTO) ---
 elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
-    st.subheader("⚙️ Gerenciar Analistas Cadastrados")
-    
-    conn = conectar()
-    df_usuarios = pd.read_sql_query("SELECT usuario, perfil FROM usuarios WHERE usuario != 'admin'", conn)
-    conn.close()
-    
-    if df_usuarios.empty:
-

@@ -122,24 +122,34 @@ with c_logout:
 
 st.markdown("---")
 
-# --- CONTAGEM DE RESUMOS SIMPLIFICADA (ESTILO PAINEL DE CONTROLE) ---
+# --- PANEL DE RESUMOS VIA SQL DIRETO (SEM PANDAS / SEM TRAVAMENTOS) ---
 conn = conectar()
-total_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao", conn)["qtd"].values[0]
-analise_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Em Análise'", conn)["qtd"].values[0]
-aprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Aprovado'", conn)["qtd"].values[0]
-reprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Reprovado'", conn)["qtd"].values[0]
+cursor = conn.cursor()
+
+cursor.execute("SELECT COUNT(*) FROM inspeccao")
+total_lotes = cursor.fetchone()[0]
+
+cursor.execute("SELECT COUNT(*) FROM inspeccao WHERE status = 'Em Análise'")
+analise_lotes = cursor.fetchone()[0]
+
+cursor.execute("SELECT COUNT(*) FROM inspeccao WHERE status = 'Aprovado'")
+aprovados_lotes = cursor.fetchone()[0]
+
+cursor.execute("SELECT COUNT(*) FROM inspeccao WHERE status = 'Reprovado'")
+reprovados_lotes = cursor.fetchone()[0]
+
 conn.close()
 
-# Exibição de resumo limpo estilo planilha/VBA
+# Exibição simples e leve de indicadores na tela
 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
 with c_m1:
-    st.write(f"📊 **Total Geral:** {int(total_lotes)}")
+    st.info(f"📋 Total de Lotes: {total_lotes}")
 with c_m2:
-    st.write(f"⏳ **Em Análise:** {int(analise_lotes)}")
+    st.warning(f"⏳ Em Análise: {analise_lotes}")
 with c_m3:
-    st.write(f"✅ **Aprovados:** {int(aprovados_lotes)}")
+    st.success(f"✅ Aprovados: {aprovados_lotes}")
 with c_m4:
-    st.write(f"❌ **Reprovados:** {int(reprovados_lotes)}")
+    st.error(f"❌ Reprovados: {reprovados_lotes}")
 
 st.markdown("---")
 
@@ -189,7 +199,7 @@ if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"
     with cl7:
         val = st.text_input("Validade:")
         
-    st.markdown("<br>", unsafe_html=True)
+    st.write("")
     if st.button("Confirmar Entrada", use_container_width=True):
         if nf and forn and cod and desc and lot:
             conn = conectar()
@@ -256,4 +266,8 @@ elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
     st.subheader("⚙️ Gerenciar Analistas Cadastrados")
     
     conn = conectar()
+    df_usuarios = pd.read_sql_query("SELECT usuario, perfil FROM usuarios WHERE usuario != 'admin'", conn)
+    conn.close()
+    
+    if df_usuarios.empty:
 

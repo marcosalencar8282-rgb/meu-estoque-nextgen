@@ -80,7 +80,7 @@ if not st.session_state["logado"]:
             dados = cursor.fetchone()
             conn.close()
             
-            # Desempacota corretamente a tupla: dados[0] é a senha, dados[1] é a função
+            # Desempacota corretamente os índices da tupla do banco de dados
             if dados and dados[0] == p:
                 st.session_state["logado"] = True
                 st.session_state["user"] = u
@@ -107,7 +107,7 @@ st.markdown("---")
 # --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO RÍGIDO) ---
 cargo_atual = st.session_state["cargo"]
 
-# O Histórico de Laudos (Relatório) é visível para todos os cargos
+# O Histórico de Laudos (Relatório) é visível para todos os cargos cadastrados
 opcoes_autorizadas = ["📋 3. Histórico de Laudos"]
 
 # Técnico e Supervisor acessam o Cadastro/Entrada
@@ -122,7 +122,7 @@ if cargo_atual == "Analista" or cargo_atual == "Supervisor":
 if cargo_atual == "Supervisor":
     opcoes_autorizadas.append("⚙️ 4. Gerenciar Usuários")
 
-# Renderiza as opções validadas na barra lateral
+# Renderiza as opções validadas na barra lateral do painel
 tela = st.sidebar.radio("Navegação Autorizada:", opcoes_autorizadas)
 
 st.markdown("---")
@@ -161,9 +161,9 @@ if tela == "📥 1. Entrada de Insumo":
             conn = conectar()
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM laudos WHERE lote = ?", (num_lote,))
-            existe_lote = cursor.fetchone()[0]
+            existe_lote = cursor.fetchone()
             
-            if existe_lote == 0:
+            if existe_lote[0] == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
                     INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
@@ -238,7 +238,7 @@ elif tela == "📋 3. Histórico de Laudos":
     else:
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS (ESTRUTURA LINEAR REESCRITA SEM ERRO) ---
+# --- TELA 4: GERENCIAR USUÁRIOS ---
 elif tela == "⚙️ 4. Gerenciar Usuários":
     st.subheader("⚙️ Gerenciador de Usuários do Laboratório")
     st.markdown("### 🆕 Cadastrar Novo Funcionário")
@@ -253,6 +253,5 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
             if cursor.fetchone()[0] == 0:
-
 
 

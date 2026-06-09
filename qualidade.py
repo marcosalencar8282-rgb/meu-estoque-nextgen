@@ -67,14 +67,18 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha:", type="password").strip()
     
     if st.button("Entrar no Sistema", use_container_width=True):
-        cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
-        dados = cursor.fetchone()
+        cursor.execute("SELECT senha FROM usuarios WHERE usuario = ?", (u,))
+        dados_senha = cursor.fetchone()
         
-        # CORREÇÃO CRUCIAL DA TUPLA: dados[0] é a senha e dados[1] extrai o cargo de forma limpa
-        if dados and dados[0] == p:
+        # Valida primeiro se a senha bate
+        if dados_senha and dados_senha[0] == p:
+            # Busca estritamente o texto limpo da função para evitar problemas com tuplas
+            cursor.execute("SELECT funcao FROM usuarios WHERE usuario = ?", (u,))
+            dados_funcao = cursor.fetchone()
+            
             st.session_state["logado"] = True
             st.session_state["user"] = u
-            st.session_state["cargo"] = str(dados[1]).strip().capitalize()
+            st.session_state["cargo"] = str(dados_funcao[0]).strip()
             st.rerun()
         else:
             st.error("Usuário ou senha incorretos.")
@@ -92,18 +96,18 @@ if st.button("🚪 Sair do Sistema"):
 
 st.markdown("---")
 
-# --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO CONFORME SOLICITADO) ---
+# --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO RÍGIDO) ---
 cargo_atual = st.session_state["cargo"]
 
-# O Relatório/Histórico é acessível para todas as funções
+# O Histórico de Laudos (Relatório) é a base visível para todos
 opcoes_autorizadas = ["📋 3. Histórico de Laudos"]
 
 # Técnico e Supervisor acessam o Cadastro/Entrada
-if cargo_atual in ["Técnico", "Supervisor"]:
+if cargo_atual == "Técnico" or cargo_atual == "Supervisor":
     opcoes_autorizadas.insert(0, "📥 1. Entrada de Insumo")
 
 # Analista e Supervisor acessam a Emissão de Laudos
-if cargo_atual in ["Analista", "Supervisor"]:
+if cargo_atual == "Analista" or cargo_atual == "Supervisor":
     opcoes_autorizadas.insert(1, "🧫 2. Emitir Laudo Técnico")
 
 # Apenas o Supervisor enxerga o painel de gerenciamento de usuários
@@ -150,7 +154,7 @@ if tela == "📥 1. Entrada de Insumo":
             if cursor.fetchone()[0] == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
-                    INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantity) 
+                    INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (data_hoje, nota_fiscal, fornecedor, nome_insumo, num_lote, data_fab, data_val, qtd_insumo))
                 conn.commit()
@@ -237,8 +241,3 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
     with g2:
         st.markdown("**Quadro de Operadores:**")
         df_users = pd.read_sql_query("SELECT usuario as 'Usuário', funcao as 'Função' FROM usuarios WHERE usuario != 'admin'", conn)
-        
-        if df_users.empty:
-            st.caption("Nenhum usuário cadastrado.")
-        else:
-            st.dataframe(df_users, use_container_width=True, hide_index=True)

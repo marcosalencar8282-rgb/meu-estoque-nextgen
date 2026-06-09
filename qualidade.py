@@ -114,11 +114,32 @@ if not st.session_state["autenticado"]:
 # --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
 c_info, c_logout = st.columns([3, 1])
 with c_info:
-    st.markdown(f"👤 Analista: **{st.session_state['usuario_logado']}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
+    st.markdown(f"👤 Analista: **{st.session_state['usuario_logado'].upper()}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
 with c_logout:
     if st.button("Sair do Sistema", use_container_width=True):
         st.session_state.clear()
         st.rerun()
+
+st.markdown("---")
+
+# --- CONTAGEM DE RESUMOS SIMPLIFICADA (ESTILO PAINEL DE CONTROLE) ---
+conn = conectar()
+total_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao", conn)["qtd"].values[0]
+analise_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Em Análise'", conn)["qtd"].values[0]
+aprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Aprovado'", conn)["qtd"].values[0]
+reprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Reprovado'", conn)["qtd"].values[0]
+conn.close()
+
+# Exibição de resumo limpo estilo planilha/VBA
+c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+with c_m1:
+    st.write(f"📊 **Total Geral:** {int(total_lotes)}")
+with c_m2:
+    st.write(f"⏳ **Em Análise:** {int(analise_lotes)}")
+with c_m3:
+    st.write(f"✅ **Aprovados:** {int(aprovados_lotes)}")
+with c_m4:
+    st.write(f"❌ **Reprovados:** {int(reprovados_lotes)}")
 
 st.markdown("---")
 
@@ -230,27 +251,9 @@ elif st.session_state["tela_ativa"] == "relatorio":
     else:
         st.dataframe(df_geral, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS (COMPACTO E INDENTADO) ---
+# --- TELA 4: GERENCIAR USUÁRIOS (COMPACTO) ---
 elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
     st.subheader("⚙️ Gerenciar Analistas Cadastrados")
     
     conn = conectar()
-    df_usuarios = pd.read_sql_query("SELECT usuario, perfil FROM usuarios WHERE usuario != 'admin'", conn)
-    conn.close()
-    
-    if df_usuarios.empty:
-        st.info("Nenhum usuário operacional cadastrado.")
-    else:
-        st.dataframe(df_usuarios, use_container_width=True, hide_index=True)
-        st.markdown("---")
-        
-        user_remover = st.selectbox("Selecione para remover:", df_usuarios["usuario"].tolist())
-        if st.button("❌ Remover Conta", use_container_width=True):
-            conn = conectar()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM usuarios WHERE usuario = ?", (user_remover,))
-            conn.commit()
-            conn.close()
-            st.success("Usuário removido.")
-            st.rerun()
 

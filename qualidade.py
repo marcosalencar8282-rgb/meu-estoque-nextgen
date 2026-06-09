@@ -127,23 +127,10 @@ tela = st.sidebar.radio("Navegação Autorizada:", opcoes_autorizadas)
 
 st.markdown("---")
 
-# --- TRAVA DE SEGURANÇA INTERNA DE DUPLA CAMADA ---
-if tela == "📥 1. Entrada de Insumo" and cargo_atual not in ["Técnico", "Supervisor"]:
-    st.error("Acesso negado. Sua função não possui autorização para cadastrar entradas.")
-    st.stop()
+# --- FUNÇÕES DE RENDERIZAÇÃO DAS TELAS ISOLADAS ---
 
-if tela == "🧫 2. Emitir Laudo Técnico" and cargo_atual not in ["Analista", "Supervisor"]:
-    st.error("Acesso negado. Sua função não possui autorização para emitir laudos laboratoriais.")
-    st.stop()
-
-if tela == "⚙️ 4. Gerenciar Usuários" and cargo_atual != "Supervisor":
-    st.error("Acesso negado. Apenas o Supervisor pode gerenciar contas corporativas.")
-    st.stop()
-
-# --- TELA 1: ENTRADA DE INSUMO ---
-if tela == "📥 1. Entrada de Insumo":
+def tela_entrada():
     st.subheader("📥 Registrar Entrada de Material (Quarentena)")
-    
     c1, c2, c3 = st.columns(3)
     with c1:
         nota_fiscal = st.text_input("Número da Nota Fiscal:")
@@ -179,10 +166,8 @@ if tela == "📥 1. Entrada de Insumo":
         else:
             st.warning("Preencha Nota Fiscal, Fornecedor, Nome do Insumo e Lote para prosseguir.")
 
-# --- TELA 2: EMITIR LAUDO TÉCNICO ---
-elif tela == "🧫 2. Emitir Laudo Técnico":
+def tela_laudo():
     st.subheader("🧫 Avaliação de Parâmetros e Liberação de Laudo")
-    
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("SELECT lote FROM laudos WHERE status = 'Em Quarentena'")
@@ -210,10 +195,8 @@ elif tela == "🧫 2. Emitir Laudo Técnico":
             else:
                 st.error("Erro obrigatório: Você precisa preencher os parâmetros analisados para emitir o laudo.")
 
-# --- TELA 3: HISTÓRICO DE LAUDOS ---
-elif tela == "📋 3. Histórico de Laudos":
+def tela_historico():
     st.subheader("📋 Arquivo de Laudos Registrados")
-    
     conn = conectar()
     df = pd.read_sql_query("""
         SELECT 
@@ -238,21 +221,39 @@ elif tela == "📋 3. Histórico de Laudos":
     else:
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS (BLOCO BLINDADO) ---
-elif tela == "⚙️ 4. Gerenciar Usuários":
+def tela_usuarios():
     st.subheader("⚙️ Gerenciador de Usuários do Laboratório")
+    st.markdown("### 🆕 Cadastrar Novo Funcionário")
+    novo_u = st.text_input("Nome de Usuário:").strip().lower()
+    novo_p = st.text_input("Senha Provisória:", type="password").strip()
+    nova_f = st.selectbox("Função:", ["Técnico", "Analista", "Supervisor"])
     
-    # Formulário Isolado para Cadastrar Funcionário
-    with st.form("cadastro_usuario_form"):
-        st.markdown("### 🆕 Cadastrar Novo Funcionário")
-        novo_u = st.text_input("Nome de Usuário:").strip().lower()
-        novo_p = st.text_input("Senha Provisória:", type="password").strip()
-        nova_f = st.selectbox("Função:", ["Técnico", "Analista", "Supervisor"])
-        salvar = st.form_submit_button("Salvar Usuário", use_container_width=True)
-        
-        if salvar:
-            if novo_u and novo_p:
-                conn = conectar()
-                cursor = conn.cursor()
+    if st.button("Salvar Usuário", use_container_width=True):
+        if novo_u and novo_p:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, nova_f))
+                conn.commit()
+                conn.close()
+                st.success(f"Usuário {novo_u} cadastrado como {nova_f} com sucesso!")
+                st.rerun()
+            else:
+                conn.close()
+                st.error("Este nome de usuário já existe.")
+        else:
+            st.warning("Preencha usuário e senha.")
+            
+    st.markdown("---")
+    st.markdown("### 📋 Quadro de Operadores e Exclusão")
+    conn = conectar()
+    df_users = pd.read_sql_query("SELECT usuario as 'Usuário', funcao as 'Função' FROM usuarios WHERE usuario != 'admin'", conn)
+    conn.close()
+    
+    if df_users.empty:
+        st.caption("Nenhum usuário cadastrado.")
+    else:
+        st.dataframe(df_users, use_container_width=True, hide_index=True)
 
 

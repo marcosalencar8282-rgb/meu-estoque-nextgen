@@ -70,7 +70,6 @@ if not st.session_state["logado"]:
         cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
         dados = cursor.fetchone()
         
-        # CORREÇÃO CRUCIAL: dados[0] pega a senha e dados[1] pega a função de forma limpa
         if dados and dados[0] == p:
             st.session_state["logado"] = True
             st.session_state["user"] = u
@@ -95,7 +94,6 @@ st.markdown("---")
 # --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO RÍGIDO) ---
 cargo_atual = st.session_state["cargo"]
 
-# Define rigidamente quais telas aparecem no menu de rádio com base no cargo limpo
 opcoes_autorizadas = ["📋 3. Histórico de Laudos"]
 
 if cargo_atual in ["Técnico", "Supervisor"]:
@@ -105,12 +103,11 @@ if cargo_atual in ["Analista", "Supervisor"]:
 if cargo_atual == "Supervisor":
     opcoes_autorizadas.append("⚙️ 4. Gerenciar Usuários")
 
-# Renderiza apenas as opções permitidas para o funcionário logado
 tela = st.sidebar.radio("Navegação Autorizada:", opcoes_autorizadas)
 
 st.markdown("---")
 
-# --- TRAVA DE SEGURANÇA SEGUNDA CAMADA (IMPEDE BURLES EM NÍVEL DE CÓDIGO) ---
+# --- TRAVA DE SEGURANÇA SEGUNDA CAMADA ---
 if tela == "📥 1. Entrada de Insumo" and cargo_atual not in ["Técnico", "Supervisor"]:
     st.error("Acesso negado. Sua função não possui autorização para esta tela.")
     st.stop()
@@ -122,7 +119,6 @@ if tela == "🧫 2. Emitir Laudo Técnico" and cargo_atual not in ["Analista", "
 if tela == "⚙️ 4. Gerenciar Usuários" and cargo_atual != "Supervisor":
     st.error("Acesso negado. Apenas o Supervisor pode gerenciar contas.")
     st.stop()
-
 
 # --- TELA 1: ENTRADA DE INSUMO ---
 if tela == "📥 1. Entrada de Insumo":
@@ -231,12 +227,16 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
                 st.warning("Preencha usuário e senha.")
                 
     with g2:
-        st.markdown("**Usuários Cadastrados:**")
+        st.markdown("**Quadro de Operadores:**")
         df_users = pd.read_sql_query("SELECT usuario as 'Usuário', funcao as 'Função' FROM usuarios WHERE usuario != 'admin'", conn)
         
         if df_users.empty:
-            st.caption("Nenhum usuário secundário cadastrado.")
+            st.caption("Nenhum usuário cadastrado.")
         else:
             st.dataframe(df_users, use_container_width=True, hide_index=True)
-            user_remover = st.selectbox("Selecione para remover do sistema:", df_users["Usuário"].tolist())
+            user_remover = st.selectbox("Selecione para remover:", df_users["Usuário"].tolist())
             if st.button("❌ Deletar Conta"):
+                cursor.execute("DELETE FROM usuarios WHERE usuario = ?", (user_remover,))
+                conn.commit()
+                st.success(f"Conta de {user_remover} removida.")
+                st.rerun()

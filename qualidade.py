@@ -92,7 +92,7 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- CABEÇALHO DO SISTEMA LOGADO ---
-c_usr, c_out = st.columns([5, 1])
+c_usr, c_out = st.columns(2)
 with c_usr:
     st.markdown(f"🔬 **BioQuali CQ** | Operador: `{st.session_state['usuario_logado'].upper()}` | Função: `{st.session_state['perfil_usuario'].upper()}`")
 with c_out:
@@ -120,7 +120,7 @@ with c_i1:
     st.info(f"📊 Total Registrado: {tot}")
 with c_i2:
     st.warning(f"⏳ Em Quarentena: {qua}")
-with c_m3:
+with c_i3:
     st.success(f"✅ Lotes Aprovados: {apr}")
 with c_i4:
     st.error(f"❌ Lotes Reprovados: {rep}")
@@ -154,10 +154,10 @@ with m4:
 
 st.markdown("---")
 
-# --- FUNÇÃO 1: ENTRADA DE MATERIAIS ---
-if st.session_state["menu_ativo"] == "Entrada de Materiais" and perf in ["administrador", "recebimento"]:
+# --- FUNÇÕES DE ISOLAMENTO DAS TELAS ---
+
+def mostrar_entrada():
     st.subheader("📥 Formulário de Entrada e Triagem")
-    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         doc = st.text_input("Nº NF / Doc:")
@@ -197,10 +197,8 @@ if st.session_state["menu_ativo"] == "Entrada de Materiais" and perf in ["admini
         else:
             st.warning("Preencha todos os campos obrigatórios da triagem.")
 
-# --- FUNÇÃO 2: ANÁLISE TÉCNICA E EMISSÃO DE PARECER ---
-elif st.session_state["menu_ativo"] == "Análise Técnica" and perf in ["administrador", "analista"]:
+def mostrar_analise():
     st.subheader("🧫 Avaliação Laboratorial e Parâmetros Analíticos")
-    
     conn = conectar()
     df_abertos = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM laudos WHERE status = 'Quarentena'", conn)
     conn.close()
@@ -217,7 +215,7 @@ elif st.session_state["menu_ativo"] == "Análise Técnica" and perf in ["adminis
         with col_an2:
             veredito = st.selectbox("Veredito de Liberação (Status):", ["Aprovado", "Reprovado"])
             
-        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprovacao:", 
+        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprovação:", 
                            placeholder="Digite os desvios, ensaios realizados ou referências normativas analisadas...")
         
         if st.button("Garantir e Emitir Laudo Final", use_container_width=True):
@@ -237,10 +235,8 @@ elif st.session_state["menu_ativo"] == "Análise Técnica" and perf in ["adminis
             else:
                 st.warning("Erro: É obrigatório descrever os parâmetros/observações do veredito.")
 
-# --- FUNÇÃO 3: HISTÓRICO DE LAUDOS EMITIDOS ---
-elif st.session_state["menu_ativo"] == "Histórico de Laudos":
+def mostrar_historico():
     st.subheader("📋 Arquivo Geral de Rastreabilidade e Certificados")
-    
     conn = conectar()
     df_geral = pd.read_sql_query("SELECT * FROM laudos ORDER BY id_laudo DESC", conn)
     conn.close()
@@ -257,6 +253,13 @@ elif st.session_state["menu_ativo"] == "Histórico de Laudos":
         })
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
 
-# --- FUNÇÃO 4: GESTÃO DE CONTAS ---
-elif st.session_state["menu_ativo"] == "Gestão de Contas" and perf == "administrador":
+def mostrar_gestao():
+    st.subheader("⚙️ Painel do Administrador: Gerenciador de Usuários")
+    col_g1, col_g2 = st.columns(2)
+    
+    with col_g1:
+        st.markdown("**Adicionar Novo Operador:**")
+        u_novo = st.text_input("Novo Usuário:", key="add_u").strip().lower()
+        p_novo = st.text_input("Nova Senha:", type="password", key="add_p").strip()
+        f_nova = st.selectbox("Função/Perfil:", ["recebimento", "analista", "visualizar"])
 

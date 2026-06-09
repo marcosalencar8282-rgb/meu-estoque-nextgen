@@ -3,7 +3,7 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-# Configuração da página padrão e estável
+# Configuração da página padrão, leve e estável
 st.set_page_config(page_title="NextGen | CQ", layout="wide", page_icon="🔬")
 
 # --- CONEXÃO BANCO DE DADOS ---
@@ -122,7 +122,7 @@ with c_logout:
 
 st.markdown("---")
 
-# --- PAINEL DE RESUMOS VIA SQL DIRETO ---
+# --- PAINEL DE RESUMOS COMPACTO (SQL DIRETO SEM CONFLITO DE TIPOS) ---
 conn = conectar()
 cursor = conn.cursor()
 
@@ -140,7 +140,7 @@ reprovados_lotes = cursor.fetchone()[0]
 
 conn.close()
 
-# Exibição simples e leve de indicadores na tela
+# Exibição das métricas simplificadas na tela
 c_m1, c_m2, c_m3, c_m4 = st.columns(4)
 with c_m1:
     st.info(f"📋 Total de Lotes: {total_lotes}")
@@ -162,22 +162,26 @@ with c1:
     if perf in ["admin", "cadastro"]:
         if st.button("📥 1. Cadastrar Novo Lote", use_container_width=True):
             st.session_state["tela_ativa"] = "cadastro"
+            st.rerun()
 with c2:
     if perf in ["admin", "laboratorio"]:
         if st.button("🧫 2. Painel do Laboratório", use_container_width=True):
             st.session_state["tela_ativa"] = "laboratorio"
+            st.rerun()
 with c3:
     if perf in ["admin", "cadastro", "laboratorio", "visualizar"]:
         if st.button("📋 3. Ver Relatório de Laudos", use_container_width=True):
             st.session_state["tela_ativa"] = "relatorio"
+            st.rerun()
 with c4:
     if perf == "admin":
         if st.button("⚙️ 4. Gerenciar Usuários", use_container_width=True):
             st.session_state["tela_ativa"] = "gerenciar_usuarios"
+            st.rerun()
 
 st.markdown("---")
 
-# --- FUNÇÕES DE RENDERIZAÇÃO DAS TELAS (À PROVA DE INDENTAÇÃO) ---
+# --- FUNÇÕES DE RENDERIZAÇÃO DAS TELAS ---
 
 def tela_cadastro():
     st.subheader("📥 Entrada de Lote para Inspeção")
@@ -212,6 +216,7 @@ def tela_cadastro():
                 """, (data_atual, nf, forn, cod, desc, lot, fab, val))
                 conn.commit()
                 st.success(f"Lote {lot} enviado com sucesso!")
+                st.rerun()
             except sqlite3.IntegrityError:
                 st.error("Erro: Este lote já existe.")
             finally:
@@ -268,7 +273,3 @@ def tela_gerenciar_usuarios():
     else:
         st.dataframe(df_usuarios, use_container_width=True, hide_index=True)
         st.markdown("---")
-        
-        user_remover = st.selectbox("Selecione para remover:", df_usuarios["usuario"].tolist())
-        if st.button("❌ Remover Conta", use_container_width=True):
-            conn = conectar()

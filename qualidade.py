@@ -6,16 +6,6 @@ import pandas as pd
 # Configuração da página profissional, limpa e moderna
 st.set_page_config(page_title="NextGen | Quality Control", layout="wide", page_icon="🔬")
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (MODERNA E COESIVA) ---
-st.markdown("""
-    <style>
-        .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-        h1, h2, h3 { font-family: 'Segoe UI', sans-serif; font-weight: 700; color: #1E293B; }
-        .stButton>button { border-radius: 6px; font-weight: 600; }
-        .stDataFrame { border: 1px solid #E2E8F0; border-radius: 8px; }
-    </style>
-""", unsafe_html=True)
-
 # --- CONEXÃO BANCO DE DADOS ---
 def conectar():
     return sqlite3.connect("controle_qualidade_forn.db")
@@ -61,91 +51,88 @@ if "perfil_usuario" not in st.session_state:
 
 # --- TELA DE ACESSO (LOGIN / CADASTRO) ---
 if not st.session_state["autenticado"]:
-    c_login_center, _ = st.columns([1, 1])
-    with c_login_center:
-        st.title("🔬 NEXTGEN | CQ")
-        st.caption("Sistema Integrado de Gestão e Controle de Qualidade de Insumos")
-        
-        op_acesso = st.segmented_control("Acesso ao Sistema", ["🔑 Fazer Login", "🆕 Criar Nova Conta"], default="🔑 Fazer Login")
-        st.markdown("<br>", unsafe_html=True)
-        
-        if op_acesso == "🔑 Fazer Login":
-            u_in = st.text_input("Usuário:", key="l_user").strip().lower()
-            p_in = st.text_input("Senha:", type="password", key="l_pass").strip()
-            if st.button("Entrar no Sistema", use_container_width=True, type="primary"):
-                if u_in and p_in:
+    st.title("🔬 NEXTGEN | CQ")
+    st.caption("Sistema Integrado de Gestão e Controle de Qualidade de Insumos")
+    
+    op_acesso = st.radio("Acesso ao Sistema", ["🔑 Fazer Login", "🆕 Criar Nova Conta"], horizontal=True)
+    st.markdown("<br>", unsafe_html=True)
+    
+    if op_acesso == "🔑 Fazer Login":
+        u_in = st.text_input("Usuário:", key="l_user").strip().lower()
+        p_in = st.text_input("Senha:", type="password", key="l_pass").strip()
+        if st.button("Entrar no Sistema", use_container_width=True):
+            if u_in and p_in:
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_in,))
+                res = cursor.fetchone()
+                conn.close()
+                
+                if res and res[0] == p_in:
+                    st.session_state["autenticado"] = True
+                    st.session_state["usuario_logado"] = u_in
+                    st.session_state["perfil_usuario"] = str(res[1]).strip().lower()
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+            else:
+                st.warning("Preencha todos os campos.")
+                
+    else:
+        new_u = st.text_input("Escolha seu Usuário:", key="r_user").strip().lower()
+        new_p = st.text_input("Escolha sua Senha:", type="password", key="r_pass").strip()
+        new_perfil = st.selectbox("Selecione sua Função:", ["cadastro", "laboratorio", "visualizar"])
+        if st.button("Salvar Novo Analista", use_container_width=True):
+            if new_u and new_p:
+                if new_u == "admin":
+                    st.error("Nome de usuário restrito.")
+                else:
                     conn = conectar()
                     cursor = conn.cursor()
-                    cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_in,))
-                    res = cursor.fetchone()
-                    conn.close()
-                    
-                    if res and res[0] == p_in:
-                        st.session_state["autenticado"] = True
-                        st.session_state["usuario_logado"] = u_in
-                        st.session_state["perfil_usuario"] = str(res[1]).strip().lower()
-                        st.rerun()
-                    else:
-                        st.error("Usuário ou senha incorretos.")
-                else:
-                    st.warning("Preencha todos os campos.")
-                    
-        else:
-            new_u = st.text_input("Escolha seu Usuário:", key="r_user").strip().lower()
-            new_p = st.text_input("Escolha sua Senha:", type="password", key="r_pass").strip()
-            new_perfil = st.selectbox("Selecione sua Função:", ["cadastro", "laboratorio", "visualizar"])
-            if st.button("Salvar Novo Analista", use_container_width=True):
-                if new_u and new_p:
-                    if new_u == "admin":
-                        st.error("Nome de usuário restrito.")
-                    else:
-                        conn = conectar()
-                        cursor = conn.cursor()
-                        try:
-                            cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (new_u, new_p, new_perfil))
-                            conn.commit()
-                            st.success("Conta criada! Selecione 'Fazer Login' acima para entrar.")
-                        except sqlite3.IntegrityError:
-                            st.error("Este usuário já existe.")
-                        finally:
-                            conn.close()
-                else:
-                    st.warning("Preencha todos os campos.")
+                    try:
+                        cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (new_u, new_p, new_perfil))
+                        conn.commit()
+                        st.success("Conta criada! Selecione 'Fazer Login' acima para entrar.")
+                    except sqlite3.IntegrityError:
+                        st.error("Este usuário já existe.")
+                    finally:
+                        conn.close()
+            else:
+                st.warning("Preencha todos os campos.")
     st.stop()
 
 # --- HEADER PREMIUM ---
-c_info, c_logout = st.columns([4, 1])
+c_info, c_logout = st.columns([3, 1])
 with c_info:
     st.title("🔬 NEXTGEN | Controle de Qualidade")
     st.markdown(f"👤 Analista ativo: **{st.session_state['usuario_logado'].upper()}** &nbsp;|&nbsp; Perfil de Acesso: `{st.session_state['perfil_usuario'].upper()}`")
 with c_logout:
     st.markdown("<br>", unsafe_html=True)
-    if st.button("🚪 Sair do Sistema", use_container_width=True, type="secondary"):
+    if st.button("🚪 Sair do Sistema", use_container_width=True):
         st.session_state.clear()
         st.rerun()
 
 st.markdown("---")
 
-# --- CORES E METRICAS DE SUPORTE NO TOPO ---
+# --- CORREÇÃO DAS MÉTRICAS ---
 conn = conectar()
-total_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao", conn)["qtd"][0]
-analise_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Em Análise'", conn)["qtd"][0]
-aprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Aprovado'", conn)["qtd"][0]
-reprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Reprovado'", conn)["qtd"][0]
+total_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao", conn)["qtd"].iloc[0]
+analise_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Em Análise'", conn)["qtd"].iloc[0]
+aprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Aprovado'", conn)["qtd"].iloc[0]
+reprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Reprovado'", conn)["qtd"].iloc[0]
 conn.close()
 
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("Total de Lotes Recebidos", total_lotes)
-m2.metric("Aguardando Análise", analise_lotes, delta=f"{analise_lotes} pendentes", delta_color="inverse" if analise_lotes > 0 else "normal")
-m3.metric("Lotes Aprovados", aprovados_lotes)
-m4.metric("Lotes Reprovados", reprovados_lotes, delta=f"{reprovados_lotes} descartes" if reprovados_lotes > 0 else None, delta_color="off")
+m1.metric("Total de Lotes Recebidos", int(total_lotes))
+m2.metric("Aguardando Análise", int(analise_lotes))
+m3.metric("Lotes Aprovados", int(aprovados_lotes))
+m4.metric("Lotes Reprovados", int(reprovados_lotes))
 
 st.markdown("<br>", unsafe_html=True)
 
-# --- NAVEGAÇÃO MODERNA POR ABAS (TABS) ---
+# --- NAVEGAÇÃO POR ABAS (TABS) ---
 perf = st.session_state["perfil_usuario"]
 
-# Criando abas dinâmicas conforme a permissão do usuário logado
 abas_disponiveis = []
 if perf in ["admin", "cadastro"]: abas_disponiveis.append("📥 Entrada de Lote")
 if perf in ["admin", "laboratorio"]: abas_disponiveis.append("🧫 Painel Laboratório")
@@ -154,7 +141,6 @@ if perf == "admin": abas_disponiveis.append("⚙️ Gestão de Usuários")
 
 abas = st.tabs(abas_disponiveis)
 
-# Mapeamento do conteúdo de cada aba de acordo com as permissões reais
 index_aba = 0
 
 # 1. ABA DE CADASTRO DE LOTE
@@ -163,7 +149,7 @@ if perf in ["admin", "cadastro"]:
         st.markdown("### Registrar Entrada de Insumo")
         st.caption("Insira os dados do documento fiscal e lote físico do fabricante.")
         
-        with st.form("form_cadastro", border=True):
+        with st.form("form_cadastro", clear_on_submit=True):
             c_f1, c_f2 = st.columns(2)
             with c_f1:
                 nf = st.text_input("Número da Nota Fiscal:")
@@ -176,7 +162,7 @@ if perf in ["admin", "cadastro"]:
                 val = st.text_input("Data de Validade (Ex: DD/MM/AAAA):")
             
             st.markdown("<br>", unsafe_html=True)
-            if st.form_submit_button("Confirmar Recebimento e Enviar p/ CQ", use_container_width=True, type="primary"):
+            if st.form_submit_button("Confirmar Recebimento e Enviar p/ CQ", use_container_width=True):
                 if nf and forn and cod and desc and lot:
                     conn = conectar()
                     cursor = conn.cursor()
@@ -212,9 +198,33 @@ if perf in ["admin", "laboratorio"]:
             st.dataframe(df_pendentes, use_container_width=True, hide_index=True)
             
             st.markdown("<br>", unsafe_html=True)
-            with st.status("Registrar Parecer Técnico (Laudo)", expanded=True):
-                c_l1, c_l2 = st.columns(2)
-                with c_l1:
-                    lote_sel = st.selectbox("Selecione o Lote Alvo:", df_pendentes["lote"].tolist())
-                with c_l2:
-                    novo_status = st.segmented_control("Veredito do Controle de Qualidade", ["Aprovado", "Reprovado"], default="Aprovado")
+            st.markdown("**Registrar Parecer Técnico (Laudo)**")
+            c_l1, c_l2 = st.columns(2)
+            with c_l1:
+                lote_sel = st.selectbox("Selecione o Lote Alvo:", df_pendentes["lote"].tolist())
+            with c_l2:
+                novo_status = st.selectbox("Veredito do Controle de Qualidade", ["Aprovado", "Reprovado"])
+                
+            if st.button("Emitir Laudo Definitivo", use_container_width=True):
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
+                conn.commit()
+                conn.close()
+                st.success(f"Laudo gravado! Status do lote {lote_sel} atualizado para {novo_status}.")
+                st.rerun()
+    index_aba += 1
+
+# 3. ABA DO HISTÓRICO GERAL (VISUALIZAÇÃO DE LAUDOS)
+with abas[index_aba]:
+    st.markdown("### Registro Geral de Qualidade (RGL)")
+    st.caption("Histórico imutável de rastreabilidade de todas as inspeções realizadas.")
+    
+    conn = conectar()
+    df_geral = pd.read_sql_query("SELECT * FROM inspeccao ORDER BY id_laudo DESC", conn)
+    conn.close()
+    
+    if df_geral.empty:
+        st.info("Nenhum registro localizado na base do laboratório.")
+    else:
+        df_formatado = df_geral.rename(columns={

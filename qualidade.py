@@ -113,14 +113,19 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
 # --- INDICADORES RESUMIDOS NO TOPO DA TELA ---
 conn = conectar()
 cursor = conn.cursor()
+
 cursor.execute("SELECT COUNT(*) FROM laudos")
 tot = cursor.fetchone()[0]
+
 cursor.execute("SELECT COUNT(*) FROM laudos WHERE status = 'Quarentena'")
 qua = cursor.fetchone()[0]
+
 cursor.execute("SELECT COUNT(*) FROM laudos WHERE status = 'Aprovado'")
 apr = cursor.fetchone()[0]
+
 cursor.execute("SELECT COUNT(*) FROM laudos WHERE status = 'Reprovado'")
 rep = cursor.fetchone()[0]
+
 conn.close()
 
 c_i1, c_i2, c_i3, c_i4 = st.columns(4)
@@ -198,7 +203,7 @@ elif menu_ativo == "🧫 Análise Técnica":
         with col_an2:
             veredito = st.selectbox("Veredito de Liberação (Status):", ["Aprovado", "Reprovado"])
             
-        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprovacao:", 
+        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprovação:", 
                            placeholder="Digite os desvios, ensaios realizados ou referências normativas analisadas...")
         
         if st.button("Garantir e Emitir Laudo Final", use_container_width=True):

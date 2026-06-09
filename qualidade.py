@@ -10,23 +10,36 @@ st.set_page_config(page_title="CQ Lab", layout="wide", page_icon="🔬")
 conn = sqlite3.connect("sistema_laboratorio_simples.db")
 cursor = conn.cursor()
 
-# Criação das tabelas com os novos campos solicitados
+# Criação da tabela base caso não exista
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS laudos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         data_cadastro TEXT,
-        nota_fiscal TEXT,
         insumo TEXT,
         lote TEXT UNIQUE,
-        data_fabricacao TEXT,
-        data_validade TEXT,
-        quantidade REAL,
         status TEXT DEFAULT 'Em Quarentena',
         analista TEXT DEFAULT 'Pendente',
         parametros TEXT DEFAULT '-'
     )
 """)
 
+# --- ATUALIZAÇÃO AUTOMÁTICA DA TABELA (INCLUINDO FORNECEDOR) ---
+novas_colunas = {
+    "nota_fiscal": "TEXT",
+    "fornecedor": "TEXT",
+    "data_fabricacao": "TEXT",
+    "data_validade": "TEXT",
+    "quantidade": "REAL"
+}
+
+for coluna, tipo in novas_colunas.items():
+    try:
+        cursor.execute(f"ALTER TABLE laudos ADD COLUMN {coluna} {tipo}")
+    except sqlite3.OperationalError:
+        # Se a coluna já existir no banco, ele ignora e continua
+        pass
+
+# Criação da tabela de usuários
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         usuario TEXT PRIMARY KEY,
@@ -78,45 +91,43 @@ tela = st.sidebar.radio("Navegação do Sistema:", ["📥 1. Entrada de Insumo",
 
 st.markdown("---")
 
-# --- TELA 1: ENTRADA DE INSUMO (CAMPOS ATUALIZADOS) ---
+# --- TELA 1: ENTRADA DE INSUMO (FORNECEDOR INCLUÍDO) ---
 if tela == "📥 1. Entrada de Insumo":
     st.subheader("📥 Registrar Entrada de Material (Quarentena)")
     
-    # Organização em colunas compactas estilo sistema/VBA
     c1, c2, c3 = st.columns(3)
     with c1:
         nota_fiscal = st.text_input("Número da Nota Fiscal:")
-        nome_insumo = st.text_input("Nome do Insumo / Material:")
+        fornecedor = st.text_input("Nome do Fornecedor:")
     with c2:
+        nome_insumo = st.text_input("Nome do Insumo / Material:")
         num_lote = st.text_input("Número do Lote Único:")
-        qtd_insumo = st.number_input("Quantidade Recebida:", min_value=0.0, step=1.0, value=0.0)
     with c3:
+        qtd_insumo = st.number_input("Quantidade Recebida:", min_value=0.0, step=1.0, value=0.0)
         data_fab = st.text_input("Data de Fabricação (Ex: DD/MM/AAAA):")
         data_val = st.text_input("Data de Validade (Ex: DD/MM/AAAA):")
         
     if st.button("Enviar para Inspeção", use_container_width=True):
-        # Validação para garantir o preenchimento dos campos essenciais
-        if nome_insumo and num_lote and nota_fiscal:
+        if nome_insumo and num_lote and nota_fiscal and fornecedor:
             cursor.execute("SELECT COUNT(*) FROM laudos WHERE lote = ?", (num_lote,))
             if cursor.fetchone()[0] == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
-                    INSERT INTO laudos (data_cadastro, nota_fiscal, insumo, lote, data_fabricacao, data_validade, quantidade) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (data_hoje, nota_fiscal, nome_insumo, num_lote, data_fab, data_val, qtd_insumo))
+                    INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (data_hoje, nota_fiscal, fornecedor, nome_insumo, num_lote, data_fab, data_val, qtd_insumo))
                 conn.commit()
-                st.success(f"Material {nome_insumo} (Lote {num_lote}) registrado em quarentena com sucesso!")
+                st.success(f"Material {nome_insumo} do fornecedor {fornecedor} registrado em quarentena!")
                 st.rerun()
             else:
                 st.error("Erro: Este número de lote já existe no sistema.")
         else:
-            st.warning("Preencha Nota Fiscal, Nome do Insumo e Lote para prosseguir.")
+            st.warning("Preencha Nota Fiscal, Fornecedor, Nome do Insumo e Lote para prosseguir.")
 
 # --- TELA 2: EMITIR LAUDO TÉCNICO ---
 elif tela == "🧫 2. Emitir Laudo Técnico":
     st.subheader("🧫 Avaliação de Parâmetros e Liberação de Laudo")
     
-    # Busca apenas os lotes que ainda estão em quarentena
     cursor.execute("SELECT lote FROM laudos WHERE status = 'Em Quarentena'")
     lotes_pendentes = [item[0] for item in cursor.fetchall()]
     
@@ -145,6 +156,7 @@ elif tela == "📋 3. Histórico de Laudos":
             id as ID, 
             data_cadastro as 'Data Entrada', 
             nota_fiscal as 'Nota Fiscal',
+            fornecedor as 'Fornecedor',
             insumo as 'Insumo/Material', 
             lote as 'Lote', 
             data_fabricacao as 'Fabricação',

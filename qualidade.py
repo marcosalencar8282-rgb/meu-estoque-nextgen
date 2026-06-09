@@ -59,14 +59,13 @@ if not st.session_state["autenticado"]:
     st.markdown("---")
     
     if op_acesso == "🔑 Fazer Login":
-        # Formatação em colunas para o Login ficar menor na tela
-        c_log1, c_log2, _ = st.columns([1, 1, 2])
+        c_log1, c_log2, _ = st.columns([2, 2, 4])
         with c_log1:
             u_in = st.text_input("Usuário:", key="l_user").strip().lower()
         with c_log2:
             p_in = st.text_input("Senha:", type="password", key="l_pass").strip()
             
-        c_btn, _ = st.columns([2, 2])
+        c_btn, _ = st.columns([2, 6])
         with c_btn:
             if st.button("Entrar no Sistema", use_container_width=True):
                 if u_in and p_in:
@@ -87,8 +86,7 @@ if not st.session_state["autenticado"]:
                     st.warning("Preencha todos os campos.")
                 
     else:
-        # Formatação em colunas para o Cadastro de Usuário ficar menor
-        c_cad1, c_cad2, c_cad3, _ = st.columns([1, 1, 1, 1])
+        c_cad1, c_cad2, c_cad3, _ = st.columns([2, 2, 2, 2])
         with c_cad1:
             new_u = st.text_input("Escolha seu Usuário:", key="r_user").strip().lower()
         with c_cad2:
@@ -96,7 +94,7 @@ if not st.session_state["autenticado"]:
         with c_cad3:
             new_perfil = st.selectbox("Selecione sua Função:", ["cadastro", "laboratorio", "visualizar"])
             
-        c_btn2, _ = st.columns([3, 1])
+        c_btn2, _ = st.columns([2, 6])
         with c_btn2:
             if st.button("Salvar Novo Analista", use_container_width=True):
                 if new_u and new_p:
@@ -118,7 +116,7 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
-c_info, c_logout = st.columns([3, 1])
+c_info, c_logout = st.columns([6, 2])
 with c_info:
     st.markdown(f"👤 Analista: **{st.session_state['usuario_logado']}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
 with c_logout:
@@ -152,31 +150,30 @@ with c4:
 
 st.markdown("---")
 
-# --- TELA 1: CADASTRO DE LOTE (CAMPOS PEQUENOS E LADO A LADO) ---
+# --- TELA 1: CADASTRO DE LOTE (COMPACTO) ---
 if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"]:
     st.subheader("📥 Entrada de Lote para Inspeção")
     
-    # Grid compacto estilo formulário VBA (4 colunas na primeira linha, 3 colunas na segunda)
-    cl1, cl2, cl3, cl4 = st.columns([1, 1.5, 1, 2.5])
+    cl1, cl2, cl3, cl4 = st.columns([1, 2, 1, 2])
     with cl1:
-        nf = st.text_input("Nº Nota Fiscal:")
+        nf = st.text_input("Nº NF:")
     with cl2:
-        forn = st.text_input("Nome do Fornecedor:")
+        forn = st.text_input("Fornecedor:")
     with cl3:
-        cod = st.text_input("Código SKU:")
+        cod = st.text_input("SKU:")
     with cl4:
-        desc = st.text_input("Descrição do Produto:")
+        desc = st.text_input("Descrição:")
         
-    cl5, cl6, cl7, _ = st.columns([1, 1, 1, 3])
+    cl5, cl6, cl7, _ = st.columns([1.5, 1.5, 1.5, 1.5])
     with cl5:
-        lot = st.text_input("Número do Lote:")
+        lot = st.text_input("Lote:")
     with cl6:
-        fab = st.text_input("Data Fabricação:")
+        fab = st.text_input("Fabricação:")
     with cl7:
-        val = st.text_input("Data Validade:")
+        val = st.text_input("Validade:")
         
     st.markdown("<br>", unsafe_html=True)
-    c_btn_env, _ = st.columns([2, 5])
+    c_btn_env, _ = st.columns([2, 6])
     with c_btn_env:
         if st.button("Confirmar Entrada", use_container_width=True):
             if nf and forn and cod and desc and lot:
@@ -189,15 +186,15 @@ if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (data_atual, nf, forn, cod, desc, lot, fab, val))
                     conn.commit()
-                    st.success(f"Lote {lot} enviado para o laboratório com sucesso!")
+                    st.success(f"Lote {lot} enviado com sucesso!")
                 except sqlite3.IntegrityError:
-                    st.error("Erro: Este número de lote já existe no sistema.")
+                    st.error("Erro: Este lote já existe.")
                 finally:
                     conn.close()
             else:
-                st.warning("Preencha todos os campos obrigatórios.")
+                st.warning("Preencha os campos obrigatórios.")
 
-# --- TELA 2: PAINEL DO LABORATÓRIO (CAMPOS COMPACTOS) ---
+# --- TELA 2: PAINEL DO LABORATÓRIO (COMPACTO) ---
 elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "laboratorio"]:
     st.subheader("🧫 Avaliação Técnico de Lotes")
     
@@ -206,30 +203,29 @@ elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "labo
     conn.close()
     
     if df_pendentes.empty:
-        st.info("Nenhum lote aguardando análise no momento.")
+        st.info("Nenhum lote aguardando análise.")
     else:
         st.dataframe(df_pendentes, use_container_width=True, hide_index=True)
         st.markdown("---")
         
-        # Inputs pequenos colocados lado a lado
-        cl_lab1, cl_lab2, _ = st.columns([1.5, 1.5, 3])
+        cl_lab1, cl_lab2, _ = st.columns([2, 2, 4])
         with cl_lab1:
-            lote_sel = st.selectbox("Selecione o Lote alvo:", df_pendentes["lote"].tolist())
+            lote_sel = st.selectbox("Selecionar Lote:", df_pendentes["lote"].tolist())
         with cl_lab2:
-            novo_status = st.selectbox("Resultado da Análise:", ["Aprovado", "Reprovado"])
+            novo_status = st.selectbox("Resultado:", ["Aprovado", "Reprovado"])
             
-        c_btn_lab, _ = st.columns([1.5, 4.5])
+        c_btn_lab, _ = st.columns([2, 6])
         with c_btn_lab:
-            if st.button("Gravar Decisão do Laudo", use_container_width=True):
+            if st.button("Gravar Decisão", use_container_width=True):
                 conn = conectar()
                 cursor = conn.cursor()
                 cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
                 conn.commit()
                 conn.close()
-                st.success(f"O lote {lote_sel} foi atualizado para {novo_status}!")
+                st.success("Status atualizado!")
                 st.rerun()
 
-# --- TELA 3: RELATÓRIO GERAL ---
+# --- TELA 3: RELATÓRIO GERAL (CORRIGIDO SEM RISCO DE ERRO) ---
 elif st.session_state["tela_ativa"] == "relatorio":
     st.subheader("📋 Histórico Completo de Laudos Emitidos")
     
@@ -238,13 +234,25 @@ elif st.session_state["tela_ativa"] == "relatorio":
     conn.close()
     
     if df_geral.empty:
-        st.info("Nenhum laudo encontrado no banco de dados.")
+        st.info("Nenhum laudo encontrado.")
     else:
-        df_formatado = df_geral.rename(columns={
-            "id_laudo": "ID Laudo",
-            "data_chegada": "Data Entrada",
-            "nota_fiscal": "Nota Fiscal",
-            "fornecedor": "Fornecedor",
-            "codigo": "Código SKU",
-            "descricao": "Descrição",
+        # Exibição direta e segura dos dados limpos
+        st.dataframe(df_geral, use_container_width=True, hide_index=True)
+
+# --- TELA 4: GERENCIAR USUÁRIOS (COMPACTO) ---
+elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
+    st.subheader("⚙️ Gerenciar Analistas Cadastrados")
+    
+    conn = conectar()
+    df_usuarios = pd.read_sql_query("SELECT usuario, perfil FROM usuarios WHERE usuario != 'admin'", conn)
+    conn.close()
+    
+    if df_usuarios.empty:
+        st.info("Nenhum usuário operacional cadastrado.")
+    else:
+        st.dataframe(df_usuarios, use_container_width=True, hide_index=True)
+        st.markdown("---")
+        
+        cl_usr1, _ = st.columns([3, 5])
+        with cl_usr1:
 

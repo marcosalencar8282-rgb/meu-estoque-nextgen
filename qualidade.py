@@ -80,7 +80,7 @@ if not st.session_state["logado"]:
             dados = cursor.fetchone()
             conn.close()
             
-            # CORREÇÃO DA TUPLA: dados[0] é a senha e dados[1] é o cargo limpo em texto
+            # Desempacota corretamente a tupla: dados[0] é a senha, dados[1] é a função
             if dados and dados[0] == p:
                 st.session_state["logado"] = True
                 st.session_state["user"] = u
@@ -107,7 +107,7 @@ st.markdown("---")
 # --- CONTROLE DE AUTORIZAÇÃO POR FUNÇÃO (MENU DINÂMICO RÍGIDO) ---
 cargo_atual = st.session_state["cargo"]
 
-# O Histórico de Laudos (Relatório) é a base visível para todos os cargos
+# O Histórico de Laudos (Relatório) é visível para todos os cargos
 opcoes_autorizadas = ["📋 3. Histórico de Laudos"]
 
 # Técnico e Supervisor acessam o Cadastro/Entrada
@@ -161,9 +161,9 @@ if tela == "📥 1. Entrada de Insumo":
             conn = conectar()
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM laudos WHERE lote = ?", (num_lote,))
-            existe_lote = cursor.fetchone()
+            existe_lote = cursor.fetchone()[0]
             
-            if existe_lote[0] == 0:
+            if existe_lote == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
                     INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
@@ -238,24 +238,21 @@ elif tela == "📋 3. Histórico de Laudos":
     else:
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS ---
+# --- TELA 4: GERENCIAR USUÁRIOS (ESTRUTURA LINEAR REESCRITA SEM ERRO) ---
 elif tela == "⚙️ 4. Gerenciar Usuários":
     st.subheader("⚙️ Gerenciador de Usuários do Laboratório")
+    st.markdown("### 🆕 Cadastrar Novo Funcionário")
     
-    g1, g2 = st.columns(2)
-    with g1:
-        st.markdown("**Cadastrar Novo Funcionário:**")
-        novo_u = st.text_input("Nome de Usuário:").strip().lower()
-        novo_p = st.text_input("Senha Provisória:", type="password").strip()
-        nova_f = st.selectbox("Função:", ["Técnico", "Analista", "Supervisor"])
-        
-        if st.button("Salvar Usuário"):
-            if novo_u and novo_p:
-                conn = conectar()
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
-                existe_user = cursor.fetchone()
-                
-                if existe_user[0] == 0:
+    novo_u = st.text_input("Nome de Usuário:").strip().lower()
+    novo_p = st.text_input("Senha Provisória:", type="password").strip()
+    nova_f = st.selectbox("Função:", ["Técnico", "Analista", "Supervisor"])
+    
+    if st.button("Salvar Usuário", use_container_width=True):
+        if novo_u and novo_p:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
+            if cursor.fetchone()[0] == 0:
+
 
 

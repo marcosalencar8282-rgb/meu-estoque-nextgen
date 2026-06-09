@@ -55,10 +55,8 @@ if "usuario_logado" not in st.session_state:
     st.session_state["usuario_logado"] = ""
 if "perfil_usuario" not in st.session_state:
     st.session_state["perfil_usuario"] = ""
-if "menu_ativo" not in st.session_state:
-    st.session_state["menu_ativo"] = "Histórico de Laudos"
 
-# --- TELA DE LOGIN ---
+# --- TELA DE ACESSO (LOGIN) ---
 if not st.session_state["autenticado"]:
     st.title("🔬 BIOQUALI | CONTROLE DE QUALIDADE")
     st.write("Acesse o painel laboratorial informando suas credenciais.")
@@ -89,18 +87,30 @@ if not st.session_state["autenticado"]:
             st.warning("Preencha os campos obrigatórios para prosseguir.")
     st.stop()
 
-# --- CABEÇALHO DO SISTEMA LOGADO ---
-c_usr, c_out = st.columns(2)
-with c_usr:
-    st.markdown(f"🔬 **BioQuali CQ** | Operador: `{st.session_state['usuario_logado'].upper()}` | Função: `{st.session_state['perfil_usuario'].upper()}`")
-with c_out:
-    if st.button("Sair do Sistema", use_container_width=True):
-        st.session_state.clear()
-        st.rerun()
+# --- MENU LATERAL DE NAVEGAÇÃO NATIVO (DESTRAVADO) ---
+perf = st.session_state["perfil_usuario"]
 
-st.markdown("---")
+st.sidebar.title("🔬 BioQuali CQ")
+st.sidebar.markdown(f"👤 **Operador:** `{st.session_state['usuario_logado'].upper()}`\n⚙️ **Função:** `{perf.upper()}`")
+st.sidebar.markdown("---")
 
-# --- INDICADORES RESUMIDOS ---
+# Filtra as opções do menu de acordo com o nível de acesso do usuário
+opcoes_menu = ["📋 Histórico de Laudos"]
+if perf in ["administrador", "recebimento"]:
+    opcoes_menu.insert(0, "📥 Entrada de Materiais")
+if perf in ["administrador", "analista"]:
+    opcoes_menu.insert(1, "🧫 Análise Técnica")
+if perf == "administrador":
+    opcoes_menu.append("⚙️ Gestão de Contas")
+
+menu_ativo = st.sidebar.radio("Selecione a Tela:", opcoes_menu)
+
+st.sidebar.markdown("---")
+if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
+    st.session_state.clear()
+    st.rerun()
+
+# --- INDICADORES RESUMIDOS NO TOPO DA TELA ---
 conn = conectar()
 cursor = conn.cursor()
 cursor.execute("SELECT COUNT(*) FROM laudos")
@@ -125,37 +135,11 @@ with c_i4:
 
 st.markdown("---")
 
-# --- MENUS DE NAVEGAÇÃO COMPACTOS (ESTILO FERRAMENTAS VBA) ---
-perf = st.session_state["perfil_usuario"]
-st.write("**Navegação do Operador:**")
+# --- FUNÇÕES DE RENDERIZAÇÃO DAS TELAS ---
 
-m1, m2, m3, m4 = st.columns(4)
-with m1:
-    if perf in ["administrador", "recebimento"]:
-        if st.button("📥 1. Entrada de Materiais", use_container_width=True):
-            st.session_state["menu_ativo"] = "Entrada de Materiais"
-            st.rerun()
-with m2:
-    if perf in ["administrador", "analista"]:
-        if st.button("🧫 2. Análise Técnica", use_container_width=True):
-            st.session_state["menu_ativo"] = "Análise Técnica"
-            st.rerun()
-with m3:
-    if st.button("📋 3. Histórico de Laudos", use_container_width=True):
-        st.session_state["menu_ativo"] = "Histórico de Laudos"
-        st.rerun()
-with m4:
-    if perf == "administrador":
-        if st.button("⚙️ 4. Gestão de Contas", use_container_width=True):
-            st.session_state["menu_ativo"] = "Gestão de Contas"
-            st.rerun()
-
-st.markdown("---")
-
-# --- FUNÇÕES DE ISOLAMENTO DAS TELAS ---
-
-def mostrar_entrada():
+if menu_ativo == "📥 Entrada de Materiais":
     st.subheader("📥 Formulário de Entrada e Triagem")
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         doc = st.text_input("Nº NF / Doc:")
@@ -195,8 +179,9 @@ def mostrar_entrada():
         else:
             st.warning("Preencha todos os campos obrigatórios da triagem.")
 
-def mostrar_analise():
+elif menu_ativo == "🧫 Análise Técnica":
     st.subheader("🧫 Avaliação Laboratorial e Parâmetros Analíticos")
+    
     conn = conectar()
     df_abertos = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM laudos WHERE status = 'Quarentena'", conn)
     conn.close()
@@ -213,7 +198,7 @@ def mostrar_analise():
         with col_an2:
             veredito = st.selectbox("Veredito de Liberação (Status):", ["Aprovado", "Reprovado"])
             
-        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprovação:", 
+        obs = st.text_area("Justificativa Técnica / Parâmetros da Aprovação ou Reprovacao:", 
                            placeholder="Digite os desvios, ensaios realizados ou referências normativas analisadas...")
         
         if st.button("Garantir e Emitir Laudo Final", use_container_width=True):
@@ -233,8 +218,9 @@ def mostrar_analise():
             else:
                 st.warning("Erro: É obrigatório descrever os parâmetros/observações do veredito.")
 
-def mostrar_historico():
+elif menu_ativo == "📋 Histórico de Laudos":
     st.subheader("📋 Arquivo Geral de Rastreabilidade e Certificados")
+    
     conn = conectar()
     df_geral = pd.read_sql_query("SELECT * FROM laudos ORDER BY id_laudo DESC", conn)
     conn.close()
@@ -251,12 +237,22 @@ def mostrar_historico():
         })
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
 
-def mostrar_gestao():
+elif menu_ativo == "⚙️ Gestão de Contas":
     st.subheader("⚙️ Painel do Administrador: Gerenciador de Usuários")
-    col_g1, col_g2 = st.columns(2)
     
+    col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.markdown("**Adicionar Novo Operador:**")
         u_novo = st.text_input("Novo Usuário:", key="add_u").strip().lower()
         p_novo = st.text_input("Nova Senha:", type="password", key="add_p").strip()
+        f_nova = st.selectbox("Função/Perfil:", ["recebimento", "analista", "visualizar"])
+        
+        if st.button("Cadastrar Novo Usuário", use_container_width=True):
+            if u_novo and p_novo:
+                conn = conectar()
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (u_novo, p_novo, f_nova))
+                    conn.commit()
+                    st.success(f"Conta corporativa para '{u_novo}' gerada!")
 

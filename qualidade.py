@@ -161,30 +161,26 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     if perf in ["admin", "cadastro"]:
         if st.button("📥 1. Cadastrar Novo Lote", use_container_width=True):
-            st.session_state["tela_active"] = "cadastro"
             st.session_state["tela_ativa"] = "cadastro"
 with c2:
     if perf in ["admin", "laboratorio"]:
         if st.button("🧫 2. Painel do Laboratório", use_container_width=True):
-            st.session_state["tela_active"] = "laboratorio"
             st.session_state["tela_ativa"] = "laboratorio"
 with c3:
     if perf in ["admin", "cadastro", "laboratorio", "visualizar"]:
         if st.button("📋 3. Ver Relatório de Laudos", use_container_width=True):
-            st.session_state["tela_active"] = "relatorio"
             st.session_state["tela_ativa"] = "relatorio"
 with c4:
     if perf == "admin":
         if st.button("⚙️ 4. Gerenciar Usuários", use_container_width=True):
-            st.session_state["tela_active"] = "gerenciar_usuarios"
             st.session_state["tela_ativa"] = "gerenciar_usuarios"
 
 st.markdown("---")
 
-# --- TELA 1: CADASTRO DE LOTE (COMPACTO) ---
-if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"]:
+# --- FUNÇÕES DE RENDERIZAÇÃO DAS TELAS (À PROVA DE INDENTAÇÃO) ---
+
+def tela_cadastro():
     st.subheader("📥 Entrada de Lote para Inspeção")
-    
     cl1, cl2, cl3, cl4 = st.columns(4)
     with cl1:
         nf = st.text_input("Nº NF:")
@@ -223,10 +219,8 @@ if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"
         else:
             st.warning("Preencha os campos obrigatórios.")
 
-# --- TELA 2: PAINEL DO LABORATÓRIO (COMPACTO) ---
-elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "laboratorio"]:
+def tela_laboratorio():
     st.subheader("🧫 Avaliação Técnico de Lotes")
-    
     conn = conectar()
     df_pendentes = pd.read_sql_query("SELECT id_laudo, lote, descricao, fornecedor, status FROM inspeccao WHERE status = 'Em Análise'", conn)
     conn.close()
@@ -249,13 +243,11 @@ elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "labo
             cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
             conn.commit()
             conn.close()
-            st.success("Status updated!")
+            st.success("Status atualizado!")
             st.rerun()
 
-# --- TELA 3: RELATÓRIO GERAL ---
-elif st.session_state["tela_ativa"] == "relatorio":
+def tela_relatorio():
     st.subheader("📋 Histórico Completo de Laudos Emitidos")
-    
     conn = conectar()
     df_geral = pd.read_sql_query("SELECT * FROM inspeccao ORDER BY id_laudo DESC", conn)
     conn.close()
@@ -265,5 +257,18 @@ elif st.session_state["tela_ativa"] == "relatorio":
     else:
         st.dataframe(df_geral, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS (COMPACTO) ---
-elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
+def tela_gerenciar_usuarios():
+    st.subheader("⚙️ Gerenciar Analistas Cadastrados")
+    conn = conectar()
+    df_usuarios = pd.read_sql_query("SELECT usuario, perfil FROM usuarios WHERE usuario != 'admin'", conn)
+    conn.close()
+    
+    if df_usuarios.empty:
+        st.info("Nenhum usuário operacional cadastrado.")
+    else:
+        st.dataframe(df_usuarios, use_container_width=True, hide_index=True)
+        st.markdown("---")
+        
+        user_remover = st.selectbox("Selecione para remover:", df_usuarios["usuario"].tolist())
+        if st.button("❌ Remover Conta", use_container_width=True):
+            conn = conectar()

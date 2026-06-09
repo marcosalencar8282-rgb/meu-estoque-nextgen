@@ -59,34 +59,32 @@ if not st.session_state["autenticado"]:
     st.markdown("---")
     
     if op_acesso == "🔑 Fazer Login":
-        c_log1, c_log2, _ = st.columns([2, 2, 4])
+        c_log1, c_log2 = st.columns(2)
         with c_log1:
             u_in = st.text_input("Usuário:", key="l_user").strip().lower()
         with c_log2:
             p_in = st.text_input("Senha:", type="password", key="l_pass").strip()
             
-        c_btn, _ = st.columns([2, 6])
-        with c_btn:
-            if st.button("Entrar no Sistema", use_container_width=True):
-                if u_in and p_in:
-                    conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_in,))
-                    res = cursor.fetchone()
-                    conn.close()
-                    
-                    if res and res[0] == p_in:
-                        st.session_state["autenticado"] = True
-                        st.session_state["usuario_logado"] = u_in
-                        st.session_state["perfil_usuario"] = str(res[1]).strip().lower()
-                        st.rerun()
-                    else:
-                        st.error("Usuário ou senha incorretos.")
+        if st.button("Entrar no Sistema", use_container_width=True):
+            if u_in and p_in:
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("SELECT senha, perfil FROM usuarios WHERE usuario = ?", (u_in,))
+                res = cursor.fetchone()
+                conn.close()
+                
+                if res and res[0] == p_in:
+                    st.session_state["autenticado"] = True
+                    st.session_state["usuario_logado"] = u_in
+                    st.session_state["perfil_usuario"] = str(res[1]).strip().lower()
+                    st.rerun()
                 else:
-                    st.warning("Preencha todos os campos.")
+                    st.error("Usuário ou senha incorretos.")
+            else:
+                st.warning("Preencha todos os campos.")
                 
     else:
-        c_cad1, c_cad2, c_cad3, _ = st.columns([2, 2, 2, 2])
+        c_cad1, c_cad2, c_cad3 = st.columns(3)
         with c_cad1:
             new_u = st.text_input("Escolha seu Usuário:", key="r_user").strip().lower()
         with c_cad2:
@@ -94,29 +92,27 @@ if not st.session_state["autenticado"]:
         with c_cad3:
             new_perfil = st.selectbox("Selecione sua Função:", ["cadastro", "laboratorio", "visualizar"])
             
-        c_btn2, _ = st.columns([2, 6])
-        with c_btn2:
-            if st.button("Salvar Novo Analista", use_container_width=True):
-                if new_u and new_p:
-                    if new_u == "admin":
-                        st.error("Nome de usuário restrito.")
-                    else:
-                        conn = conectar()
-                        cursor = conn.cursor()
-                        try:
-                            cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (new_u, new_p, new_perfil))
-                            conn.commit()
-                            st.success("Conta criada! Selecione 'Fazer Login' acima para entrar.")
-                        except sqlite3.IntegrityError:
-                            st.error("Este usuário já existe.")
-                        finally:
-                            conn.close()
+        if st.button("Salvar Novo Analista", use_container_width=True):
+            if new_u and new_p:
+                if new_u == "admin":
+                    st.error("Nome de usuário restrito.")
                 else:
-                    st.warning("Preencha todos os campos.")
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    try:
+                        cursor.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (new_u, new_p, new_perfil))
+                        conn.commit()
+                        st.success("Conta criada! Selecione 'Fazer Login' acima para entrar.")
+                    except sqlite3.IntegrityError:
+                        st.error("Este usuário já existe.")
+                    finally:
+                        conn.close()
+            else:
+                st.warning("Preencha todos os campos.")
     st.stop()
 
 # --- BARRA SUPERIOR DE INFORMAÇÕES E LOGOUT ---
-c_info, c_logout = st.columns([6, 2])
+c_info, c_logout = st.columns([3, 1])
 with c_info:
     st.markdown(f"👤 Analista: **{st.session_state['usuario_logado']}** | Perfil: **{st.session_state['perfil_usuario'].upper()}**")
 with c_logout:
@@ -154,7 +150,7 @@ st.markdown("---")
 if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"]:
     st.subheader("📥 Entrada de Lote para Inspeção")
     
-    cl1, cl2, cl3, cl4 = st.columns([1, 2, 1, 2])
+    cl1, cl2, cl3, cl4 = st.columns(4)
     with cl1:
         nf = st.text_input("Nº NF:")
     with cl2:
@@ -164,7 +160,7 @@ if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"
     with cl4:
         desc = st.text_input("Descrição:")
         
-    cl5, cl6, cl7, _ = st.columns([1.5, 1.5, 1.5, 1.5])
+    cl5, cl6, cl7 = st.columns(3)
     with cl5:
         lot = st.text_input("Lote:")
     with cl6:
@@ -173,26 +169,24 @@ if st.session_state["tela_ativa"] == "cadastro" and perf in ["admin", "cadastro"
         val = st.text_input("Validade:")
         
     st.markdown("<br>", unsafe_html=True)
-    c_btn_env, _ = st.columns([2, 6])
-    with c_btn_env:
-        if st.button("Confirmar Entrada", use_container_width=True):
-            if nf and forn and cod and desc and lot:
-                conn = conectar()
-                cursor = conn.cursor()
-                try:
-                    data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    cursor.execute("""
-                        INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (data_atual, nf, forn, cod, desc, lot, fab, val))
-                    conn.commit()
-                    st.success(f"Lote {lot} enviado com sucesso!")
-                except sqlite3.IntegrityError:
-                    st.error("Erro: Este lote já existe.")
-                finally:
-                    conn.close()
-            else:
-                st.warning("Preencha os campos obrigatórios.")
+    if st.button("Confirmar Entrada", use_container_width=True):
+        if nf and forn and cod and desc and lot:
+            conn = conectar()
+            cursor = conn.cursor()
+            try:
+                data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
+                cursor.execute("""
+                    INSERT INTO inspeccao (data_chegada, nota_fiscal, fornecedor, codigo, descricao, lote, fabricacao, validade) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (data_atual, nf, forn, cod, desc, lot, fab, val))
+                conn.commit()
+                st.success(f"Lote {lot} enviado com sucesso!")
+            except sqlite3.IntegrityError:
+                st.error("Erro: Este lote já existe.")
+            finally:
+                conn.close()
+        else:
+            st.warning("Preencha os campos obrigatórios.")
 
 # --- TELA 2: PAINEL DO LABORATÓRIO (COMPACTO) ---
 elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "laboratorio"]:
@@ -208,24 +202,22 @@ elif st.session_state["tela_ativa"] == "laboratorio" and perf in ["admin", "labo
         st.dataframe(df_pendentes, use_container_width=True, hide_index=True)
         st.markdown("---")
         
-        cl_lab1, cl_lab2, _ = st.columns([2, 2, 4])
+        cl_lab1, cl_lab2 = st.columns(2)
         with cl_lab1:
             lote_sel = st.selectbox("Selecionar Lote:", df_pendentes["lote"].tolist())
         with cl_lab2:
             novo_status = st.selectbox("Resultado:", ["Aprovado", "Reprovado"])
             
-        c_btn_lab, _ = st.columns([2, 6])
-        with c_btn_lab:
-            if st.button("Gravar Decisão", use_container_width=True):
-                conn = conectar()
-                cursor = conn.cursor()
-                cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
-                conn.commit()
-                conn.close()
-                st.success("Status atualizado!")
-                st.rerun()
+        if st.button("Gravar Decisão", use_container_width=True):
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
+            conn.commit()
+            conn.close()
+            st.success("Status atualizado!")
+            st.rerun()
 
-# --- TELA 3: RELATÓRIO GERAL (CORRIGIDO SEM RISCO DE ERRO) ---
+# --- TELA 3: RELATÓRIO GERAL ---
 elif st.session_state["tela_ativa"] == "relatorio":
     st.subheader("📋 Histórico Completo de Laudos Emitidos")
     
@@ -236,10 +228,9 @@ elif st.session_state["tela_ativa"] == "relatorio":
     if df_geral.empty:
         st.info("Nenhum laudo encontrado.")
     else:
-        # Exibição direta e segura dos dados limpos
         st.dataframe(df_geral, use_container_width=True, hide_index=True)
 
-# --- TELA 4: GERENCIAR USUÁRIOS (COMPACTO) ---
+# --- TELA 4: GERENCIAR USUÁRIOS (COMPACTO E INDENTADO) ---
 elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
     st.subheader("⚙️ Gerenciar Analistas Cadastrados")
     
@@ -253,6 +244,13 @@ elif st.session_state["tela_ativa"] == "gerenciar_usuarios" and perf == "admin":
         st.dataframe(df_usuarios, use_container_width=True, hide_index=True)
         st.markdown("---")
         
-        cl_usr1, _ = st.columns([3, 5])
-        with cl_usr1:
+        user_remover = st.selectbox("Selecione para remover:", df_usuarios["usuario"].tolist())
+        if st.button("❌ Remover Conta", use_container_width=True):
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM usuarios WHERE usuario = ?", (user_remover,))
+            conn.commit()
+            conn.close()
+            st.success("Usuário removido.")
+            st.rerun()
 

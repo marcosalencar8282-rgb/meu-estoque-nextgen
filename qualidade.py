@@ -161,9 +161,9 @@ if tela == "📥 1. Entrada de Insumo":
             conn = conectar()
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM laudos WHERE lote = ?", (num_lote,))
-            existe_lote = cursor.fetchone()[0]
+            existe_lote = cursor.fetchone()
             
-            if existe_lote == 0:
+            if existe_lote[0] == 0:
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
                 cursor.execute("""
                     INSERT INTO laudos (data_cadastro, nota_fiscal, fornecedor, insumo, lote, data_fabricacao, data_validade, quantidade) 
@@ -254,7 +254,8 @@ elif tela == "⚙️ 4. Gerenciar Usuários":
                 conn = conectar()
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
-                existe_user = cursor.fetchone()[0]
+                existe_user = cursor.fetchone()
                 
-                if existe_user == 0:
+                if existe_user[0] == 0:
+
 

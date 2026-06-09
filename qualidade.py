@@ -114,25 +114,26 @@ with c_logout:
 
 st.markdown("---")
 
-# --- CORREÇÃO DAS MÉTRICAS ---
+# --- CORES E METRICAS DE SUPORTE NO TOPO ---
 conn = conectar()
-total_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao", conn)["qtd"].iloc[0]
-analise_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Em Análise'", conn)["qtd"].iloc[0]
-aprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Aprovado'", conn)["qtd"].iloc[0]
-reprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Reprovado'", conn)["qtd"].iloc[0]
+total_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao", conn)["qtd"]
+analise_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Em Análise'", conn)["qtd"]
+aprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Aprovado'", conn)["qtd"]
+reprovados_lotes = pd.read_sql_query("SELECT COUNT(*) as qtd FROM inspeccao WHERE status = 'Reprovado'", conn)["qtd"]
 conn.close()
 
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("Total de Lotes Recebidos", int(total_lotes))
-m2.metric("Aguardando Análise", int(analise_lotes))
-m3.metric("Lotes Aprovados", int(aprovados_lotes))
-m4.metric("Lotes Reprovados", int(reprovados_lotes))
+m1.metric("Total de Lotes Recebidos", int(total_lotes.iloc[0]))
+m2.metric("Aguardando Análise", int(analise_lotes.iloc[0]))
+m3.metric("Lotes Aprovados", int(aprovados_lotes.iloc[0]))
+m4.metric("Lotes Reprovados", int(reprovados_lotes.iloc[0]))
 
 st.markdown("<br>", unsafe_html=True)
 
-# --- NAVEGAÇÃO POR ABAS (TABS) ---
+# --- NAVEGAÇÃO MODERNA POR ABAS (TABS) ---
 perf = st.session_state["perfil_usuario"]
 
+# Criando abas dinâmicas conforme a permissão do usuário logado
 abas_disponiveis = []
 if perf in ["admin", "cadastro"]: abas_disponiveis.append("📥 Entrada de Lote")
 if perf in ["admin", "laboratorio"]: abas_disponiveis.append("🧫 Painel Laboratório")
@@ -141,6 +142,7 @@ if perf == "admin": abas_disponiveis.append("⚙️ Gestão de Usuários")
 
 abas = st.tabs(abas_disponiveis)
 
+# Mapeamento do conteúdo de cada aba de acordo com as permissões reais
 index_aba = 0
 
 # 1. ABA DE CADASTRO DE LOTE
@@ -211,7 +213,7 @@ if perf in ["admin", "laboratorio"]:
                 cursor.execute("UPDATE inspeccao SET status = ?, responsavel = ? WHERE lote = ?", (novo_status, st.session_state["usuario_logado"], lote_sel))
                 conn.commit()
                 conn.close()
-                st.success(f"Laudo gravado! Status do lote {lote_sel} atualizado para {novo_status}.")
+                st.success(f"Laudo gravado! Status do lote {lote_sel} updated para {novo_status}.")
                 st.rerun()
     index_aba += 1
 
@@ -227,4 +229,3 @@ with abas[index_aba]:
     if df_geral.empty:
         st.info("Nenhum registro localizado na base do laboratório.")
     else:
-        df_formatado = df_geral.rename(columns={

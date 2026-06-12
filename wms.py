@@ -97,7 +97,6 @@ opcoes_menu = []
 if nivel_cargo == "Operador":
     opcoes_menu = ["📥 Entrada e Endereçamento"]
 elif nivel_cargo == "Separador":
-    # Alterado de Analista para Separador
     opcoes_menu = ["📤 Separação e Baixa"]
 elif nivel_cargo == "Supervisor":
     opcoes_menu = [
@@ -107,7 +106,7 @@ elif nivel_cargo == "Supervisor":
         "⚙️ Gerenciador de Usuários e Posições"
     ]
 
-tela = st.sidebar.radio("Navegação Autorizada:", opcoes_menu)
+tela = st.sidebar.radio("Navegação Authorized:", opcoes_menu)
 st.markdown("---")
 
 # --- TELA 1: ENTRADA E ENDEREÇAMENTO ---
@@ -245,3 +244,4 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
             
         if st.button("Homologar e Salvar Perfil", use_container_width=True):
             if novo_u and novo_p:
+                try:

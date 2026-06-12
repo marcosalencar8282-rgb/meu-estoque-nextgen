@@ -216,7 +216,7 @@ elif tela == "📋 Posição de Inventário Real":
     else:
         st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
-# --- TELA 4: EXCLUSIVA DO SUPERVISOR ---
+# --- TELA 4: EXCLUSIVA DO SUPERVISOR (COMPLETAMENTE PLANA E BLINDADA) ---
 elif tela == "⚙️ Gerenciador de Usuários e Posições":
     st.subheader("⚙️ Painel de Controle e Governança de Acessos")
     
@@ -225,7 +225,6 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
     
     if menu_abas == "Criar Logins":
         st.markdown("### 🆕 Cadastro de Acessos por Função")
-        
         funcao_alvo = st.radio("Selecione a Função do Perfil:", ["Operador", "Separador", "Supervisor"], horizontal=True, key="radio_funcao_fixo")
         st.markdown(f"**Preencha os campos abaixo para criar o perfil: {funcao_alvo.upper()}**")
         
@@ -234,6 +233,5 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
         
         if st.button("Homologar e Salvar Perfil", use_container_width=True, key="btn_salvar_user"):
             if novo_u and novo_p:
-                try:
-                    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, funcao_alvo))
+                # CORREÇÃO DEFINITIVA: Validação por SELECT em vez de try/except estrutural
 

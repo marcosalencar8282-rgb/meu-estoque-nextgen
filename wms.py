@@ -49,7 +49,7 @@ if not st.session_state["logado"]:
     
     if st.button("Autenticar no Sistema", use_container_width=True):
         # 💡 MUDE AS SENHAS AQUI: Altere os valores de 'admin123' ou 'operador123' para as senhas que você quiser!
-        if u == "admin" and p == "admin123":
+        if u == "marcos" and p == "334409":
             st.session_state["logado"] = True
             st.session_state["usuario_atual"] = "admin"
             st.session_state["cargo_atual"] = "Supervisor"

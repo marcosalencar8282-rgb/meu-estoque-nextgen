@@ -200,7 +200,7 @@ elif tela == "📋 Posição de Inventário Real":
     else:
         st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
-# --- TELA 4: EXCLUSIVA DO SUPERVISOR ---
+# --- TELA 4: EXCLUSIVA DO SUPERVISOR (ESTRUTURA HORIZONTAL BLINDADA) ---
 elif tela == "⚙️ Gerenciador de Usuários e Posições":
     st.subheader("⚙️ Painel de Controle e Governança de Acessos")
     menu_abas = st.radio("Selecione a ação administrativa:", ["Criar Logins", "Cadastrar Endereços"], horizontal=True)
@@ -208,17 +208,15 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
     
     if menu_abas == "Criar Logins":
         st.markdown("### 🆕 Cadastro de Acessos por Função")
-        funcao_alvo = st.radio("Selecione a Função do Perfil:", ["Operador", "Separador", "Supervisor"], horizontal=True, key="radio_funcao_fixo")
+        funcao_alvo = st.radio("Selecione a Função:", ["Operador", "Separador", "Supervisor"], horizontal=True, key="radio_funcao_fixo")
         novo_u = st.text_input("Defina o Usuário / Matrícula:", key="input_usuario_estavel").strip().lower()
         novo_p = st.text_input("Defina a Senha de Acesso:", type="password", key="input_senha_estavel").strip()
         
         if st.button("Homologar e Salvar Perfil", use_container_width=True, key="btn_salvar_user"):
             if novo_u and novo_p:
-                try:
+                cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
+                if cursor.fetchone()[0] == 0:
                     cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, funcao_alvo))
                     conexao.commit()
-                    st.success(f"Sucesso! Perfil de **{novo_u.upper()}** cadastrado como **{funcao_alvo}**.")
-                    st.rerun()
-                except sqlite3.IntegrityError:
 
 

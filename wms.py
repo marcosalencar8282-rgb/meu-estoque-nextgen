@@ -48,7 +48,6 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
-        # Validação direta por perfis fixos (Elimina erros de banco de dados e travamentos)
         if u == "admin" and p == "admin123":
             st.session_state["logado"] = True
             st.session_state["usuario_atual"] = "admin"
@@ -78,7 +77,6 @@ st.markdown("---")
 # --- CONSTRUÇÃO DO MENU CONFORME PERMISSÕES ---
 cargo_do_usuario = st.session_state["cargo_atual"]
 
-# Operadores comuns só veem movimentação, o admin (Supervisor) vê as configurações e o relatório
 if cargo_do_usuario == "Supervisor":
     opcoes_menu = [
         "📥 Entrada e Endereçamento", 
@@ -106,7 +104,8 @@ if tela == "📥 Entrada e Endereçamento":
             HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
         ) ORDER BY posicao ASC
     """)
-    enderecos_vazios = [item for item in cursor.fetchall()]
+    # Converte a tupla do SQL em uma lista de strings plana para o selectbox trabalhar
+    enderecos_vazios = [linha[0] for linha in cursor.fetchall()]
     
     sku_input = st.text_input("Código SKU do Produto:", key="entrada_sku")
     nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
@@ -131,7 +130,7 @@ if tela == "📥 Entrada e Endereçamento":
         else:
             st.warning("Preencha todos os campos do produto para registrar.")
 
-# --- TELA 2: SEPARAÇÃO / PICKING ---
+# --- TELA 2: SEPARAÇÃO / PICKING (CORRIGIDA) ---
 elif tela == "📤 Separação e Baixa":
     st.subheader("📤 Processar Separação de Pedidos (Picking)")
     
@@ -144,14 +143,15 @@ elif tela == "📤 Separação e Baixa":
     if not itens_disponiveis:
         st.info("Nenhuma mercadoria com saldo disponível no armazém para dar baixa.")
     else:
-        opcoes_selecao = [f"SKU: {item} | Item: {item} | Posição: {item} (Saldo: {int(item)})" for item in itens_disponiveis]
+        # CORREÇÃO DEFINITIVA: Desempacota as tuplas da lista para formatar a visualização do seletor
+        opcoes_selecao = [f"SKU: {linha[0]} | Item: {linha[1]} | Posição: {linha[2]} (Saldo: {int(linha[3])})" for linha in itens_disponiveis]
         item_selecionado = st.selectbox("Selecione a carga alvo para o Picking:", opcoes_selecao, key="baixa_selecao")
         
         indice = opcoes_selecao.index(item_selecionado)
-        sku_alvo = itens_disponiveis[indice]
-        nome_alvo = itens_disponiveis[indice]
-        posicao_alvo = itens_disponiveis[indice]
-        saldo_maximo = itens_disponiveis[indice]
+        sku_alvo = itens_disponiveis[indice][0]
+        nome_alvo = itens_disponiveis[indice][1]
+        posicao_alvo = itens_disponiveis[indice][2]
+        saldo_maximo = itens_disponiveis[indice][3]
         
         qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(saldo_maximo), step=1.0, value=1.0, key="baixa_qtd")
         
@@ -165,7 +165,7 @@ elif tela == "📤 Separação e Baixa":
             st.success(f"Picking concluído! {qtd_retirar} unidades retiradas de {posicao_alvo}.")
             st.rerun()
 
-# --- TELA 3: INVENTÁRIO LOGÍSTICO (APENAS ADMINISTRADOR) ---
+# --- TELA 3: INVENTÁRIO LOGÍSTICO ---
 elif tela == "📋 Posição de Inventário Real":
     st.subheader("📋 Relatório Logístico de Saldos e Ocupação (Kardex)")
     
@@ -202,7 +202,7 @@ elif tela == "📋 Posição de Inventário Real":
     else:
         st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
-# --- TELA 4: CADASTRO E MAPEAMENTO DE ENDEREÇOS (APENAS ADMINISTRADOR) ---
+# --- TELA 4: CADASTRO E MAPEAMENTO DE ENDEREÇOS ---
 elif tela == "🗺️ Cadastrar Novos Endereços":
     st.subheader("🗺️ Mapeamento e Cadastro Estrutural de Endereços")
     
@@ -211,10 +211,8 @@ elif tela == "🗺️ Cadastrar Novos Endereços":
     
     if st.button("Salvar Nova Posição Fisiográfica", use_container_width=True, key="btn_salvar_endereco"):
         if novo_endereco:
-            cursor.execute("SELECT COUNT(*) FROM enderecos WHERE posicao = ?")
-            # Correção para o banco plano
             cursor.execute("SELECT COUNT(*) FROM enderecos WHERE posicao = ?", (novo_endereco,))
-            resultado = cursor.fetchone()
+            resultado = cursor.fetchone()[0]
             
             if resultado == 0:
                 cursor.execute("INSERT INTO enderecos (posicao) VALUES (?)", (novo_endereco,))

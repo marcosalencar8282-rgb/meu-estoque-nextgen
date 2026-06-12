@@ -110,7 +110,6 @@ st.markdown("---")
 if tela == "📥 Entrada e Endereçamento":
     st.subheader("📥 Recebimento e Alocação de Mercadoria")
     
-    # Busca apenas os endereços cadastrados que estão vazios no momento
     cursor.execute("""
         SELECT posicao FROM enderecos WHERE posicao NOT IN (
             SELECT posicao FROM movimentacoes 
@@ -221,7 +220,7 @@ elif tela == "📋 Posição de Inventário Real":
 elif tela == "⚙️ Configurações e Equipe":
     st.subheader("⚙️ Painel de Controle Administrativo")
     
-    tab1, tab2 = st.tabs(["🗺️ Cadastrar Endereços", "👥 Gerenciar Equipe"])
+    tab1, tab2 = st.tabs(["🗺️ Cadastrar Endereços", "👥 Criar Logins por Função"])
     
     with tab1:
         st.markdown("### 🆕 Adicionar Nova Posição no Armazém")

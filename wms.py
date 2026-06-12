@@ -48,8 +48,7 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
-        # 💡 MUDE AS SENHAS AQUI: Altere os valores de 'admin123' ou 'operador123' para as senhas que você quiser!
-        if u == "marcos" and p == "334409":
+        if u == "admin" and p == "admin123":
             st.session_state["logado"] = True
             st.session_state["usuario_atual"] = "admin"
             st.session_state["cargo_atual"] = "Supervisor"
@@ -94,7 +93,7 @@ else:
 tela = st.sidebar.radio("Navegação Operacional:", opcoes_menu)
 st.markdown("---")
 
-# --- TELA 1: ENTRADA E ENDEREÇAMENTO ---
+# --- TELA 1: ENTRADA E ENDEREÇAMENTO (CORRIGIDA) ---
 if tela == "📥 Entrada e Endereçamento":
     st.subheader("📥 Recebimento e Alocação de Mercadoria")
     
@@ -102,25 +101,36 @@ if tela == "📥 Entrada e Endereçamento":
     nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
     qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
     
-    # 🌟 CORREÇÃO TÉCNICA: Entrada manual validada por texto para evitar quebras do selectbox
-    posicao_estoque = st.text_input("Digite a Posição de Destino (Ex: BOX-01):", key="entrada_pos").strip().upper()
+    # Busca endereços cadastrados que NÃO possuem saldo positivo
+    cursor.execute("""
+        SELECT posicao FROM enderecos WHERE posicao NOT IN (
+            SELECT posicao FROM movimentacoes 
+            GROUP BY sku, posicao 
+            HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
+        ) ORDER BY posicao ASC
+    """)
+    # 🌟 CORREÇÃO TÉCNICA: Extrai apenas o texto de dentro de cada tupla recebida do banco
+    enderecos_vazios = [linha[0] for linha in cursor.fetchall()]
+    
+    if enderecos_vazios:
+        # Volta a exibir a caixinha de seleção com as posições livres
+        posicao_estoque = st.selectbox("Selecione um Endereço Vazio Disponível:", enderecos_vazios, key="entrada_pos")
+    else:
+        st.error("🚨 Sem posições livres no mapa! Solicite ao Administrador o cadastro de novos endereços.")
+        posicao_estoque = None
         
-    if st.button("Confirmar Entrada de Material", use_container_width=True):
-        if sku_input and nome_prod and posicao_estoque:
-            cursor.execute("SELECT COUNT(*) FROM enderecos WHERE posicao = ?", (posicao_estoque,))
-            if cursor.fetchone()[0] > 0:
-                data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-                cursor.execute("""
-                    INSERT INTO movimentacoes (data_registro, sku, produto, quantity, posicao, tipo_movimentacao)
-                    VALUES (?, ?, ?, ?, ?, 'ENTRADA')
-                """, (data_hoje, sku_input, nome_prod, qtd_input, posicao_estoque))
-                conexao.commit()
-                st.success(f"Sucesso! {qtd_input} unidades alocadas na posição {posicao_estoque}.")
-                st.rerun()
-            else:
-                st.error("🚨 Erro: Essa posição não existe no mapa do armazém. Cadastre-a primeiro!")
+    if st.button("Confirmar Entrada de Material", use_container_width=True) and posicao_estoque:
+        if sku_input and nome_prod:
+            data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
+            cursor.execute("""
+                INSERT INTO movimentacoes (data_registro, sku, produto, quantidade, posicao, tipo_movimentacao)
+                VALUES (?, ?, ?, ?, ?, 'ENTRADA')
+            """, (data_hoje, sku_input, nome_prod, qtd_input, posicao_estoque))
+            conexao.commit()
+            st.success(f"Sucesso! {qtd_input} unidades alocadas na posição {posicao_estoque}.")
+            st.rerun()
         else:
-            st.warning("Preencha todos os campos do produto e o endereço para registrar.")
+            st.warning("Preencha todos os campos do produto para registrar.")
 
 # --- TELA 2: SEPARAÇÃO / PICKING ---
 elif tela == "📤 Separação e Baixa":
@@ -135,6 +145,7 @@ elif tela == "📤 Separação e Baixa":
     if not itens_disponiveis:
         st.info("Nenhuma mercadoria com saldo disponível no armazém para dar baixa.")
     else:
+        # Desempacota as tuplas da lista para formatar a visualização do seletor
         opcoes_selecao = [f"SKU: {linha[0]} | Item: {linha[1]} | Posição: {linha[2]} (Saldo: {int(linha[3])})" for linha in itens_disponiveis]
         item_selecionado = st.selectbox("Selecione a carga alvo para o Picking:", opcoes_selecao, key="baixa_selecao")
         
@@ -203,7 +214,9 @@ elif tela == "🗺️ Cadastrar Novos Endereços":
     if st.button("Salvar Nova Posição Fisiográfica", use_container_width=True, key="btn_salvar_endereco"):
         if novo_endereco:
             cursor.execute("SELECT COUNT(*) FROM enderecos WHERE posicao = ?", (novo_endereco,))
-            if cursor.fetchone()[0] == 0:
+            resultado = cursor.fetchone()[0]
+            
+            if resultado == 0:
                 cursor.execute("INSERT INTO enderecos (posicao) VALUES (?)", (novo_endereco,))
                 conexao.commit()
                 st.success(f"Sucesso! Endereço **{novo_endereco}** adicionado à malha do galpão.")
@@ -219,5 +232,6 @@ elif tela == "🗺️ Cadastrar Novos Endereços":
     st.dataframe(df_todos_end, use_container_width=True, hide_index=True)
 
 conexao.close()
+
 
 

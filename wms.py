@@ -76,6 +76,7 @@ if not st.session_state["logado"]:
             cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
             dados_usuario = cursor.fetchone()
             
+            # CORREÇÃO: dados_usuario[0] extrai apenas a senha do banco para validar
             if dados_usuario and dados_usuario[0] == p:
                 st.session_state["logado"] = True
                 st.session_state["usuario_atual"] = u
@@ -170,6 +171,7 @@ elif tela == "📤 Separação e Baixa":
         opcoes_selecao = [f"SKU: {item[0]} | Item: {item[1]} | Posição: {item[2]} (Saldo: {item[3]})" for item in itens_disponiveis]
         item_selecionado = st.selectbox("Selecione a carga alvo para o Picking:", opcoes_selecao)
         
+        # CORREÇÃO: Resgata e desempacota os índices da tupla corretamente para evitar falhas na consulta
         indice = opcoes_selecao.index(item_selecionado)
         sku_alvo = itens_disponiveis[indice][0]
         nome_alvo = itens_disponiveis[indice][1]
@@ -188,7 +190,7 @@ elif tela == "📤 Separação e Baixa":
             st.success(f"Picking concluído! {qtd_retirar} unidades retiradas de {posicao_alvo}.")
             st.rerun()
 
-# --- TELA 3: INVENTÁRIO LOGÍSTICO (COM MAPA DE VAZIOS) ---
+# --- TELA 3: INVENTÁRIO LOGÍSTICO ---
 elif tela == "📋 Posição de Inventário Real":
     col1, col2 = st.columns(2)
     
@@ -235,7 +237,3 @@ elif tela == "👥 Equipe e Acessos":
                 cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, nova_f))
                 conexao.commit()
                 st.success(f"Funcionário {novo_u.upper()} cadastrado com sucesso!")
-                st.rerun()
-            except sqlite3.IntegrityError:
-                st.error("Este usuário já se encontra ativo.")
-        else:

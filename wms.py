@@ -67,8 +67,7 @@ if not st.session_state["logado"]:
             cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
             dados_usuario = cursor.fetchone()
             
-            # CORREÇÃO: dados_usuario[0] pega a senha e dados_usuario[1] pega o cargo limpando espaços
-            if dados_usuario and str(dados_usuario[0]).strip() == p:
+            if dados_usuario and dados_usuario[0] == p:
                 st.session_state["logado"] = True
                 st.session_state["usuario_atual"] = u
                 st.session_state["cargo_atual"] = str(dados_usuario[1]).strip()
@@ -95,7 +94,6 @@ st.markdown("---")
 nivel_cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📋 Posição de Inventário Real"]
 
-# CORREÇÃO: Validação exata dos cargos sem interferência de formatos do banco
 if nivel_cargo in ["Operador", "Supervisor"]:
     opcoes_menu.insert(0, "📥 Entrada e Endereçamento")
 
@@ -146,7 +144,7 @@ if tela == "📥 Entrada e Endereçamento":
         else:
             st.warning("Preencha os dados do produto para registrar.")
 
-# --- TELA 2: SEPARAÇÃO / PICKING ---
+# --- TELA 2: SEPARAÇÃO / PICKING (CORRIGIDA) ---
 elif tela == "📤 Separação e Baixa":
     st.subheader("📤 Processar Separação de Pedidos (Picking)")
     
@@ -165,7 +163,7 @@ elif tela == "📤 Separação e Baixa":
         indice = opcoes_selecao.index(item_selecionado)
         sku_alvo = itens_disponiveis[indice][0]
         nome_alvo = itens_disponiveis[indice][1]
-        posicao_alvo = itens_disvisiveis[indice][2]
+        posicao_alvo = itens_disponiveis[indice][2]
         saldo_maximo = itens_disponiveis[indice][3]
         
         qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(saldo_maximo), step=1.0, value=1.0)
@@ -241,3 +239,5 @@ elif tela == "⚙️ Configurações e Equipe":
                 st.warning("Por favor, digite um nome válido para a posição.")
                 
         st.markdown("---")
+        st.markdown("### 📋 Mapa de Todos os Endereços Cadastrados")
+        df_todos_end = pd.read_sql_query("SELECT posicao as 'Todos os Endereços na Base' FROM enderecos ORDER BY posicao ASC", conexao)

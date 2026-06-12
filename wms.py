@@ -215,6 +215,6 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
             if novo_u and novo_p:
                 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
                 existe_usuario = cursor.fetchone()
+                # CORREÇÃO DEFINITIVA: Desempacota o índice da tupla para ler o número
                 if existe_usuario[0] == 0:
-                    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, funcao_alvo))
 

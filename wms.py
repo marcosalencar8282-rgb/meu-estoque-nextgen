@@ -46,6 +46,22 @@ if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES ('admin', 'admin123', 'Supervisor')")
     conexao.commit()
 
+
+# --- FUNÇÃO AUXILIAR DE CADASTRO (Evita erros de indentação profunda) ---
+def cadastrar_novo_usuario(usuario_nome, usuario_senha, usuario_funcao):
+    try:
+        con = sqlite3.connect("wms_dados_sistema.db")
+        cur = con.cursor()
+        cur.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (usuario_nome, usuario_senha, usuario_funcao))
+        con.commit()
+        con.close()
+        return "SUCESSO"
+    except sqlite3.IntegrityError:
+        return "DUPLICADO"
+    except:
+        return "ERRO"
+
+
 # --- SESSÃO DE AUTENTICAÇÃO (LOGIN) ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -106,7 +122,7 @@ elif nivel_cargo == "Supervisor":
         "⚙️ Gerenciador de Usuários e Posições"
     ]
 
-tela = st.sidebar.radio("Navegação Authorized:", opcoes_menu)
+tela = st.sidebar.radio("Navegação Autorizada:", opcoes_menu)
 st.markdown("---")
 
 # --- TELA 1: ENTRADA E ENDEREÇAMENTO ---
@@ -208,7 +224,7 @@ elif tela == "📋 Posição de Inventário Real":
     with col2:
         st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
         df_livres = pd.read_sql_query("""
-            SELECT posicao as 'Endereço Livre' FROM enderecos WHERE posicao NOT IN (
+            SELECT posicao as 'Endreço Livre' FROM enderecos WHERE posicao NOT IN (
                 SELECT posicao FROM movimentacoes 
                 GROUP BY sku, posicao 
                 HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
@@ -234,14 +250,3 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
             ["Operador", "Separador", "Supervisor"],
             horizontal=True
         )
-        
-        st.markdown(f"**Criando credenciais restritas para o perfil: {funcao_alvo.upper()}**")
-        c_user, c_pass = st.columns(2)
-        with c_user:
-            novo_u = st.text_input("Defina o Usuário / Matrícula:", key="user_adm").strip().lower()
-        with c_pass:
-            novo_p = st.text_input("Defina a Senha de Acesso:", type="password", key="pass_adm").strip()
-            
-        if st.button("Homologar e Salvar Perfil", use_container_width=True):
-            if novo_u and novo_p:
-                try:

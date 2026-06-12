@@ -47,21 +47,6 @@ if cursor.fetchone()[0] == 0:
     conexao.commit()
 
 
-# --- FUNÇÃO AUXILIAR DE CADASTRO (Evita erros de indentação profunda) ---
-def cadastrar_novo_usuario(usuario_nome, usuario_senha, usuario_funcao):
-    try:
-        con = sqlite3.connect("wms_dados_sistema.db")
-        cur = con.cursor()
-        cur.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (usuario_nome, usuario_senha, usuario_funcao))
-        con.commit()
-        con.close()
-        return "SUCESSO"
-    except sqlite3.IntegrityError:
-        return "DUPLICADO"
-    except:
-        return "ERRO"
-
-
 # --- SESSÃO DE AUTENTICAÇÃO (LOGIN) ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -75,8 +60,8 @@ if not st.session_state["logado"]:
     st.write("Insira suas credenciais logísticas corporativas.")
     st.markdown("---")
     
-    u = st.text_input("Usuário / Matrícula:").strip().lower()
-    p = st.text_input("Senha de Acesso:", type="password").strip()
+    u = st.text_input("Usuário / Matrícula:", key="login_usuario").strip().lower()
+    p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
         if u and p:
@@ -140,12 +125,12 @@ if tela == "📥 Entrada e Endereçamento":
     
     c1, c2 = st.columns(2)
     with c1:
-        sku_input = st.text_input("Código SKU do Produto:")
-        nome_prod = st.text_input("Descrição / Nome do Produto:")
+        sku_input = st.text_input("Código SKU do Produto:", key="entrada_sku")
+        nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
     with c2:
-        qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0)
+        qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
         if enderecos_vazios:
-            posicao_estoque = st.selectbox("Selecione um Endereço Vazio Disponível:", enderecos_vazios)
+            posicao_estoque = st.selectbox("Selecione um Endereço Vazio Disponível:", enderecos_vazios, key="entrada_pos")
         else:
             st.error("🚨 Sem posições livres! Solicite ao Supervisor o cadastro de novos endereços.")
             posicao_estoque = None
@@ -177,7 +162,7 @@ elif tela == "📤 Separação e Baixa":
         st.info("Nenhuma mercadoria com saldo disponível no armazém para dar baixa.")
     else:
         opcoes_selecao = [f"SKU: {item[0]} | Item: {item[1]} | Posição: {item[2]} (Saldo: {item[3]})" for item in itens_disponiveis]
-        item_selecionado = st.selectbox("Selecione a carga alvo para o Picking:", opcoes_selecao)
+        item_selecionado = st.selectbox("Selecione a carga alvo para o Picking:", opcoes_selecao, key="baixa_selecao")
         
         indice = opcoes_selecao.index(item_selecionado)
         sku_alvo = itens_disponiveis[indice][0]
@@ -185,7 +170,7 @@ elif tela == "📤 Separação e Baixa":
         posicao_alvo = itens_disponiveis[indice][2]
         saldo_maximo = itens_disponiveis[indice][3]
         
-        qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(saldo_maximo), step=1.0, value=1.0)
+        qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(saldo_maximo), step=1.0, value=1.0, key="baixa_qtd")
         
         if st.button("Confirmar Retirada e Expedição", use_container_width=True):
             data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -224,7 +209,7 @@ elif tela == "📋 Posição de Inventário Real":
     with col2:
         st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
         df_livres = pd.read_sql_query("""
-            SELECT posicao as 'Endreço Livre' FROM enderecos WHERE posicao NOT IN (
+            SELECT posicao as 'Endereço Livre' FROM enderecos WHERE posicao NOT IN (
                 SELECT posicao FROM movimentacoes 
                 GROUP BY sku, posicao 
                 HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
@@ -236,7 +221,7 @@ elif tela == "📋 Posição de Inventário Real":
         else:
             st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
-# --- TELA 4: EXCLUSIVA DO SUPERVISOR (ADMINISTRADOR) ---
+# --- TELA 4: EXCLUSIVA DO SUPERVISOR (ADMINISTRADOR DESTAVADA) ---
 elif tela == "⚙️ Gerenciador de Usuários e Posições":
     st.subheader("⚙️ Painel de Controle e Governança de Acessos")
     
@@ -248,5 +233,13 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
         funcao_alvo = st.radio(
             "Selecione a Função do Login que deseja Criar:",
             ["Operador", "Separador", "Supervisor"],
-            horizontal=True
+            horizontal=True,
+            key="radio_funcao_fixo"
         )
+        
+        st.markdown(f"**Preencha os campos abaixo para criar o login do tipo: {funcao_alvo.upper()}**")
+        
+        c_user, c_pass = st.columns(2)
+        with c_user:
+            novo_u = st.text_input("Defina o Usuário / Matrícula:", key="input_usuario_estavel").strip().lower()
+        with c_pass:

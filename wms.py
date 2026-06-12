@@ -46,7 +46,6 @@ if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES ('admin', 'admin123', 'Supervisor')")
     conexao.commit()
 
-
 # --- SESSÃO DE AUTENTICAÇÃO (LOGIN) ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -123,17 +122,15 @@ if tela == "📥 Entrada e Endereçamento":
     """)
     enderecos_vazios = [item[0] for item in cursor.fetchall()]
     
-    c1, c2 = st.columns(2)
-    with c1:
-        sku_input = st.text_input("Código SKU do Produto:", key="entrada_sku")
-        nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
-    with c2:
-        qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
-        if enderecos_vazios:
-            posicao_estoque = st.selectbox("Selecione um Endereço Vazio Disponível:", enderecos_vazios, key="entrada_pos")
-        else:
-            st.error("🚨 Sem posições livres! Solicite ao Supervisor o cadastro de novos endereços.")
-            posicao_estoque = None
+    sku_input = st.text_input("Código SKU do Produto:", key="entrada_sku")
+    nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
+    qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
+    
+    if enderecos_vazios:
+        posicao_estoque = st.selectbox("Selecione um Endereço Vazio Disponível:", enderecos_vazios, key="entrada_pos")
+    else:
+        st.error("🚨 Sem posições livres! Solicite ao Supervisor o cadastro de novos endereços.")
+        posicao_estoque = None
         
     if st.button("Confirmar Entrada de Material", use_container_width=True) and posicao_estoque:
         if sku_input and nome_prod:
@@ -185,61 +182,63 @@ elif tela == "📤 Separação e Baixa":
 # --- TELA 3: INVENTÁRIO LOGÍSTICO ---
 elif tela == "📋 Posição de Inventário Real":
     st.subheader("📋 Relatório Logístico de Saldos e Ocupação (Kardex)")
-    col1, col2 = st.columns(2)
     
-    with col1:
-        st.markdown("### 🔴 Posições Ocupadas Atualmente")
-        df_ocupado = pd.read_sql_query("""
-            SELECT 
-                sku as 'Código SKU',
-                produto as 'Descrição do Item',
-                posicao as 'Endereço',
-                SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) as 'Saldo'
-            FROM movimentacoes 
+    st.markdown("### 🔴 Posições Ocupadas Atualmente")
+    df_ocupado = pd.read_sql_query("""
+        SELECT 
+            sku as 'Código SKU',
+            produto as 'Descrição do Item',
+            posicao as 'Endereço',
+            SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) as 'Saldo'
+        FROM movimentacoes 
+        GROUP BY sku, posicao 
+        HAVING "Saldo" > 0
+        ORDER BY posicao ASC
+    """, conexao)
+    
+    if df_ocupado.empty:
+        st.info("Nenhum saldo armazenado no momento.")
+    else:
+        st.dataframe(df_ocupado, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
+    df_livres = pd.read_sql_query("""
+        SELECT posicao as 'Endereço Livre' FROM enderecos WHERE posicao NOT IN (
+            SELECT posicao FROM movimentacoes 
             GROUP BY sku, posicao 
-            HAVING "Saldo" > 0
-            ORDER BY posicao ASC
-        """, conexao)
-        
-        if df_ocupado.empty:
-            st.info("Nenhum saldo armazenado no momento.")
-        else:
-            st.dataframe(df_ocupado, use_container_width=True, hide_index=True)
+            HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
+        ) ORDER BY posicao ASC
+    """, conexao)
+    
+    if df_livres.empty:
+        st.warning("Aviso: O armazém não possui nenhuma posição vazia livre.")
+    else:
+        st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
-    with col2:
-        st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
-        df_livres = pd.read_sql_query("""
-            SELECT posicao as 'Endereço Livre' FROM enderecos WHERE posicao NOT IN (
-                SELECT posicao FROM movimentacoes 
-                GROUP BY sku, posicao 
-                HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
-            ) ORDER BY posicao ASC
-        """, conexao)
-        
-        if df_livres.empty:
-            st.warning("Aviso: O armazém não possui nenhuma posição vazia livre.")
-        else:
-            st.dataframe(df_livres, use_container_width=True, hide_index=True)
-
-# --- TELA 4: EXCLUSIVA DO SUPERVISOR (ADMINISTRADOR DESTAVADA) ---
+# --- TELA 4: EXCLUSIVA DO SUPERVISOR (ESTÁVEL E SEM ERROS) ---
 elif tela == "⚙️ Gerenciador de Usuários e Posições":
     st.subheader("⚙️ Painel de Controle e Governança de Acessos")
     
-    aba_usuarios, aba_enderecos = st.tabs(["👥 Criar Logins por Função", "🗺️ Cadastro Estrutural de Endereços"])
+    menu_abas = st.radio("Selecione a ação administrativa:", ["Criar Logins", "Cadastrar Endereços"], horizontal=True)
+    st.markdown("---")
     
-    with aba_usuarios:
-        st.markdown("### 🆕 Cadastro e Controle de Acessos")
+    if menu_abas == "Criar Logins":
+        st.markdown("### 🆕 Cadastro de Acessos por Função")
         
         funcao_alvo = st.radio(
-            "Selecione a Função do Login que deseja Criar:",
+            "Selecione a Função do Perfil:",
             ["Operador", "Separador", "Supervisor"],
             horizontal=True,
             key="radio_funcao_fixo"
         )
         
-        st.markdown(f"**Preencha os campos abaixo para criar o login do tipo: {funcao_alvo.upper()}**")
+        st.markdown(f"**Preencha os campos abaixo para criar o perfil: {funcao_alvo.upper()}**")
         
-        c_user, c_pass = st.columns(2)
-        with c_user:
-            novo_u = st.text_input("Defina o Usuário / Matrícula:", key="input_usuario_estavel").strip().lower()
-        with c_pass:
+        # Caixas estruturadas de forma linear (Removeu de vez o erro do block 'with')
+        novo_u = st.text_input("Defina o Usuário / Matrícula:", key="input_usuario_estavel").strip().lower()
+        novo_p = st.text_input("Defina a Senha de Acesso:", type="password", key="input_senha_estavel").strip()
+        
+        if st.button("Homologar e Salvar Perfil", use_container_width=True, key="btn_salvar_user"):
+            if novo_u and novo_p:
+

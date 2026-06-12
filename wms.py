@@ -237,3 +237,5 @@ elif tela == "👥 Equipe e Acessos":
                 st.success(f"Funcionário {novo_u.upper()} cadastrado com sucesso!")
                 st.rerun()
             except sqlite3.IntegrityError:
+                st.error("Este usuário já se encontra ativo.")
+        else:

@@ -205,16 +205,20 @@ elif tela == "⚙️ Gerenciador de Usuários e Posições":
     st.subheader("⚙️ Painel de Controle e Governança de Acessos")
     menu_abas = st.radio("Selecione a ação administrativa:", ["Criar Logins", "Cadastrar Endereços"], horizontal=True)
     st.markdown("---")
+    
     if menu_abas == "Criar Logins":
         st.markdown("### 🆕 Cadastro de Acessos por Função")
         funcao_alvo = st.radio("Selecione a Função do Perfil:", ["Operador", "Separador", "Supervisor"], horizontal=True, key="radio_funcao_fixo")
-        st.markdown(f"**Preencha os campos abaixo para criar o perfil: {funcao_alvo.upper()}**")
         novo_u = st.text_input("Defina o Usuário / Matrícula:", key="input_usuario_estavel").strip().lower()
         novo_p = st.text_input("Defina a Senha de Acesso:", type="password", key="input_senha_estavel").strip()
+        
         if st.button("Homologar e Salvar Perfil", use_container_width=True, key="btn_salvar_user"):
             if novo_u and novo_p:
-                cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
-                existe_usuario = cursor.fetchone()
-                # CORREÇÃO DEFINITIVA: Desempacota o índice da tupla para ler o número
-                if existe_usuario[0] == 0:
+                try:
+                    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, funcao_alvo))
+                    conexao.commit()
+                    st.success(f"Sucesso! Perfil de **{novo_u.upper()}** cadastrado como **{funcao_alvo}**.")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+
 

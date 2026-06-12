@@ -48,7 +48,7 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
-        if u == "admin" and p == "admin123":
+        if u == "admin" and p == "334409":
             st.session_state["logado"] = True
             st.session_state["usuario_atual"] = "admin"
             st.session_state["cargo_atual"] = "Supervisor"

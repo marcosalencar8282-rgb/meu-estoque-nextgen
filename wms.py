@@ -10,11 +10,10 @@ st.set_page_config(page_title="WMS Logística", layout="wide", page_icon="📦")
 conexao = sqlite3.connect("wms_dados_sistema.db")
 cursor = conexao.cursor()
 
-# Tabela 1: Cadastro Físico de Endereços do Armazém (O Mapa do Galpão)
+# Tabela 1: Cadastro Físico de Endereços do Armazém (Criados por Você)
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS enderecos (
-        posicao TEXT PRIMARY KEY,
-        status TEXT DEFAULT 'Livre'
+        posicao TEXT PRIMARY KEY
     )
 """)
 
@@ -40,14 +39,6 @@ cursor.execute("""
         funcao TEXT
     )
 """)
-
-# --- POPULAR ENDEREÇOS PADRÃO (Caso o armazém esteja iniciando agora) ---
-cursor.execute("SELECT COUNT(*) FROM enderecos")
-if cursor.fetchone()[0] == 0:
-    # Cria automaticamente os corredores A, B e C com posições de 01 a 05
-    posicoes_padrao = [f"{corredor}-{numero:02d}" for corredor in ["A", "B", "C"] for numero in range(1, 6)]
-    cursor.executemany("INSERT INTO enderecos (posicao) VALUES (?)", [(p,) for p in posicoes_padrao])
-    conexao.commit()
 
 # Garante o usuário Administrador padrão no sistema
 cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = 'admin'")
@@ -110,7 +101,7 @@ if nivel_cargo in ["Analista", "Supervisor"]:
     opcoes_menu.insert(1, "📤 Separação e Baixa")
 
 if nivel_cargo == "Supervisor":
-    opcoes_menu.append("👥 Equipe e Acessos")
+    opcoes_menu.append("⚙️ Configurações e Equipe")
 
 tela = st.sidebar.radio("Operações Disponíveis:", opcoes_menu)
 st.markdown("---")
@@ -119,12 +110,13 @@ st.markdown("---")
 if tela == "📥 Entrada e Endereçamento":
     st.subheader("📥 Recebimento e Alocação de Mercadoria")
     
+    # Busca apenas os endereços cadastrados que estão vazios no momento
     cursor.execute("""
         SELECT posicao FROM enderecos WHERE posicao NOT IN (
             SELECT posicao FROM movimentacoes 
             GROUP BY sku, posicao 
             HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
-        )
+        ) ORDER BY posicao ASC
     """)
     enderecos_vazios = [item[0] for item in cursor.fetchall()]
     
@@ -137,7 +129,7 @@ if tela == "📥 Entrada e Endereçamento":
         if enderecos_vazios:
             posicao_estoque = st.selectbox("Selecione um Endereço Vazio Disponível:", enderecos_vazios)
         else:
-            st.error("🚨 Armazém Lotado! Não existem endereços vazios.")
+            st.error("🚨 Sem posições livres! Cadastre novos endereços na tela de Configurações.")
             posicao_estoque = None
         
     if st.button("Confirmar Entrada de Material", use_container_width=True) and posicao_estoque:
@@ -187,7 +179,7 @@ elif tela == "📤 Separação e Baixa":
             st.success(f"Picking concluído! {qtd_retirar} unidades retiradas de {posicao_alvo}.")
             st.rerun()
 
-# --- TELA 3: INVENTÁRIO LOGÍSTICO ---
+# --- TELA 3: INVENTÁRIO LOGÍSTICO (OCUPADOS VS VAZIOS) ---
 elif tela == "📋 Posição de Inventário Real":
     col1, col2 = st.columns(2)
     
@@ -219,25 +211,33 @@ elif tela == "📋 Posição de Inventário Real":
                 HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
             ) ORDER BY posicao ASC
         """, conexao)
-        st.dataframe(df_livres, use_container_width=True, hide_index=True)
-
-# --- TELA 4: GERENCIAMENTO DA EQUIPE ---
-elif tela == "👥 Equipe e Acessos":
-    st.subheader("👥 Cadastro e Controle de Usuários do Armazém")
-    novo_u = st.text_input("Matrícula / Novo Login:").strip().lower()
-    novo_p = st.text_input("Senha:", type="password").strip()
-    nova_f = st.selectbox("Perfil Operacional:", ["Operador", "Analista", "Supervisor"])
-    
-    if st.button("Homologar Novo Colaborador", use_container_width=True):
-        if novo_u and novo_p:
-            try:
-                cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, nova_f))
-                conexao.commit()
-                st.success(f"Funcionário {novo_u.upper()} cadastrado com sucesso!")
-                st.rerun()
-            except sqlite3.IntegrityError:
-                st.error("Este usuário já se encontra ativo.")
+        
+        if df_livres.empty:
+            st.info("Nenhum endereço vazio disponível. Cadastre novos endereços!")
         else:
-            st.warning("Informe o login e a senha.")
-            
-    st.markdown("---")
+            st.dataframe(df_livres, use_container_width=True, hide_index=True)
+
+# --- TELA 4: CONFIGURAÇÕES DO ARMAZÉM E EQUIPE ---
+elif tela == "⚙️ Configurações e Equipe":
+    st.subheader("⚙️ Painel de Controle Administrativo")
+    
+    tab1, tab2 = st.tabs(["🗺️ Cadastrar Endereços", "👥 Gerenciar Equipe"])
+    
+    with tab1:
+        st.markdown("### 🆕 Adicionar Nova Posição no Armazém")
+        novo_endereco = st.text_input("Digite o código do novo endereço (Ex: PREDIO1-A01, PALLET-05):").strip().upper()
+        
+        if st.button("Salvar Nova Posição Estrutural", use_container_width=True):
+            if novo_endereco:
+                try:
+                    cursor.execute("INSERT INTO enderecos (posicao) VALUES (?)", (novo_endereco,))
+                    conexao.commit()
+                    st.success(f"Endereço **{novo_endereco}** adicionado ao mapa do galpão!")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.error("Erro: Esse endereço já está cadastrado no sistema.")
+            else:
+                st.warning("Por favor, digite um nome válido para a posição.")
+                
+        st.markdown("---")
+        st.markdown("### 📋 Mapa de Todos os Endereços Cadastrados")

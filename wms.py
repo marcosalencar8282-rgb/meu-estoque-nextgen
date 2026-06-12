@@ -76,7 +76,6 @@ if not st.session_state["logado"]:
             cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
             dados_usuario = cursor.fetchone()
             
-            # CORREÇÃO: dados_usuario[0] extrai apenas a senha do banco para validar
             if dados_usuario and dados_usuario[0] == p:
                 st.session_state["logado"] = True
                 st.session_state["usuario_atual"] = u
@@ -120,7 +119,6 @@ st.markdown("---")
 if tela == "📥 Entrada e Endereçamento":
     st.subheader("📥 Recebimento e Alocação de Mercadoria")
     
-    # Busca apenas endereços que existem e não possuem saldo positivo atual
     cursor.execute("""
         SELECT posicao FROM enderecos WHERE posicao NOT IN (
             SELECT posicao FROM movimentacoes 
@@ -150,7 +148,7 @@ if tela == "📥 Entrada e Endereçamento":
                 VALUES (?, ?, ?, ?, ?, 'ENTRADA', ?)
             """, (data_hoje, sku_input, nome_prod, qtd_input, posicao_estoque, st.session_state["usuario_atual"]))
             conexao.commit()
-            st.success(f"Sucesso! {qtd_input} unidades do SKU {sku_input} foram alocadas em {posicao_estoque}.")
+            st.success(f"Sucesso! {qtd_input} unidades foram alocadas em {posicao_estoque}.")
             st.rerun()
         else:
             st.warning("Preencha os dados do produto para registrar.")
@@ -171,7 +169,6 @@ elif tela == "📤 Separação e Baixa":
         opcoes_selecao = [f"SKU: {item[0]} | Item: {item[1]} | Posição: {item[2]} (Saldo: {item[3]})" for item in itens_disponiveis]
         item_selecionado = st.selectbox("Selecione a carga alvo para o Picking:", opcoes_selecao)
         
-        # CORREÇÃO: Resgata e desempacota os índices da tupla corretamente para evitar falhas na consulta
         indice = opcoes_selecao.index(item_selecionado)
         sku_alvo = itens_disponiveis[indice][0]
         nome_alvo = itens_disponiveis[indice][1]
@@ -237,3 +234,10 @@ elif tela == "👥 Equipe e Acessos":
                 cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, nova_f))
                 conexao.commit()
                 st.success(f"Funcionário {novo_u.upper()} cadastrado com sucesso!")
+                st.rerun()
+            except sqlite3.IntegrityError:
+                st.error("Este usuário já se encontra ativo.")
+        else:
+            st.warning("Informe o login e a senha.")
+            
+    st.markdown("---")

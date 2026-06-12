@@ -26,27 +26,12 @@ cursor.execute("""
         produto TEXT,
         quantidade REAL,
         posicao TEXT,
-        tipo_movimentacao TEXT,
-        responsavel TEXT
+        tipo_movimentacao TEXT
     )
 """)
+conexao.commit()
 
-# Tabela 3: Controle de Usuários
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS usuarios (
-        usuario TEXT PRIMARY KEY,
-        senha TEXT,
-        funcao TEXT
-    )
-""")
-
-# Garante o usuário Administrador (Supervisor) padrão no sistema
-cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = 'admin'")
-if cursor.fetchone()[0] == 0:
-    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES ('admin', 'admin123', 'Supervisor')")
-    conexao.commit()
-
-# --- SESSÃO DE AUTENTICAÇÃO (LOGIN) ---
+# --- SESSÃO DE AUTENTICAÇÃO (LOGIN FIXO SEGURO) ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "usuario_atual" not in st.session_state:
@@ -56,28 +41,31 @@ if "cargo_atual" not in st.session_state:
 
 if not st.session_state["logado"]:
     st.title("🔑 PORTAL DE ACESSO | WMS LOGÍSTICA")
-    st.write("Insira suas credenciais logísticas corporativas.")
+    st.write("Insira suas credenciais logísticas corporativas para acessar o armazém.")
     st.markdown("---")
+    
     u = st.text_input("Usuário / Matrícula:", key="login_usuario").strip().lower()
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
+    
     if st.button("Autenticar no Sistema", use_container_width=True):
-        if u and p:
-            cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
-            dados_usuario = cursor.fetchone()
-            if dados_usuario and dados_usuario[0] == p:
-                st.session_state["logado"] = True
-                st.session_state["usuario_atual"] = u
-                st.session_state["cargo_atual"] = str(dados_usuario[1]).strip()
-                st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos.")
+        # Validação direta por perfis fixos (Elimina erros de banco de dados e travamentos)
+        if u == "admin" and p == "admin123":
+            st.session_state["logado"] = True
+            st.session_state["usuario_atual"] = "admin"
+            st.session_state["cargo_atual"] = "Supervisor"
+            st.rerun()
+        elif u == "operador" and p == "operador123":
+            st.session_state["logado"] = True
+            st.session_state["usuario_atual"] = "operador"
+            st.session_state["cargo_atual"] = "Operador"
+            st.rerun()
         else:
-            st.warning("Por favor, preencha todos os campos de login.")
+            st.error("Usuário ou senha incorretos.")
     st.stop()
 
 # --- PAINEL DO USUÁRIO LOGADO ---
 st.title("📦 SISTEMA DE GESTÃO DE ESTOQUE | WMS")
-st.write(f"👤 Conectado: **{st.session_state['usuario_atual'].upper()}** | Função Operacional: **{st.session_state['cargo_atual'].upper()}**")
+st.write(f"👤 Conectado: **{st.session_state['usuario_atual'].upper()}** | Perfil: **{st.session_state['cargo_atual'].upper()}**")
 
 if st.button("🚪 Encerrar Turno (Sair)"):
     st.session_state["logado"] = False
@@ -88,27 +76,29 @@ if st.button("🚪 Encerrar Turno (Sair)"):
 st.markdown("---")
 
 # --- CONSTRUÇÃO DO MENU CONFORME PERMISSÕES ---
-nivel_cargo = st.session_state["cargo_atual"]
-opcoes_menu = []
+cargo_do_usuario = st.session_state["cargo_atual"]
 
-if nivel_cargo == "Operador":
-    opcoes_menu = ["📥 Entrada e Endereçamento"]
-elif nivel_cargo == "Separador":
-    opcoes_menu = ["📤 Separação e Baixa"]
-elif nivel_cargo == "Supervisor":
+# Operadores comuns só veem movimentação, o admin (Supervisor) vê as configurações e o relatório
+if cargo_do_usuario == "Supervisor":
     opcoes_menu = [
         "📥 Entrada e Endereçamento", 
         "📤 Separação e Baixa", 
-        "📋 Posição de Inventário Real", 
-        "⚙️ Gerenciador de Usuários e Posições"
+        "📋 Posição de Inventário Real",
+        "🗺️ Cadastrar Novos Endereços"
+    ]
+else:
+    opcoes_menu = [
+        "📥 Entrada e Endereçamento", 
+        "📤 Separação e Baixa"
     ]
 
-tela = st.sidebar.radio("Navegação Autorizada:", opcoes_menu)
+tela = st.sidebar.radio("Navegação Operacional:", opcoes_menu)
 st.markdown("---")
 
 # --- TELA 1: ENTRADA E ENDEREÇAMENTO ---
 if tela == "📥 Entrada e Endereçamento":
     st.subheader("📥 Recebimento e Alocação de Mercadoria")
+    
     cursor.execute("""
         SELECT posicao FROM enderecos WHERE posicao NOT IN (
             SELECT posicao FROM movimentacoes 
@@ -116,22 +106,25 @@ if tela == "📥 Entrada e Endereçamento":
             HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
         ) ORDER BY posicao ASC
     """)
-    enderecos_vazios = [item[0] for item in cursor.fetchall()]
+    enderecos_vazios = [item for item in cursor.fetchall()]
+    
     sku_input = st.text_input("Código SKU do Produto:", key="entrada_sku")
     nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
     qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
+    
     if enderecos_vazios:
         posicao_estoque = st.selectbox("Selecione um Endereço Vazio Disponível:", enderecos_vazios, key="entrada_pos")
     else:
-        st.error("🚨 Sem posições livres! Solicite ao Supervisor o cadastro de novos endereços.")
+        st.error("🚨 Sem posições livres no mapa! Solicite ao Administrador o cadastro de novos endereços.")
         posicao_estoque = None
+        
     if st.button("Confirmar Entrada de Material", use_container_width=True) and posicao_estoque:
         if sku_input and nome_prod:
             data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
             cursor.execute("""
-                INSERT INTO movimentacoes (data_registro, sku, produto, quantidade, posicao, tipo_movimentacao, responsavel)
-                VALUES (?, ?, ?, ?, ?, 'ENTRADA', ?)
-            """, (data_hoje, sku_input, nome_prod, qtd_input, posicao_estoque, st.session_state["usuario_atual"]))
+                INSERT INTO movimentacoes (data_registro, sku, produto, quantidade, posicao, tipo_movimentacao)
+                VALUES (?, ?, ?, ?, ?, 'ENTRADA')
+            """, (data_hoje, sku_input, nome_prod, qtd_input, posicao_estoque))
             conexao.commit()
             st.success(f"Sucesso! {qtd_input} unidades alocadas na posição {posicao_estoque}.")
             st.rerun()
@@ -141,35 +134,41 @@ if tela == "📥 Entrada e Endereçamento":
 # --- TELA 2: SEPARAÇÃO / PICKING ---
 elif tela == "📤 Separação e Baixa":
     st.subheader("📤 Processar Separação de Pedidos (Picking)")
+    
     cursor.execute("""
         SELECT sku, produto, posicao, SUM(CASE WHEN tipo_movimentacao='ENTRADA' THEN quantidade ELSE -quantidade END) as saldo 
         FROM movimentacoes GROUP BY sku, posicao HAVING saldo > 0
     """)
     itens_disponiveis = cursor.fetchall()
+    
     if not itens_disponiveis:
         st.info("Nenhuma mercadoria com saldo disponível no armazém para dar baixa.")
     else:
-        opcoes_selecao = [f"SKU: {item[0]} | Item: {item[1]} | Posição: {item[2]} (Saldo: {item[3]})" for item in itens_disponiveis]
+        opcoes_selecao = [f"SKU: {item} | Item: {item} | Posição: {item} (Saldo: {int(item)})" for item in itens_disponiveis]
         item_selecionado = st.selectbox("Selecione a carga alvo para o Picking:", opcoes_selecao, key="baixa_selecao")
+        
         indice = opcoes_selecao.index(item_selecionado)
-        sku_alvo = itens_disponiveis[indice][0]
-        nome_alvo = itens_disponiveis[indice][1]
-        posicao_alvo = itens_disponiveis[indice][2]
-        saldo_maximo = itens_disponiveis[indice][3]
+        sku_alvo = itens_disponiveis[indice]
+        nome_alvo = itens_disponiveis[indice]
+        posicao_alvo = itens_disponiveis[indice]
+        saldo_maximo = itens_disponiveis[indice]
+        
         qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(saldo_maximo), step=1.0, value=1.0, key="baixa_qtd")
+        
         if st.button("Confirmar Retirada e Expedição", use_container_width=True):
             data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
             cursor.execute("""
-                INSERT INTO movimentacoes (data_registro, sku, produto, quantidade, posicao, tipo_movimentacao, responsavel)
-                VALUES (?, ?, ?, ?, ?, 'SAÍDA', ?)
-            """, (data_hoje, sku_alvo, nome_alvo, qtd_retirar, posicao_alvo, st.session_state["usuario_atual"]))
+                INSERT INTO movimentacoes (data_registro, sku, produto, quantidade, posicao, tipo_movimentacao)
+                VALUES (?, ?, ?, ?, ?, 'SAÍDA')
+            """, (data_hoje, sku_alvo, nome_alvo, qtd_retirar, posicao_alvo))
             conexao.commit()
             st.success(f"Picking concluído! {qtd_retirar} unidades retiradas de {posicao_alvo}.")
             st.rerun()
 
-# --- TELA 3: INVENTÁRIO LOGÍSTICO ---
+# --- TELA 3: INVENTÁRIO LOGÍSTICO (APENAS ADMINISTRADOR) ---
 elif tela == "📋 Posição de Inventário Real":
     st.subheader("📋 Relatório Logístico de Saldos e Ocupação (Kardex)")
+    
     st.markdown("### 🔴 Posições Ocupadas Atualmente")
     df_ocupado = pd.read_sql_query("""
         SELECT 
@@ -182,10 +181,12 @@ elif tela == "📋 Posição de Inventário Real":
         HAVING "Saldo" > 0
         ORDER BY posicao ASC
     """, conexao)
+    
     if df_ocupado.empty:
         st.info("Nenhum saldo armazenado no momento.")
     else:
         st.dataframe(df_ocupado, use_container_width=True, hide_index=True)
+
     st.markdown("---")
     st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
     df_livres = pd.read_sql_query("""
@@ -195,28 +196,41 @@ elif tela == "📋 Posição de Inventário Real":
             HAVING SUM(CASE WHEN tipo_movimentacao = 'ENTRADA' THEN quantidade ELSE -quantidade END) > 0
         ) ORDER BY posicao ASC
     """, conexao)
+    
     if df_livres.empty:
-        st.warning("Aviso: O armazém não possui nenhuma posição vazia livre.")
+        st.warning("Aviso: O armazém não possui nenhuma posição vazia livre no mapa atual.")
     else:
         st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
-# --- TELA 4: EXCLUSIVA DO SUPERVISOR (ESTRUTURA HORIZONTAL BLINDADA) ---
-elif tela == "⚙️ Gerenciador de Usuários e Posições":
-    st.subheader("⚙️ Painel de Controle e Governança de Acessos")
-    menu_abas = st.radio("Selecione a ação administrativa:", ["Criar Logins", "Cadastrar Endereços"], horizontal=True)
-    st.markdown("---")
+# --- TELA 4: CADASTRO E MAPEAMENTO DE ENDEREÇOS (APENAS ADMINISTRADOR) ---
+elif tela == "🗺️ Cadastrar Novos Endereços":
+    st.subheader("🗺️ Mapeamento e Cadastro Estrutural de Endereços")
     
-    if menu_abas == "Criar Logins":
-        st.markdown("### 🆕 Cadastro de Acessos por Função")
-        funcao_alvo = st.radio("Selecione a Função:", ["Operador", "Separador", "Supervisor"], horizontal=True, key="radio_funcao_fixo")
-        novo_u = st.text_input("Defina o Usuário / Matrícula:", key="input_usuario_estavel").strip().lower()
-        novo_p = st.text_input("Defina a Senha de Acesso:", type="password", key="input_senha_estavel").strip()
-        
-        if st.button("Homologar e Salvar Perfil", use_container_width=True, key="btn_salvar_user"):
-            if novo_u and novo_p:
-                cursor.execute("SELECT COUNT(*) FROM usuarios WHERE usuario = ?", (novo_u,))
-                if cursor.fetchone()[0] == 0:
-                    cursor.execute("INSERT INTO usuarios (usuario, senha, funcao) VALUES (?, ?, ?)", (novo_u, novo_p, funcao_alvo))
-                    conexao.commit()
+    st.markdown("### 🆕 Adicionar Nova Posição Física no Galpão")
+    novo_endereco = st.text_input("Código da Posição (Ex: BOX-01, PRATELEIRA-A, PALLET-10):", key="end_input").strip().upper()
+    
+    if st.button("Salvar Nova Posição Fisiográfica", use_container_width=True, key="btn_salvar_endereco"):
+        if novo_endereco:
+            cursor.execute("SELECT COUNT(*) FROM enderecos WHERE posicao = ?")
+            # Correção para o banco plano
+            cursor.execute("SELECT COUNT(*) FROM enderecos WHERE posicao = ?", (novo_endereco,))
+            resultado = cursor.fetchone()
+            
+            if resultado == 0:
+                cursor.execute("INSERT INTO enderecos (posicao) VALUES (?)", (novo_endereco,))
+                conexao.commit()
+                st.success(f"Sucesso! Endereço **{novo_endereco}** adicionado à malha do galpão.")
+                st.rerun()
+            else:
+                st.error("Erro: Este endereço já existe na base de dados.")
+        else:
+            st.warning("Digite um código válido para a posição.")
+            
+    st.markdown("---")
+    st.markdown("### 📋 Mapa Geral de Todos os Endereços Cadastrados")
+    df_todos_end = pd.read_sql_query("SELECT posicao as 'Todos os Endereços Cadastrados' FROM enderecos ORDER BY posicao ASC", conexao)
+    st.dataframe(df_todos_end, use_container_width=True, hide_index=True)
+
+conexao.close()
 
 

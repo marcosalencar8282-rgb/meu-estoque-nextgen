@@ -10,7 +10,7 @@ st.set_page_config(page_title="WMS Logística", layout="wide", page_icon="📦")
 conexao = sqlite3.connect("wms_dados_sistema.db")
 cursor = conexao.cursor()
 
-# Tabela 1: Cadastro Físico de Endereços do Armazém (Criados por Você)
+# Tabela 1: Cadastro Físico de Endereços do Armazém
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS enderecos (
         posicao TEXT PRIMARY KEY
@@ -67,7 +67,8 @@ if not st.session_state["logado"]:
             cursor.execute("SELECT senha, funcao FROM usuarios WHERE usuario = ?", (u,))
             dados_usuario = cursor.fetchone()
             
-            if dados_usuario and dados_usuario[0] == p:
+            # CORREÇÃO: dados_usuario[0] pega a senha e dados_usuario[1] pega o cargo limpando espaços
+            if dados_usuario and str(dados_usuario[0]).strip() == p:
                 st.session_state["logado"] = True
                 st.session_state["usuario_atual"] = u
                 st.session_state["cargo_atual"] = str(dados_usuario[1]).strip()
@@ -94,6 +95,7 @@ st.markdown("---")
 nivel_cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📋 Posição de Inventário Real"]
 
+# CORREÇÃO: Validação exata dos cargos sem interferência de formatos do banco
 if nivel_cargo in ["Operador", "Supervisor"]:
     opcoes_menu.insert(0, "📥 Entrada e Endereçamento")
 
@@ -163,7 +165,7 @@ elif tela == "📤 Separação e Baixa":
         indice = opcoes_selecao.index(item_selecionado)
         sku_alvo = itens_disponiveis[indice][0]
         nome_alvo = itens_disponiveis[indice][1]
-        posicao_alvo = itens_disponiveis[indice][2]
+        posicao_alvo = itens_disvisiveis[indice][2]
         saldo_maximo = itens_disponiveis[indice][3]
         
         qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(saldo_maximo), step=1.0, value=1.0)
@@ -178,7 +180,7 @@ elif tela == "📤 Separação e Baixa":
             st.success(f"Picking concluído! {qtd_retirar} unidades retiradas de {posicao_alvo}.")
             st.rerun()
 
-# --- TELA 3: INVENTÁRIO LOGÍSTICO (OCUPADOS VS VAZIOS) ---
+# --- TELA 3: INVENTÁRIO LOGÍSTICO ---
 elif tela == "📋 Posição de Inventário Real":
     col1, col2 = st.columns(2)
     
@@ -239,4 +241,3 @@ elif tela == "⚙️ Configurações e Equipe":
                 st.warning("Por favor, digite um nome válido para a posição.")
                 
         st.markdown("---")
-        st.markdown("### 📋 Mapa de Todos os Endereços Cadastrados")

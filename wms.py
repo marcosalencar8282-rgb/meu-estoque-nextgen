@@ -39,12 +39,16 @@ if not st.session_state["logado"]:
         # Busca usuário no banco em nuvem
         resposta = conn.table("usuarios").select("senha_hash, cargo").eq("usuario", u).execute()
         
-        if resposta.data and verificar_senha(p, resposta.data[0]["senha_hash"]):
-            st.session_state["logado"] = True
-            st.session_state["usuario_atual"] = u
-            st.session_state["cargo_atual"] = resposta.data[0]["cargo"]
-            st.success("Autenticado com sucesso!")
-            st.rerun()
+        if resposta.data and len(resposta.data) > 0:
+            dados_usuario = resposta.data[0]
+            if verificar_senha(p, dados_usuario["senha_hash"]):
+                st.session_state["logado"] = True
+                st.session_state["usuario_atual"] = u
+                st.session_state["cargo_atual"] = dados_usuario["cargo"]
+                st.success("Autenticado com sucesso!")
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
         else:
             st.error("Usuário ou senha incorretos.")
     st.stop()
@@ -187,17 +191,16 @@ elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Super
     else:
         st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
-Usuário / Matrícula:", key="new_user").strip().lower()
-        nova_senha = st.text_input("Senha Inicial:", type="password", key="new_pass").strip()
-        novo_cargo = st.selectbox("Cargo / Nível de Acesso:", ["Operador", "Supervisor"])
-        
-        if st.button("Criar Conta Corporativa", use_container_width=True):
-            if novo_user and nova_senha:
-                hash_criada = gerar_senha_hash(nova_senha)
-                conn.table("usuarios").insert({"usuario": novo_user, "senha_hash": hash_criada, "cargo": novo_cargo}).execute()
-                st.success(f"Usuário '{novo_user}' criado com perfil de {novo_cargo}!")
-            else:
-                st.warning("Preencha todos os campos cadastrais.")
+# --- TELA 4: HISTÓRICO DE AUDITORIA ---
+elif tela == "🕵️ Histórico de Auditoria" and cargo_do_usuario == "Supervisor":
+    st.subheader("🕵️ Linha do Tempo e Log de Auditoria")
+    
+    logs = conn.table("movimentacoes").select("data_registro, usuario, tipo_movimentacao, sku, produto, quantidade, posicao").execute().data
+    df_logs = pd.DataFrame(logs)
+    
+    if df_logs.empty:
+        st.info("Nenhuma movimentação registrada no histórico.")
+    else:
 
 
 

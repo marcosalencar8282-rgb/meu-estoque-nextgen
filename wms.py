@@ -1,34 +1,49 @@
 import streamlit as st
 from datetime import datetime
 import pandas as pd
-import bcrypt
 import io
+import hashlib
 import hmac
+import json
+import urllib.request
 
 # Configuração da página profissional e responsiva
 st.set_page_config(page_title="WMS Logística Pro", layout="wide", page_icon="📦")
 
-# --- CONEXÃO DIRETAMENTE NATIVA COM O BANCO DE DADOS EM NUVEM ---
-# Esta estrutura elimina a necessidade de instalar bibliotecas externas de conexão
-@st.cache_resource
-def iniciar_banco_nuvem():
+# --- CONEXÃO HTTP NATIVA COM O SUPABASE ---
+def requisicao_supabase(tabela, metodo="GET", dados=None, filtros=None):
     try:
-        from supabase import create_client
-        url = st.secrets["connections"]["supabase"]["SUPABASE_URL"]
-        key = st.secrets["connections"]["supabase"]["SUPABASE_KEY"]
-        return create_client(url, key)
-    except Exception:
-        # Fallback de segurança para evitar travamento do script em carregamentos parciais
-        return None
+        url_base = st.secrets["connections"]["supabase"]["SUPABASE_URL"]
+        chave = st.secrets["connections"]["supabase"]["SUPABASE_KEY"]
+        
+        url = f"{url_base}/rest/v1/{tabela}"
+        if filtros:
+            url += f"?{filtros}"
+            
+        req = urllib.request.Request(url)
+        req.add_header("apikey", chave)
+        req.add_header("Authorization", f"Bearer {chave}")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Prefer", "return=representation")
+        req.method = metodo
+        
+        corpo = None
+        if dados:
+            corpo = json.dumps(dados).encode("utf-8")
+            
+        with urllib.request.urlopen(req, data=corpo) as resposta:
+            return json.loads(resposta.read().decode("utf-8"))
+    except Exception as e:
+        return []
 
-client_db = iniciar_banco_nuvem()
-
-# --- FUNÇÕES DE SEGURANÇA E USUÁRIO ---
+# --- FUNÇÕES DE SEGURANÇA NATIVAS (SEM BCRYPT) ---
 def gerar_senha_hash(senha):
-    return bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    # Usa SHA256 nativo com um salt fixo para segurança básica comercial
+    salt = b"wms_logistica_secret_salt_2024"
+    return hmac.new(salt, senha.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def verificar_senha(senha, senha_hash):
-    return bcrypt.checkpw(senha.encode('utf-8'), senha_hash.encode('utf-8'))
+    return hmac.compare_digest(gerar_senha_hash(senha), senha_hash)
 
 # --- SESSÃO DE AUTENTICAÇÃO ---
 if "logado" not in st.session_state:
@@ -37,6 +52,13 @@ if "usuario_atual" not in st.session_state:
     st.session_state["usuario_atual"] = ""
 if "cargo_atual" not in st.session_state:
     st.session_state["cargo_atual"] = ""
+
+# Verifica se os Secrets do banco estão configurados
+try:
+    url_teste = st.secrets["connections"]["supabase"]["SUPABASE_URL"]
+    banco_configurado = True
+except Exception:
+    banco_configurado = False
 
 if not st.session_state["logado"]:
     st.title("🔑 PORTAL DE ACESSO | WMS LOGÍSTICA")
@@ -47,14 +69,14 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
-        if client_db:
-            resposta = client_db.table("usuarios").select("senha_hash, cargo").eq("usuario", u).execute()
-            if resposta.data and len(resposta.data) > 0:
-                dados_usuario = resposta.data[0]
-                if verificar_senha(p, dados_usuario["senha_hash"]):
+        if banco_configurado:
+            dados_banco = requisicao_supabase("usuarios", "GET", filtros=f"usuario=eq.{u}")
+            if dados_banco and len(dados_banco) > 0:
+                user_info = dados_banco[0]
+                if verificar_senha(p, user_info["senha_hash"]):
                     st.session_state["logado"] = True
                     st.session_state["usuario_atual"] = u
-                    st.session_state["cargo_atual"] = dados_usuario["cargo"]
+                    st.session_state["cargo_atual"] = user_info["cargo"]
                     st.success("Autenticado com sucesso!")
                     st.rerun()
                 else:
@@ -62,14 +84,14 @@ if not st.session_state["logado"]:
             else:
                 st.error("Usuário ou senha incorretos.")
         else:
-            # Caso os secrets ainda não estejam configurados, permite login de teste administrador
+            # Modo de testes offline caso os secrets não estejam prontos no Streamlit Cloud
             if u == "admin" and p == "334409":
                 st.session_state["logado"] = True
                 st.session_state["usuario_atual"] = "admin"
                 st.session_state["cargo_atual"] = "Supervisor"
                 st.rerun()
             else:
-                st.error("Erro de conexão com o banco de dados. Verifique os Secrets.")
+                st.error("Credenciais inválidas ou erro de banco.")
     st.stop()
 
 # --- PAINEL DO USUÁRIO LOGADO ---
@@ -92,8 +114,8 @@ if cargo_do_usuario == "Supervisor":
 tela = st.sidebar.radio("Navegação Operacional:", opcoes_menu)
 st.markdown("---")
 
-if not client_db:
-    st.warning("⚠️ O sistema está rodando em modo de demonstração local. Configure as credenciais do Supabase nos Secrets para ativar o banco de dados em nuvem.")
+if not banco_configurado:
+    st.warning("⚠️ O sistema está rodando em modo de demonstração local. Configure as credenciais do Supabase nas configurações de Secrets do Streamlit Cloud.")
     st.stop()
 
 # --- TELA 1: ENTRADA E ENDEREÇAMENTO ---
@@ -104,8 +126,8 @@ if tela == "📥 Entrada e Endereçamento":
     nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
     qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
     
-    todos_enderecos = client_db.table("enderecos").select("posicao").execute().data
-    movimentacoes = client_db.table("movimentacoes").select("posicao, tipo_movimentacao, quantidade").execute().data
+    todos_enderecos = requisicao_supabase("enderecos", "GET")
+    movimentacoes = requisicao_supabase("movimentacoes", "GET")
     
     df_mov = pd.DataFrame(movimentacoes)
     if not df_mov.empty:
@@ -126,11 +148,12 @@ if tela == "📥 Entrada e Endereçamento":
     if st.button("Confirmar Entrada de Material", use_container_width=True) and posicao_estoque:
         if sku_input and nome_prod:
             data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-            client_db.table("movimentacoes").insert({
+            novo_registro = {
                 "data_registro": data_hoje, "sku": sku_input, "produto": nome_prod,
                 "quantidade": qtd_input, "posicao": posicao_estoque, "tipo_movimentacao": "ENTRADA",
                 "usuario": st.session_state["usuario_atual"]
-            }).execute()
+            }
+            requisicao_supabase("movimentacoes", "POST", dados=novo_registro)
             st.success(f"Sucesso! {qtd_input} unidades alocadas na posição {posicao_estoque}.")
             st.rerun()
         else:
@@ -140,7 +163,7 @@ if tela == "📥 Entrada e Endereçamento":
 elif tela == "📤 Separação e Baixa":
     st.subheader("📤 Processar Separação de Pedidos (Picking)")
     
-    movimentacoes = client_db.table("movimentacoes").select("sku, produto, posicao, tipo_movimentacao, quantidade").execute().data
+    movimentacoes = requisicao_supabase("movimentacoes", "GET")
     df_mov = pd.DataFrame(movimentacoes)
     
     if df_mov.empty:
@@ -163,11 +186,12 @@ elif tela == "📤 Separação e Baixa":
             
             if st.button("Confirmar Retirada e Expedição", use_container_width=True):
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-                client_db.table("movimentacoes").insert({
+                nova_saida = {
                     "data_registro": data_hoje, "sku": alvo['sku'], "produto": alvo['produto'],
                     "quantidade": qtd_retirar, "posicao": alvo['posicao'], "tipo_movimentacao": "SAÍDA",
                     "usuario": st.session_state["usuario_atual"]
-                }).execute()
+                }
+                requisicao_supabase("movimentacoes", "POST", dados=nova_saida)
                 st.success(f"Picking concluído! {qtd_retirar} unidades retiradas de {alvo['posicao']}.")
                 st.rerun()
 
@@ -175,7 +199,7 @@ elif tela == "📤 Separação e Baixa":
 elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Supervisor":
     st.subheader("📋 Relatório Logístico de Saldos e Ocupação (Kardex)")
     
-    movimentacoes = client_db.table("movimentacoes").select("sku, produto, posicao, tipo_movimentacao, quantidade").execute().data
+    movimentacoes = requisicao_supabase("movimentacoes", "GET")
     df_mov = pd.DataFrame(movimentacoes)
     
     if df_mov.empty:
@@ -189,21 +213,6 @@ elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Super
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_ocupado.to_excel(writer, index=False, sheet_name='Inventario Real')
-    buffer.seek(0)
-    
-    st.download_button(
-        label="📥 Baixar Inventário em Excel (.xlsx)", data=buffer,
-        file_name=f"inventario_wms_{datetime.now().strftime('%Y%m%d')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
-    )
-    
-    st.markdown("### 🔴 Posições Ocupadas Atualmente")
-    if df_ocupado.empty:
-        st.info("Nenhum saldo armazenado no momento.")
-    else:
-        st.dataframe(df_ocupado, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
 
 
 

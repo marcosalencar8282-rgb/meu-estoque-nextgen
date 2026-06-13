@@ -1,15 +1,27 @@
 import streamlit as st
-from st_supabase_connection import SupabaseConnection
 from datetime import datetime
 import pandas as pd
 import bcrypt
 import io
+import hmac
 
 # Configuração da página profissional e responsiva
 st.set_page_config(page_title="WMS Logística Pro", layout="wide", page_icon="📦")
 
-# --- CONEXÃO COM O BANCO DE DADOS EM NUVEM ---
-conn = st.connection("supabase", type=SupabaseConnection)
+# --- CONEXÃO DIRETAMENTE NATIVA COM O BANCO DE DADOS EM NUVEM ---
+# Esta estrutura elimina a necessidade de instalar bibliotecas externas de conexão
+@st.cache_resource
+def iniciar_banco_nuvem():
+    try:
+        from supabase import create_client
+        url = st.secrets["connections"]["supabase"]["SUPABASE_URL"]
+        key = st.secrets["connections"]["supabase"]["SUPABASE_KEY"]
+        return create_client(url, key)
+    except Exception:
+        # Fallback de segurança para evitar travamento do script em carregamentos parciais
+        return None
+
+client_db = iniciar_banco_nuvem()
 
 # --- FUNÇÕES DE SEGURANÇA E USUÁRIO ---
 def gerar_senha_hash(senha):
@@ -35,20 +47,29 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
-        resposta = conn.table("usuarios").select("senha_hash, cargo").eq("usuario", u).execute()
-        
-        if resposta.data and len(resposta.data) > 0:
-            dados_usuario = resposta.data
-            if verificar_senha(p, dados_usuario["senha_hash"]):
-                st.session_state["logado"] = True
-                st.session_state["usuario_atual"] = u
-                st.session_state["cargo_atual"] = dados_usuario["cargo"]
-                st.success("Autenticado com sucesso!")
-                st.rerun()
+        if client_db:
+            resposta = client_db.table("usuarios").select("senha_hash, cargo").eq("usuario", u).execute()
+            if resposta.data and len(resposta.data) > 0:
+                dados_usuario = resposta.data[0]
+                if verificar_senha(p, dados_usuario["senha_hash"]):
+                    st.session_state["logado"] = True
+                    st.session_state["usuario_atual"] = u
+                    st.session_state["cargo_atual"] = dados_usuario["cargo"]
+                    st.success("Autenticado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
             else:
                 st.error("Usuário ou senha incorretos.")
         else:
-            st.error("Usuário ou senha incorretos.")
+            # Caso os secrets ainda não estejam configurados, permite login de teste administrador
+            if u == "admin" and p == "334409":
+                st.session_state["logado"] = True
+                st.session_state["usuario_atual"] = "admin"
+                st.session_state["cargo_atual"] = "Supervisor"
+                st.rerun()
+            else:
+                st.error("Erro de conexão com o banco de dados. Verifique os Secrets.")
     st.stop()
 
 # --- PAINEL DO USUÁRIO LOGADO ---
@@ -71,6 +92,10 @@ if cargo_do_usuario == "Supervisor":
 tela = st.sidebar.radio("Navegação Operacional:", opcoes_menu)
 st.markdown("---")
 
+if not client_db:
+    st.warning("⚠️ O sistema está rodando em modo de demonstração local. Configure as credenciais do Supabase nos Secrets para ativar o banco de dados em nuvem.")
+    st.stop()
+
 # --- TELA 1: ENTRADA E ENDEREÇAMENTO ---
 if tela == "📥 Entrada e Endereçamento":
     st.subheader("📥 Recebimento e Alocação de Mercadoria")
@@ -79,8 +104,8 @@ if tela == "📥 Entrada e Endereçamento":
     nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
     qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
     
-    todos_enderecos = conn.table("enderecos").select("posicao").execute().data
-    movimentacoes = conn.table("movimentacoes").select("posicao, tipo_movimentacao, quantidade").execute().data
+    todos_enderecos = client_db.table("enderecos").select("posicao").execute().data
+    movimentacoes = client_db.table("movimentacoes").select("posicao, tipo_movimentacao, quantidade").execute().data
     
     df_mov = pd.DataFrame(movimentacoes)
     if not df_mov.empty:
@@ -101,7 +126,7 @@ if tela == "📥 Entrada e Endereçamento":
     if st.button("Confirmar Entrada de Material", use_container_width=True) and posicao_estoque:
         if sku_input and nome_prod:
             data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-            conn.table("movimentacoes").insert({
+            client_db.table("movimentacoes").insert({
                 "data_registro": data_hoje, "sku": sku_input, "produto": nome_prod,
                 "quantidade": qtd_input, "posicao": posicao_estoque, "tipo_movimentacao": "ENTRADA",
                 "usuario": st.session_state["usuario_atual"]
@@ -115,7 +140,7 @@ if tela == "📥 Entrada e Endereçamento":
 elif tela == "📤 Separação e Baixa":
     st.subheader("📤 Processar Separação de Pedidos (Picking)")
     
-    movimentacoes = conn.table("movimentacoes").select("sku, produto, posicao, tipo_movimentacao, quantidade").execute().data
+    movimentacoes = client_db.table("movimentacoes").select("sku, produto, posicao, tipo_movimentacao, quantidade").execute().data
     df_mov = pd.DataFrame(movimentacoes)
     
     if df_mov.empty:
@@ -138,7 +163,7 @@ elif tela == "📤 Separação e Baixa":
             
             if st.button("Confirmar Retirada e Expedição", use_container_width=True):
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-                conn.table("movimentacoes").insert({
+                client_db.table("movimentacoes").insert({
                     "data_registro": data_hoje, "sku": alvo['sku'], "produto": alvo['produto'],
                     "quantidade": qtd_retirar, "posicao": alvo['posicao'], "tipo_movimentacao": "SAÍDA",
                     "usuario": st.session_state["usuario_atual"]
@@ -150,7 +175,7 @@ elif tela == "📤 Separação e Baixa":
 elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Supervisor":
     st.subheader("📋 Relatório Logístico de Saldos e Ocupação (Kardex)")
     
-    movimentacoes = conn.table("movimentacoes").select("sku, produto, posicao, tipo_movimentacao, quantidade").execute().data
+    movimentacoes = client_db.table("movimentacoes").select("sku, produto, posicao, tipo_movimentacao, quantidade").execute().data
     df_mov = pd.DataFrame(movimentacoes)
     
     if df_mov.empty:
@@ -179,31 +204,6 @@ elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Super
         st.dataframe(df_ocupado, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
-    todos_enderecos = conn.table("enderecos").select("posicao").execute().data
-    posicoes_ocupadas = df_ocupado['Endereço'].tolist() if not df_ocupado.empty else []
-    df_livres = pd.DataFrame([e for e in todos_enderecos if e['posicao'] not in posicoes_ocupadas])
-    
-    if df_livres.empty:
-        st.warning("Todos os endereços cadastrados possuem saldo ativo.")
-    else:
-        df_livres.columns = ['Endereço Livre']
-        st.dataframe(df_livres, use_container_width=True, hide_index=True)
-
-# --- TELA 4: HISTÓRICO DE AUDITORIA ---
-elif tela == "🕵️ Histórico de Auditoria" and cargo_do_usuario == "Supervisor":
-    st.subheader("🕵️ Linha do Tempo e Log de Auditoria")
-    
-    logs = conn.table("movimentacoes").select("data_registro, usuario, tipo_movimentacao, sku, produto, quantidade, posicao").execute().data
-    df_logs = pd.DataFrame(logs)
-    
-    if df_logs.empty:
-        st.info("Nenhuma movimentação registrada no histórico.")
-    else:
-        df_logs.columns = ['Data/Hora', 'Operador Responsável', 'Operação', 'SKU', 'Item', 'Qtd', 'Endereço']
-        st.dataframe(df_logs, use_container_width=True, hide_index=True)
-
-# --- TELA 5: CADASTRAR RECURSOS ---
 
 
 

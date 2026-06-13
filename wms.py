@@ -3,9 +3,7 @@ from datetime import datetime
 import pandas as pd
 import io
 import hashlib
-import hmac
 import json
-import os
 
 # Configuração da página profissional e responsiva
 st.set_page_config(page_title="WMS NextGen | Protheus Style", layout="wide", page_icon="📦")
@@ -25,47 +23,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEMA DE BANCO DE DADOS ATUALIZADO (VERSÃO INDEPENDENTE V5) ---
-ARQUIVO_BANCO = "wms_database_v5.json"
+# --- BANCO DE DADOS EM MEMÓRIA SEGURO (NÃO DEPENDE DE ARQUIVOS) ---
+if "db_usuarios" not in st.session_state:
+    st.session_state["db_usuarios"] = [
+        {"usuario": "admin", "senha": "334409", "cargo": "Supervisor"},
+        {"usuario": "operador", "senha": "operador123", "cargo": "Operador"}
+    ]
+if "db_enderecos" not in st.session_state:
+    st.session_state["db_enderecos"] = ["A-01-01", "A-01-02", "B-01-01"]
+if "db_produtos" not in st.session_state:
+    st.session_state["db_produtos"] = [{"sku": "SKU001", "nome": "Produto Exemplo A"}]
+if "db_movimentacoes" not in st.session_state:
+    st.session_state["db_movimentacoes"] = []
 
-def gerar_hash_limpo(senha):
-    return hashlib.sha256(senha.encode('utf-8')).hexdigest()
-
-def carregar_banco():
-    # Estrutura base de segurança garantida
-    base_limpa = {
-        "usuarios": [
-            {"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"},
-            {"usuario": "operador", "senha_hash": gerar_hash_limpo("operador123"), "cargo": "Operador"}
-        ],
-        "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}],
-        "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
-        "movimentacoes": []
-    }
-    
-    if not os.path.exists(ARQUIVO_BANCO):
-        with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
-            json.dump(base_limpa, f, indent=4)
-        return base_limpa
-    try:
-        with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
-            conteudo = json.load(f)
-            # Trava para garantir que as listas nunca sumam da memória
-            if not conteudo.get("usuarios"): conteudo["usuarios"] = base_limpa["usuarios"]
-            if not conteudo.get("enderecos"): conteudo["enderecos"] = base_limpa["enderecos"]
-            if not conteudo.get("produtos_cadastro"): conteudo["produtos_cadastro"] = base_limpa["produtos_cadastro"]
-            if "movimentacoes" not in conteudo: conteudo["movimentacoes"] = []
-            return conteudo
-    except Exception:
-        return base_limpa
-
-def salvar_banco(dados):
-    with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
-        json.dump(dados, f, indent=4)
-
-db = carregar_banco()
-
-# --- PORTAL DE ACESSO ---
+# --- SESSÃO DE AUTENTICAÇÃO ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "usuario_atual" not in st.session_state:
@@ -83,14 +54,13 @@ if not st.session_state["logado"]:
         p = st.text_input("Senha Corporativa:", type="password", key="login_p").strip()
         
         if st.button("Entrar no Terminal", use_container_width=True):
-            lista_usuarios = db.get("usuarios", [])
             user_validado = None
-            for user in lista_usuarios:
-                if user["usuario"] == u:
+            for user in st.session_state["db_usuarios"]:
+                if user["usuario"] == u and user["senha"] == p:
                     user_validado = user
                     break
             
-            if user_validado and hmac.compare_digest(gerar_hash_limpo(p), user_validado["senha_hash"]):
+            if user_validado:
                 st.session_state["logado"] = True
                 st.session_state["usuario_atual"] = u
                 st.session_state["cargo_atual"] = user_validado["cargo"]
@@ -100,7 +70,7 @@ if not st.session_state["logado"]:
     st.stop()
 
 # --- PAINEL PRINCIPAL OPERACIONAL ---
-st.markdown(f"<h2 style='margin-bottom: 0px;'>📦 TOTVS WMS - Módulo de Gestão de Estoques</h2>", unsafe_allow_html=True)
+st.markdown(f"<h2>📦 TOTVS WMS - Módulo de Gestão de Estoques</h2>", unsafe_allow_html=True)
 st.write(f"👤 Matrícula: **{st.session_state['usuario_atual'].upper()}** | Perfil Corporativo: **{st.session_state['cargo_atual'].upper()}**")
 
 if st.sidebar.button("🚪 Desconectar / Sair"):
@@ -109,20 +79,8 @@ if st.sidebar.button("🚪 Desconectar / Sair"):
     st.session_state["cargo_atual"] = ""
     st.rerun()
 
-st.sidebar.markdown("---")
-
-cargo = st.session_state["cargo_atual"]
-opcoes_menu = ["📥 Recebimento e Alocação", "📤 Separação e Baixa"]
-if cargo == "Supervisor":
-    opcoes_menu.extend(["📋 Kardex e Inventário", "🛠️ Cadastro de Endereços", "🏷️ Cadastro de Produtos", "👤 Gestão de Usuários"])
-
-menu = st.sidebar.radio("Navegação do Sistema:", opcoes_menu)
-st.markdown("---")
-
-# Processamento dos saldos de estoque fora das telas operacionais
-mov_lista = db.get("movimentacoes", [])
-df_mov_geral = pd.DataFrame(mov_lista)
-
+# Processamento de Saldos para os DataFrames
+df_mov_geral = pd.DataFrame(st.session_state["db_movimentacoes"])
 if df_mov_geral.empty:
     df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 else:
@@ -134,83 +92,111 @@ else:
     else:
         df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 
-# --- TELA 1: RECEBIMENTO E ALOCAÇÃO ---
-if menu == "📥 Recebimento e Alocação":
-    st.subheader("📥 Recebimento de Mercadorias e Endereçamento Direto")
-    
-    lista_prods = db.get("produtos_cadastro", [])
-    skus_cadastrados = [prod["sku"] for prod in lista_prods]
+# --- INTERFACE CENTRAL POR ABAS FIXAS (NÃO APAGA OS CAMPOS) ---
+cargo = st.session_state["cargo_atual"]
+
+if cargo == "Supervisor":
+    abas = st.tabs(["📥 Entrada e Alocação", "📤 Separação e Baixa", "📋 Kardex e Inventário", "🛠️ Cadastrar Endereço", "🏷️ Cadastrar Produto", "👤 Gestão de Usuários"])
+else:
+    abas = st.tabs(["📥 Entrada e Alocação", "📤 Separação e Baixa"])
+
+# --- ABA 1: RECEBIMENTO ---
+with abas[0]:
+    st.write("### 📥 Recebimento de Mercadorias")
+    skus_cadastrados = [prod["sku"] for prod in st.session_state["db_produtos"]]
     
     if not skus_cadastrados:
-        st.warning("⚠️ Nenhum produto cadastrado no catálogo. Acesse o menu lateral para cadastrar.")
+        st.warning("Nenhum produto cadastrado no catálogo.")
     else:
-        sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados, key="sel_sku_operacao")
-        desc_sel = ""
-        for prod in lista_prods:
-            if prod["sku"] == sku_sel:
-                desc_sel = prod["nome"]
-                break
-                
-        st.info(f"📋 Descrição Automática: **{desc_sel}**")
-        qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="num_qtd_operacao")
+        sku_sel = st.selectbox("Selecione o SKU:", skus_cadastrados, key="aba1_sku")
+        desc_sel = next(prod["nome"] for prod in st.session_state["db_produtos"] if prod["sku"] == sku_sel)
+        st.info(f"Produto selecionado: **{desc_sel}**")
+        qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="aba1_qtd")
         
         ocupados = []
         if not df_mov_geral.empty:
             saldos_pos = df_mov_geral.groupby('posicao')['qtd_sinal'].sum()
             ocupados = saldos_pos[saldos_pos > 0].index.tolist()
             
-        lista_ends = db.get("enderecos", [])
-        livres = [e["posicao"] for e in lista_ends if e["posicao"] not in ocupados]
+        livres = [pos for pos in st.session_state["db_enderecos"] if pos not in ocupados]
         
         if livres:
-            pos_sel = st.selectbox("Selecione a Posição Física Disponível:", livres, key="sel_pos_operacao")
-            if st.button("Confirmar Entrada (MATA250)", use_container_width=True, key="btn_confirmar_entrada"):
-                db["movimentacoes"].append({
+            pos_sel = st.selectbox("Selecione a Posição Física:", livres, key="aba1_pos")
+            if st.button("Confirmar Entrada (MATA250)", key="aba1_btn", use_container_width=True):
+                st.session_state["db_movimentacoes"].append({
                     "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
                     "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
                 })
-                salvar_banco(db)
-                st.success(f"Alocação concluída com sucesso na posição {pos_sel}!")
+                st.success(f"Alocação concluída na posição {pos_sel}!")
                 st.rerun()
         else:
-            st.error("🚨 Sem posições de estocagem livres. Cadastre novos endereços primeiro.")
+            st.error("Sem posições livres disponíveis.")
 
-# --- TELA 2: SEPARAÇÃO E BAIXA (PICKING) ---
-elif menu == "📤 Separação e Baixa":
-    st.subheader("📤 Separação de Pedidos e Picking de Expedição")
-    
+# --- ABA 2: SEPARAÇÃO ---
+with abas[1]:
+    st.write("### 📤 Separação de Pedidos (Picking)")
     if df_mov_geral.empty:
         st.info("Nenhum material estocado no armazém atualmente.")
     else:
         disponiveis = saldos_calculados[saldos_calculados['qtd_sinal'] > 0].to_dict('records')
         if not disponiveis:
-            st.info("Nenhum saldo físico disponível para separação.")
+            st.info("Nenhum saldo disponível para separação.")
         else:
             opcoes = [f"SKU: {i['sku']} | {i['produto']} | Posição: {i['posicao']} (Saldo: {int(i['qtd_sinal'])})" for i in disponiveis]
-            item_sel = st.selectbox("Selecione a Carga Alvo para Baixa:", opcoes, key="sel_picking_item")
-            
+            item_sel = st.selectbox("Selecione a Carga Alvo:", opcoes, key="aba2_item")
             indice = opcoes.index(item_sel)
             alvo = disponiveis[indice]
-            qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0, key="num_qtd_picking")
+            qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0, key="aba2_qtd")
             
-            if st.button("Confirmar Saída (MATA260)", use_container_width=True, key="btn_processar_picking"):
-                db["movimentacoes"].append({
+            if st.button("Confirmar Saída (MATA260)", key="aba2_btn", use_container_width=True):
+                st.session_state["db_movimentacoes"].append({
                     "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": alvo['sku'], "produto": alvo['produto'],
                     "qtd": qtd_retirar, "posicao": alvo['posicao'], "tipo": "SAÍDA", "operador": st.session_state["usuario_atual"]
                 })
-                salvar_banco(db)
-                st.success(f"Picking processado! {qtd_retirar} volumes expedidos.")
+                st.success("Picking processado com sucesso!")
                 st.rerun()
 
-# --- TELA 3: KARDEX E INVENTÁRIO ---
-elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
-    st.subheader("📋 Relatório Kardex de Posições e Ocupação Real")
-    
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_inventario_real.to_excel(writer, index=False, sheet_name='Inventário Real')
-    buffer.seek(0)
+if cargo == "Supervisor":
+    # --- ABA 3: KARDEX ---
+    with abas[2]:
+        st.write("### 📋 Kardex e Inventário")
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df_inventario_real.to_excel(writer, index=False, sheet_name='Inventário Real')
+        buffer.seek(0)
+        st.download_button(label="📥 Exportar Planilha para Excel (.xlsx)", data=buffer, file_name="inventario.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="aba3_btn")
+        
+        st.write("#### Saldos Físicos")
+        st.dataframe(df_inventario_real, use_container_width=True, hide_index=True)
 
+    # --- ABA 4: CADASTRAR ENDEREÇO ---
+    with abas[3]:
+        st.write("### 🛠️ Cadastrar Posição Física")
+        nova_pos = st.text_input("Identificação do Endereço (Ex: EST-01-A-03):", key="aba4_txt").strip().upper()
+        if st.button("Gravar Endereço", key="aba4_btn", use_container_width=True):
+            if nova_pos:
+                if nova_pos in st.session_state["db_enderecos"]:
+                    st.error("Esta posição já existe.")
+                else:
+                    st.session_state["db_enderecos"].append(nova_pos)
+                    st.success(f"Posição {nova_pos} gravada!")
+                    st.rerun()
+
+    # --- ABA 5: CADASTRAR PRODUTO ---
+    with abas[4]:
+        st.write("### 🏷️ Cadastrar Novo Produto")
+        novo_sku = st.text_input("Código SKU do Produto:", key="aba5_sku").strip().upper()
+        novo_nome = st.text_input("Descrição do Produto:", key="aba5_nome").strip()
+        if st.button("Gravar Produto", key="aba5_btn", use_container_width=True):
+            if novo_sku and novo_nome:
+                st.session_state["db_produtos"].append({"sku": novo_sku, "nome": novo_nome})
+                st.success(f"Produto {novo_nome} cadastrado!")
+                st.rerun()
+
+    # --- ABA 6: GESTÃO DE USUÁRIOS ---
+    with abas[5]:
+        st.write("### 👤 Cadastrar Novo Operador")
+        n_user = st.text_input("Nome de Usuário / Matrícula:", key="aba6_user").strip().lower()
 
 
 

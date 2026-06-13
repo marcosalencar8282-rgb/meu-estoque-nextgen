@@ -25,35 +25,39 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- NOVO ARQUIVO DE BANCO DE DADOS ATUALIZADO (V4) ---
-ARQUIVO_BANCO = "wms_database_v4.json"
+# --- SISTEMA DE BANCO DE DADOS ATUALIZADO (VERSÃO INDEPENDENTE V5) ---
+ARQUIVO_BANCO = "wms_database_v5.json"
 
 def gerar_hash_limpo(senha):
     return hashlib.sha256(senha.encode('utf-8')).hexdigest()
 
 def carregar_banco():
+    # Estrutura base de segurança garantida
+    base_limpa = {
+        "usuarios": [
+            {"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"},
+            {"usuario": "operador", "senha_hash": gerar_hash_limpo("operador123"), "cargo": "Operador"}
+        ],
+        "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}],
+        "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
+        "movimentacoes": []
+    }
+    
     if not os.path.exists(ARQUIVO_BANCO):
-        dados_iniciais = {
-            "usuarios": [
-                {"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"},
-                {"usuario": "operador", "senha_hash": gerar_hash_limpo("operador123"), "cargo": "Operador"}
-            ],
-            "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}],
-            "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
-            "movimentacoes": []
-        }
         with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
-            json.dump(dados_iniciais, f, indent=4)
-        return dados_iniciais
+            json.dump(base_limpa, f, indent=4)
+        return base_limpa
     try:
         with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
             conteudo = json.load(f)
+            # Trava para garantir que as listas nunca sumam da memória
+            if not conteudo.get("usuarios"): conteudo["usuarios"] = base_limpa["usuarios"]
+            if not conteudo.get("enderecos"): conteudo["enderecos"] = base_limpa["enderecos"]
+            if not conteudo.get("produtos_cadastro"): conteudo["produtos_cadastro"] = base_limpa["produtos_cadastro"]
+            if "movimentacoes" not in conteudo: conteudo["movimentacoes"] = []
             return conteudo
     except Exception:
-        return {
-            "usuarios": [{"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"}],
-            "enderecos": [{"posicao": "A-01-01"}], "produtos_cadastro": [], "movimentacoes": []
-        }
+        return base_limpa
 
 def salvar_banco(dados):
     with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
@@ -75,25 +79,24 @@ if not st.session_state["logado"]:
     
     col1, col2, col3 = st.columns(3)
     with col2:
-        with st.container(border=True):
-            u = st.text_input("Usuário / Matrícula:", key="login_u").strip().lower()
-            p = st.text_input("Senha Corporativa:", type="password", key="login_p").strip()
+        u = st.text_input("Usuário / Matrícula:", key="login_u").strip().lower()
+        p = st.text_input("Senha Corporativa:", type="password", key="login_p").strip()
+        
+        if st.button("Entrar no Terminal", use_container_width=True):
+            lista_usuarios = db.get("usuarios", [])
+            user_validado = None
+            for user in lista_usuarios:
+                if user["usuario"] == u:
+                    user_validado = user
+                    break
             
-            if st.button("Entrar no Terminal", use_container_width=True):
-                lista_usuarios = db.get("usuarios", [])
-                user_validado = None
-                for user in lista_usuarios:
-                    if user["usuario"] == u:
-                        user_validado = user
-                        break
-                
-                if user_validado and hmac.compare_digest(gerar_hash_limpo(p), user_validado["senha_hash"]):
-                    st.session_state["logado"] = True
-                    st.session_state["usuario_atual"] = u
-                    st.session_state["cargo_atual"] = user_validado["cargo"]
-                    st.rerun()
-                else:
-                    st.error("Acesso negado. Matrícula ou senha inválidas.")
+            if user_validado and hmac.compare_digest(gerar_hash_limpo(p), user_validado["senha_hash"]):
+                st.session_state["logado"] = True
+                st.session_state["usuario_atual"] = u
+                st.session_state["cargo_atual"] = user_validado["cargo"]
+                st.rerun()
+            else:
+                st.error("Acesso negado. Matrícula ou senha inválidas.")
     st.stop()
 
 # --- PAINEL PRINCIPAL OPERACIONAL ---
@@ -116,7 +119,7 @@ if cargo == "Supervisor":
 menu = st.sidebar.radio("Navegação do Sistema:", opcoes_menu)
 st.markdown("---")
 
-# Extração de dados segura para DataFrames
+# Processamento dos saldos de estoque fora das telas operacionais
 mov_lista = db.get("movimentacoes", [])
 df_mov_geral = pd.DataFrame(mov_lista)
 
@@ -139,9 +142,9 @@ if menu == "📥 Recebimento e Alocação":
     skus_cadastrados = [prod["sku"] for prod in lista_prods]
     
     if not skus_cadastrados:
-        st.warning("⚠️ Nenhum produto cadastrado no sistema ainda. Acesse a aba 'Cadastro de Produtos' primeiro.")
+        st.warning("⚠️ Nenhum produto cadastrado no catálogo. Acesse o menu lateral para cadastrar.")
     else:
-        sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados)
+        sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados, key="sel_sku_operacao")
         desc_sel = ""
         for prod in lista_prods:
             if prod["sku"] == sku_sel:
@@ -149,7 +152,7 @@ if menu == "📥 Recebimento e Alocação":
                 break
                 
         st.info(f"📋 Descrição Automática: **{desc_sel}**")
-        qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0)
+        qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="num_qtd_operacao")
         
         ocupados = []
         if not df_mov_geral.empty:
@@ -160,8 +163,8 @@ if menu == "📥 Recebimento e Alocação":
         livres = [e["posicao"] for e in lista_ends if e["posicao"] not in ocupados]
         
         if livres:
-            pos_sel = st.selectbox("Selecione a Posição Física Disponível:", livres)
-            if st.button("Confirmar Entrada (MATA250)", use_container_width=True):
+            pos_sel = st.selectbox("Selecione a Posição Física Disponível:", livres, key="sel_pos_operacao")
+            if st.button("Confirmar Entrada (MATA250)", use_container_width=True, key="btn_confirmar_entrada"):
                 db["movimentacoes"].append({
                     "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
                     "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
@@ -184,19 +187,19 @@ elif menu == "📤 Separação e Baixa":
             st.info("Nenhum saldo físico disponível para separação.")
         else:
             opcoes = [f"SKU: {i['sku']} | {i['produto']} | Posição: {i['posicao']} (Saldo: {int(i['qtd_sinal'])})" for i in disponiveis]
-            item_sel = st.selectbox("Selecione a Carga Alvo para Baixa:", opcoes)
+            item_sel = st.selectbox("Selecione a Carga Alvo para Baixa:", opcoes, key="sel_picking_item")
             
             indice = opcoes.index(item_sel)
             alvo = disponiveis[indice]
-            qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0)
+            qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0, key="num_qtd_picking")
             
-            if st.button("Confirmar Saída (MATA260)", use_container_width=True):
+            if st.button("Confirmar Saída (MATA260)", use_container_width=True, key="btn_processar_picking"):
                 db["movimentacoes"].append({
                     "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": alvo['sku'], "produto": alvo['produto'],
                     "qtd": qtd_retirar, "posicao": alvo['posicao'], "tipo": "SAÍDA", "operador": st.session_state["usuario_atual"]
                 })
                 salvar_banco(db)
-                st.success(f"Picking processado! {qtd_retirar} volumes expedidos de {alvo['posicao']}.")
+                st.success(f"Picking processado! {qtd_retirar} volumes expedidos.")
                 st.rerun()
 
 # --- TELA 3: KARDEX E INVENTÁRIO ---
@@ -207,8 +210,6 @@ elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_inventario_real.to_excel(writer, index=False, sheet_name='Inventário Real')
     buffer.seek(0)
-    
-    st.download_button(label="📥 Exportar Planilha para Excel (.xlsx)", data=buffer, file_name=f"inventario_totvs_wms_{datetime.now().strftime('%Y%m%d')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 
 

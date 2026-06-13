@@ -25,8 +25,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- NOVO ARQUIVO DE BANCO DE DADOS ATUALIZADO (V3) ---
-ARQUIVO_BANCO = "wms_database_v3.json"
+# --- NOVO ARQUIVO DE BANCO DE DADOS ATUALIZADO (V4) ---
+ARQUIVO_BANCO = "wms_database_v4.json"
 
 def gerar_hash_limpo(senha):
     return hashlib.sha256(senha.encode('utf-8')).hexdigest()
@@ -48,10 +48,6 @@ def carregar_banco():
     try:
         with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
             conteudo = json.load(f)
-            if "usuarios" not in conteudo: conteudo["usuarios"] = []
-            if "produtos_cadastro" not in conteudo: conteudo["produtos_cadastro"] = []
-            if "enderecos" not in conteudo: conteudo["enderecos"] = []
-            if "movimentacoes" not in conteudo: conteudo["movimentacoes"] = []
             return conteudo
     except Exception:
         return {
@@ -77,7 +73,6 @@ if not st.session_state["logado"]:
     st.markdown("<h1 style='text-align: center; color: #003366;'>TOTVS WMS | Portal Logístico NextGen</h1>", unsafe_allow_html=True)
     st.write("<p style='text-align: center;'>Insira suas credenciais logísticas para acessar o terminal do armazém.</p>", unsafe_allow_html=True)
     
-    # 🌟 CORREÇÃO TÉCNICA: Passando o número 3 para criar as três colunas de layout
     col1, col2, col3 = st.columns(3)
     with col2:
         with st.container(border=True):
@@ -85,7 +80,13 @@ if not st.session_state["logado"]:
             p = st.text_input("Senha Corporativa:", type="password", key="login_p").strip()
             
             if st.button("Entrar no Terminal", use_container_width=True):
-                user_validado = next((user for user in db.get("usuarios", []) if user["usuario"] == u), None)
+                lista_usuarios = db.get("usuarios", [])
+                user_validado = None
+                for user in lista_usuarios:
+                    if user["usuario"] == u:
+                        user_validado = user
+                        break
+                
                 if user_validado and hmac.compare_digest(gerar_hash_limpo(p), user_validado["senha_hash"]):
                     st.session_state["logado"] = True
                     st.session_state["usuario_atual"] = u
@@ -115,9 +116,9 @@ if cargo == "Supervisor":
 menu = st.sidebar.radio("Navegação do Sistema:", opcoes_menu)
 st.markdown("---")
 
-# --- PROCESSO LINEAR DE DATA FRAMES ---
-movimentacoes_lista = db.get("movimentacoes", [])
-df_mov_geral = pd.DataFrame(movimentacoes_lista)
+# Extração de dados segura para DataFrames
+mov_lista = db.get("movimentacoes", [])
+df_mov_geral = pd.DataFrame(mov_lista)
 
 if df_mov_geral.empty:
     df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
@@ -134,23 +135,29 @@ else:
 if menu == "📥 Recebimento e Alocação":
     st.subheader("📥 Recebimento de Mercadorias e Endereçamento Direto")
     
-    skus_cadastrados = [prod["sku"] for prod in db.get("produtos_cadastro", [])]
+    lista_prods = db.get("produtos_cadastro", [])
+    skus_cadastrados = [prod["sku"] for prod in lista_prods]
+    
     if not skus_cadastrados:
         st.warning("⚠️ Nenhum produto cadastrado no sistema ainda. Acesse a aba 'Cadastro de Produtos' primeiro.")
     else:
         sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados)
-        desc_sel = next(prod["nome"] for prod in db["produtos_cadastro"] if prod["sku"] == sku_sel)
+        desc_sel = ""
+        for prod in lista_prods:
+            if prod["sku"] == sku_sel:
+                desc_sel = prod["nome"]
+                break
+                
         st.info(f"📋 Descrição Automática: **{desc_sel}**")
-        
         qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0)
         
+        ocupados = []
         if not df_mov_geral.empty:
             saldos_pos = df_mov_geral.groupby('posicao')['qtd_sinal'].sum()
             ocupados = saldos_pos[saldos_pos > 0].index.tolist()
-        else:
-            ocupados = []
             
-        livres = [e["posicao"] for e in db.get("enderecos", []) if e["posicao"] not in ocupados]
+        lista_ends = db.get("enderecos", [])
+        livres = [e["posicao"] for e in lista_ends if e["posicao"] not in ocupados]
         
         if livres:
             pos_sel = st.selectbox("Selecione a Posição Física Disponível:", livres)
@@ -173,7 +180,6 @@ elif menu == "📤 Separação e Baixa":
         st.info("Nenhum material estocado no armazém atualmente.")
     else:
         disponiveis = saldos_calculados[saldos_calculados['qtd_sinal'] > 0].to_dict('records')
-        
         if not disponiveis:
             st.info("Nenhum saldo físico disponível para separação.")
         else:
@@ -182,7 +188,6 @@ elif menu == "📤 Separação e Baixa":
             
             indice = opcoes.index(item_sel)
             alvo = disponiveis[indice]
-            
             qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0)
             
             if st.button("Confirmar Saída (MATA260)", use_container_width=True):
@@ -202,7 +207,8 @@ elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_inventario_real.to_excel(writer, index=False, sheet_name='Inventário Real')
     buffer.seek(0)
-
+    
+    st.download_button(label="📥 Exportar Planilha para Excel (.xlsx)", data=buffer, file_name=f"inventario_totvs_wms_{datetime.now().strftime('%Y%m%d')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 
 

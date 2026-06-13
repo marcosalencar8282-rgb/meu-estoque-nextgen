@@ -38,7 +38,7 @@ if not st.session_state["logado"]:
         resposta = conn.table("usuarios").select("senha_hash, cargo").eq("usuario", u).execute()
         
         if resposta.data and len(resposta.data) > 0:
-            dados_usuario = resposta.data[0]
+            dados_usuario = resposta.data
             if verificar_senha(p, dados_usuario["senha_hash"]):
                 st.session_state["logado"] = True
                 st.session_state["usuario_atual"] = u
@@ -158,7 +158,8 @@ elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Super
     else:
         df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['quantidade'] if r['tipo_movimentacao'] == 'ENTRADA' else -r['quantidade'], axis=1)
         saldos = df_mov.groupby(['sku', 'produto', 'posicao'])['qtd_sinal'].sum().reset_index()
-        df_ocupado = saldos[saldos['qtd_sinal'] > 0].rename(columns={'sku': 'Código SKU', 'produto': 'Descrição do Item', 'posicao': 'Endereço', 'qtd_sinal': 'Saldo'})
+        df_ocupado = saldos[saldos['qtd_sinal'] > 0]
+        df_ocupado.columns = ['Código SKU', 'Descrição do Item', 'Endereço', 'Saldo']
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -181,11 +182,12 @@ elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Super
     st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
     todos_enderecos = conn.table("enderecos").select("posicao").execute().data
     posicoes_ocupadas = df_ocupado['Endereço'].tolist() if not df_ocupado.empty else []
-    df_livres = pd.DataFrame([e for e in todos_enderecos if e['posicao'] not in posicoes_ocupadas]).rename(columns={'posicao': 'Endereço Livre'})
+    df_livres = pd.DataFrame([e for e in todos_enderecos if e['posicao'] not in posicoes_ocupadas])
     
     if df_livres.empty:
         st.warning("Todos os endereços cadastrados possuem saldo ativo.")
     else:
+        df_livres.columns = ['Endereço Livre']
         st.dataframe(df_livres, use_container_width=True, hide_index=True)
 
 # --- TELA 4: HISTÓRICO DE AUDITORIA ---
@@ -198,7 +200,10 @@ elif tela == "🕵️ Histórico de Auditoria" and cargo_do_usuario == "Supervis
     if df_logs.empty:
         st.info("Nenhuma movimentação registrada no histórico.")
     else:
+        df_logs.columns = ['Data/Hora', 'Operador Responsável', 'Operação', 'SKU', 'Item', 'Qtd', 'Endereço']
+        st.dataframe(df_logs, use_container_width=True, hide_index=True)
 
+# --- TELA 5: CADASTRAR RECURSOS ---
 
 
 

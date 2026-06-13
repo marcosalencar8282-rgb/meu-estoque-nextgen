@@ -108,7 +108,7 @@ if st.sidebar.button("🚪 Desconectar / Sair"):
 
 st.sidebar.markdown("---")
 
-# --- CONSTRUÇÃO DO MENU BASEADO NO CARGO ---
+# --- CONCO CONSTRUÇÃO DO MENU BASEADO NO CARGO ---
 cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📥 Recebimento e Alocação", "📤 Separação e Baixa"]
 if cargo == "Supervisor":
@@ -131,7 +131,6 @@ if menu == "📥 Recebimento e Alocação":
         
         qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0)
         
-        # Lógica de cálculo de endereços vazios
         df_mov = pd.DataFrame(db["movimentacoes"])
         if not df_mov.empty:
             df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['qtd'] if r['tipo'] == 'ENTRADA' else -r['qtd'], axis=1)
@@ -161,7 +160,7 @@ elif menu == "📤 Separação e Baixa":
     
     df_mov = pd.DataFrame(db["movimentacoes"])
     if df_mov.empty:
-        st.info("Nenhum material estocado no armazém atualmente.")
+        st.info("Nenum material estocado no armazém atualmente.")
     else:
         df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['qtd'] if r['tipo'] == 'ENTRADA' else -r['qtd'], axis=1)
         saldos = df_mov.groupby(['sku', 'produto', 'posicao'])['qtd_sinal'].sum().reset_index()
@@ -187,7 +186,7 @@ elif menu == "📤 Separação e Baixa":
                 st.success(f"Picking processado! {qtd_retirar} volumes expedidos de {alvo['posicao']}.")
                 st.rerun()
 
-# --- TELA 3: KARDEX E INVENTÁRIO (COM MÓDULO EXCEL) ---
+# --- TELA 3: KARDEX E INVENTÁRIO (COM MÓDULO EXCEL CORRIGIDO) ---
 elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
     st.subheader("📋 Relatório Kardex de Posições e Ocupação Real")
     
@@ -200,13 +199,10 @@ elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
         df_inventario = saldos[saldos['qtd_sinal'] > 0]
         df_inventario.columns = ['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual']
         
-    # Motor de exportação para planilha profissional Excel
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_inventario.to_excel(writer, index=False, sheet_name='Inventário Real')
     buffer.seek(0)
-    
-    st.download_button(
 
 
 

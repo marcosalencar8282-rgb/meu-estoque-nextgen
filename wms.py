@@ -33,39 +33,47 @@ st.markdown("""
 # --- SISTEMA DE BANCO DE DADOS INTEGRADO (JSON AUTO-GERENCIADO) ---
 ARQUIVO_BANCO = "wms_database_protheus.json"
 
+def gerar_hash_limpo(senha):
+    # Criptografia SHA256 padrão direta para evitar problemas de compatibilidade
+    return hashlib.sha256(senha.encode('utf-8')).hexdigest()
+
 def carregar_banco():
-    if not os.path.exists(ARQUIVO_BANCO):
-        dados_iniciais = {
-            "usuarios": [
-                {"usuario": "admin", "senha_hash": "63f6955df987e148e42f9ef02b7db5b3fb00234a9b6c93433a0172e7f91c9441", "cargo": "Supervisor"}, # senha: 334409
-                {"usuario": "operador", "senha_hash": "20b411dfa428277a87e597c231713d3d82d4314e3089d79ca8474b7617b0728c", "cargo": "Operador"} # senha: operador123
-            ],
-            "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}, {"posicao": "B-01-02"}],
-            "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
-            "movimentacoes": []
-        }
-        with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
-            json.dump(dados_iniciais, f, indent=4)
-        return dados_iniciais
-    try:
-        with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"usuarios": [], "enderecos": [], "produtos_cadastro": [], "movimentacoes": []}
+    # Se o arquivo já existir com os hashes antigos, forçamos a atualização para o novo padrão limpo
+    if os.path.exists(ARQUIVO_BANCO):
+        try:
+            with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
+                dados_atuais = json.load(f)
+                # Atualiza as senhas padrão para os novos hashes limpos diretos
+                for user in dados_atuais.get("usuarios", []):
+                    if user["usuario"] == "admin":
+                        user["senha_hash"] = gerar_hash_limpo("334409")
+                    elif user["usuario"] == "operador":
+                        user["senha_hash"] = gerar_hash_limpo("operador123")
+                with open(ARQUIVO_BANCO, "w", encoding="utf-8") as fw:
+                    json.dump(dados_atuais, fw, indent=4)
+                return dados_atuais
+        except Exception:
+            pass
+
+    # Estrutura padrão inicial caso o arquivo não exista
+    dados_iniciais = {
+        "usuarios": [
+            {"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"},
+            {"usuario": "operador", "senha_hash": gerar_hash_limpo("operador123"), "cargo": "Operador"}
+        ],
+        "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}, {"posicao": "B-01-02"}],
+        "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
+        "movimentacoes": []
+    }
+    with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
+        json.dump(dados_iniciais, f, indent=4)
+    return dados_iniciais
 
 def salvar_banco(dados):
     with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
         json.dump(dados, f, indent=4)
 
 db = carregar_banco()
-
-# --- CRIPTOGRAFIA NATIVA ---
-def gerar_hash(senha):
-    salt = b"wms_protheus_style_salt_2026"
-    return hmac.new(salt, senha.encode('utf-8'), hashlib.sha256).hexdigest()
-
-def validar_senha(senha, senha_hash):
-    return hmac.compare_digest(gerar_hash(senha), senha_hash)
 
 # --- PORTAL DE ACESSO ---
 if "logado" not in st.session_state:
@@ -87,7 +95,7 @@ if not st.session_state["logado"]:
             
             if st.button("Entrar no Terminal", use_container_width=True):
                 user_validado = next((user for user in db["usuarios"] if user["usuario"] == u), None)
-                if user_validado and validar_senha(p, user_validado["senha_hash"]):
+                if user_validado and hmac.compare_digest(gerar_hash_limpo(p), user_validado["senha_hash"]):
                     st.session_state["logado"] = True
                     st.session_state["usuario_atual"] = u
                     st.session_state["cargo_atual"] = user_validado["cargo"]
@@ -108,7 +116,7 @@ if st.sidebar.button("🚪 Desconectar / Sair"):
 
 st.sidebar.markdown("---")
 
-# --- CONCO CONSTRUÇÃO DO MENU BASEADO NO CARGO ---
+# --- CONSTRUÇÃO DO MENU BASEADO NO CARGO ---
 cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📥 Recebimento e Alocação", "📤 Separação e Baixa"]
 if cargo == "Supervisor":
@@ -160,7 +168,7 @@ elif menu == "📤 Separação e Baixa":
     
     df_mov = pd.DataFrame(db["movimentacoes"])
     if df_mov.empty:
-        st.info("Nenum material estocado no armazém atualmente.")
+        st.info("Nenhum material estocado no armazém atualmente.")
     else:
         df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['qtd'] if r['tipo'] == 'ENTRADA' else -r['qtd'], axis=1)
         saldos = df_mov.groupby(['sku', 'produto', 'posicao'])['qtd_sinal'].sum().reset_index()
@@ -186,7 +194,7 @@ elif menu == "📤 Separação e Baixa":
                 st.success(f"Picking processado! {qtd_retirar} volumes expedidos de {alvo['posicao']}.")
                 st.rerun()
 
-# --- TELA 3: KARDEX E INVENTÁRIO (COM MÓDULO EXCEL CORRIGIDO) ---
+# --- TELA 3: KARDEX E INVENTÁRIO (COM MÓDULO EXCEL) ---
 elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
     st.subheader("📋 Relatório Kardex de Posições e Ocupação Real")
     
@@ -197,12 +205,6 @@ elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
         df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['qtd'] if r['tipo'] == 'ENTRADA' else -r['qtd'], axis=1)
         saldos = df_mov.groupby(['sku', 'produto', 'posicao'])['qtd_sinal'].sum().reset_index()
         df_inventario = saldos[saldos['qtd_sinal'] > 0]
-        df_inventario.columns = ['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual']
-        
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_inventario.to_excel(writer, index=False, sheet_name='Inventário Real')
-    buffer.seek(0)
 
 
 

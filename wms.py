@@ -77,7 +77,8 @@ if not st.session_state["logado"]:
     st.markdown("<h1 style='text-align: center; color: #003366;'>TOTVS WMS | Portal Logístico NextGen</h1>", unsafe_allow_html=True)
     st.write("<p style='text-align: center;'>Insira suas credenciais logísticas para acessar o terminal do armazém.</p>", unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns()
+    # 🌟 CORREÇÃO TÉCNICA: Passando o número 3 para criar as três colunas de layout
+    col1, col2, col3 = st.columns(3)
     with col2:
         with st.container(border=True):
             u = st.text_input("Usuário / Matrícula:", key="login_u").strip().lower()
@@ -114,7 +115,7 @@ if cargo == "Supervisor":
 menu = st.sidebar.radio("Navegação do Sistema:", opcoes_menu)
 st.markdown("---")
 
-# --- PROCESSO LINEAR DE DATA FRAMES (EVITA COMPLEXIDADE DE INDENTAÇÃO) ---
+# --- PROCESSO LINEAR DE DATA FRAMES ---
 movimentacoes_lista = db.get("movimentacoes", [])
 df_mov_geral = pd.DataFrame(movimentacoes_lista)
 
@@ -201,6 +202,8 @@ elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_inventario_real.to_excel(writer, index=False, sheet_name='Inventário Real')
     buffer.seek(0)
+
+
 
 
 

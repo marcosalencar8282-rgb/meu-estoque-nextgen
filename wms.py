@@ -198,8 +198,7 @@ elif tela == "🕵️ Histórico de Auditoria" and cargo_do_usuario == "Supervis
     if df_logs.empty:
         st.info("Nenhuma movimentação registrada no histórico.")
     else:
-        df_logs = df_logs.rename(columns={
-            'data_registro': 'Data/Hora', 'usuario': 'Operador Responsável', 'tipo_movimentacao': 'Operação',
+
 
 
 

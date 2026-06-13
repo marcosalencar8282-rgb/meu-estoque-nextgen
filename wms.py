@@ -25,20 +25,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEMA DE BANCO DE DADOS INTEGRADO (JSON AUTO-GERENCIADO) ---
-ARQUIVO_BANCO = "wms_database_protheus.json"
+# --- NOVO ARQUIVO DE BANCO DE DADOS ATUALIZADO (V2) ---
+ARQUIVO_BANCO = "wms_database_v2.json"
 
 def gerar_hash_limpo(senha):
     return hashlib.sha256(senha.encode('utf-8')).hexdigest()
 
 def carregar_banco():
+    # Cria o banco novo limpo caso não exista ou esteja corrompido
     if not os.path.exists(ARQUIVO_BANCO):
         dados_iniciais = {
             "usuarios": [
                 {"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"},
                 {"usuario": "operador", "senha_hash": gerar_hash_limpo("operador123"), "cargo": "Operador"}
             ],
-            "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}, {"posicao": "B-01-02"}],
+            "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}],
             "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
             "movimentacoes": []
         }
@@ -48,13 +49,18 @@ def carregar_banco():
     try:
         with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
             conteudo = json.load(f)
-            # Garante que as chaves essenciais sempre existam no dicionário
+            # Proteção caso alguma chave suma do arquivo
+            if "usuarios" not in conteudo: conteudo["usuarios"] = []
             if "produtos_cadastro" not in conteudo: conteudo["produtos_cadastro"] = []
             if "enderecos" not in conteudo: conteudo["enderecos"] = []
             if "movimentacoes" not in conteudo: conteudo["movimentacoes"] = []
             return conteudo
     except Exception:
-        return {"usuarios": [], "enderecos": [], "produtos_cadastro": [], "movimentacoes": []}
+        # Fallback caso o arquivo JSON seja corrompido
+        return {
+            "usuarios": [{"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"}],
+            "enderecos": [{"posicao": "A-01-01"}], "produtos_cadastro": [], "movimentacoes": []
+        }
 
 def salvar_banco(dados):
     with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
@@ -74,14 +80,14 @@ if not st.session_state["logado"]:
     st.markdown("<h1 style='text-align: center; color: #003366;'>TOTVS WMS | Portal Logístico NextGen</h1>", unsafe_allow_html=True)
     st.write("<p style='text-align: center;'>Insira suas credenciais logísticas para acessar o terminal do armazém.</p>", unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         with st.container(border=True):
             u = st.text_input("Usuário / Matrícula:", key="login_u").strip().lower()
             p = st.text_input("Senha Corporativa:", type="password", key="login_p").strip()
             
             if st.button("Entrar no Terminal", use_container_width=True):
-                user_validado = next((user for user in db["usuarios"] if user["usuario"] == u), None)
+                user_validado = next((user for user in db.get("usuarios", []) if user["usuario"] == u), None)
                 if user_validado and hmac.compare_digest(gerar_hash_limpo(p), user_validado["senha_hash"]):
                     st.session_state["logado"] = True
                     st.session_state["usuario_atual"] = u
@@ -120,7 +126,7 @@ if menu == "📥 Recebimento e Alocação":
         st.warning("⚠️ Nenhum produto cadastrado no sistema ainda. Acesse a aba 'Cadastro de Produtos' primeiro.")
     else:
         sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados)
-        desc_sel = next(prod["nome"] for prod in db["produtos_cadastro"] if prod["sku"] == sku_sel)
+        desc_sel = next(prod["name"] for prod in db["produtos_cadastro"] if prod["sku"] == sku_sel) if "name" in db["produtos_cadastro"][0] else next(prod["nome"] for prod in db["produtos_cadastro"] if prod["sku"] == sku_sel)
         st.info(f"📋 Descrição Automática: **{desc_sel}**")
         
         qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0)
@@ -194,12 +200,6 @@ elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
         if not df_inventario.empty:
             df_inventario.columns = ['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual']
         else:
-            df_inventario = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
-        
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_inventario.to_excel(writer, index=False, sheet_name='Inventário Real')
-    buffer.seek(0)
 
 
 

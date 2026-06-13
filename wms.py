@@ -9,7 +9,6 @@ import io
 st.set_page_config(page_title="WMS Logística Pro", layout="wide", page_icon="📦")
 
 # --- CONEXÃO COM O BANCO DE DADOS EM NUVEM ---
-# O Streamlit gerencia a conexão automaticamente através dos Secrets
 conn = st.connection("supabase", type=SupabaseConnection)
 
 # --- FUNÇÕES DE SEGURANÇA E USUÁRIO ---
@@ -36,7 +35,6 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
-        # Busca usuário no banco em nuvem
         resposta = conn.table("usuarios").select("senha_hash, cargo").eq("usuario", u).execute()
         
         if resposta.data and len(resposta.data) > 0:
@@ -81,7 +79,6 @@ if tela == "📥 Entrada e Endereçamento":
     nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
     qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
     
-    # Lógica em nuvem para buscar endereços vazios
     todos_enderecos = conn.table("enderecos").select("posicao").execute().data
     movimentacoes = conn.table("movimentacoes").select("posicao, tipo_movimentacao, quantidade").execute().data
     
@@ -201,6 +198,8 @@ elif tela == "🕵️ Histórico de Auditoria" and cargo_do_usuario == "Supervis
     if df_logs.empty:
         st.info("Nenhuma movimentação registrada no histórico.")
     else:
+        df_logs = df_logs.rename(columns={
+            'data_registro': 'Data/Hora', 'usuario': 'Operador Responsável', 'tipo_movimentacao': 'Operação',
 
 
 

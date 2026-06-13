@@ -13,19 +13,14 @@ st.set_page_config(page_title="WMS NextGen | Protheus Style", layout="wide", pag
 # --- CUSTOMIZAÇÃO VISUAL ESTILO PROTHEUS ---
 st.markdown("""
     <style>
-    /* Cor de fundo corporativa Protheus */
     .stApp { background-color: #F4F6F9; }
-    /* Estilização dos títulos principais */
     h1, h2, h3 { color: #003366 !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-weight: 700; }
-    /* Barras superiores e botões no padrão Totvs */
     div.stButton > button:first-child {
         background-color: #003366; color: white; border-radius: 4px; border: none;
         padding: 0.5rem 1rem; font-weight: bold; transition: all 0.3s ease;
     }
     div.stButton > button:first-child:hover { background-color: #0055a5; color: white; }
-    /* Alinhamento de caixas operacionais */
     div[data-testid="stMetricValue"] { color: #003366; font-size: 24px; font-weight: bold; }
-    /* Inputs customizados */
     .stTextInput>div>div>input { background-color: #FFFFFF; border: 1px solid #CCD4DC; border-radius: 4px; }
     </style>
 """, unsafe_allow_html=True)
@@ -34,40 +29,32 @@ st.markdown("""
 ARQUIVO_BANCO = "wms_database_protheus.json"
 
 def gerar_hash_limpo(senha):
-    # Criptografia SHA256 padrão direta para evitar problemas de compatibilidade
     return hashlib.sha256(senha.encode('utf-8')).hexdigest()
 
 def carregar_banco():
-    # Se o arquivo já existir com os hashes antigos, forçamos a atualização para o novo padrão limpo
-    if os.path.exists(ARQUIVO_BANCO):
-        try:
-            with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
-                dados_atuais = json.load(f)
-                # Atualiza as senhas padrão para os novos hashes limpos diretos
-                for user in dados_atuais.get("usuarios", []):
-                    if user["usuario"] == "admin":
-                        user["senha_hash"] = gerar_hash_limpo("334409")
-                    elif user["usuario"] == "operador":
-                        user["senha_hash"] = gerar_hash_limpo("operador123")
-                with open(ARQUIVO_BANCO, "w", encoding="utf-8") as fw:
-                    json.dump(dados_atuais, fw, indent=4)
-                return dados_atuais
-        except Exception:
-            pass
-
-    # Estrutura padrão inicial caso o arquivo não exista
-    dados_iniciais = {
-        "usuarios": [
-            {"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"},
-            {"usuario": "operador", "senha_hash": gerar_hash_limpo("operador123"), "cargo": "Operador"}
-        ],
-        "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}, {"posicao": "B-01-02"}],
-        "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
-        "movimentacoes": []
-    }
-    with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
-        json.dump(dados_iniciais, f, indent=4)
-    return dados_iniciais
+    if not os.path.exists(ARQUIVO_BANCO):
+        dados_iniciais = {
+            "usuarios": [
+                {"usuario": "admin", "senha_hash": gerar_hash_limpo("334409"), "cargo": "Supervisor"},
+                {"usuario": "operador", "senha_hash": gerar_hash_limpo("operador123"), "cargo": "Operador"}
+            ],
+            "enderecos": [{"posicao": "A-01-01"}, {"posicao": "A-01-02"}, {"posicao": "B-01-01"}, {"posicao": "B-01-02"}],
+            "produtos_cadastro": [{"sku": "SKU001", "nome": "Produto Exemplo A"}],
+            "movimentacoes": []
+        }
+        with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
+            json.dump(dados_iniciais, f, indent=4)
+        return dados_iniciais
+    try:
+        with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
+            conteudo = json.load(f)
+            # Garante que as chaves essenciais sempre existam no dicionário
+            if "produtos_cadastro" not in conteudo: conteudo["produtos_cadastro"] = []
+            if "enderecos" not in conteudo: conteudo["enderecos"] = []
+            if "movimentacoes" not in conteudo: conteudo["movimentacoes"] = []
+            return conteudo
+    except Exception:
+        return {"usuarios": [], "enderecos": [], "produtos_cadastro": [], "movimentacoes": []}
 
 def salvar_banco(dados):
     with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
@@ -116,7 +103,6 @@ if st.sidebar.button("🚪 Desconectar / Sair"):
 
 st.sidebar.markdown("---")
 
-# --- CONSTRUÇÃO DO MENU BASEADO NO CARGO ---
 cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📥 Recebimento e Alocação", "📤 Separação e Baixa"]
 if cargo == "Supervisor":
@@ -129,17 +115,17 @@ st.markdown("---")
 if menu == "📥 Recebimento e Alocação":
     st.subheader("📥 Recebimento de Mercadorias e Endereçamento Direto")
     
-    skus_cadastrados = [p["sku"] for p in db["produtos_cadastro"]]
+    skus_cadastrados = [prod["sku"] for prod in db.get("produtos_cadastro", [])]
     if not skus_cadastrados:
-        st.warning("⚠️ Nenhum produto cadastrado no sistema ainda. Solicite ao Supervisor.")
+        st.warning("⚠️ Nenhum produto cadastrado no sistema ainda. Acesse a aba 'Cadastro de Produtos' primeiro.")
     else:
         sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados)
-        desc_sel = next(p["nome"] for p in db["produtos_cadastro"] if p["sku"] == sku_sel)
+        desc_sel = next(prod["nome"] for prod in db["produtos_cadastro"] if prod["sku"] == sku_sel)
         st.info(f"📋 Descrição Automática: **{desc_sel}**")
         
         qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0)
         
-        df_mov = pd.DataFrame(db["movimentacoes"])
+        df_mov = pd.DataFrame(db.get("movimentacoes", []))
         if not df_mov.empty:
             df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['qtd'] if r['tipo'] == 'ENTRADA' else -r['qtd'], axis=1)
             saldos = df_mov.groupby('posicao')['qtd_sinal'].sum()
@@ -147,7 +133,7 @@ if menu == "📥 Recebimento e Alocação":
         else:
             ocupados = []
             
-        livres = [e["posicao"] for e in db["enderecos"] if e["posicao"] not in ocupados]
+        livres = [e["posicao"] for e in db.get("enderecos", []) if e["posicao"] not in ocupados]
         
         if livres:
             pos_sel = st.selectbox("Selecione a Posição Física Disponível:", livres)
@@ -160,13 +146,13 @@ if menu == "📥 Recebimento e Alocação":
                 st.success(f"Alocação concluída com sucesso na posição {pos_sel}!")
                 st.rerun()
         else:
-            st.error("🚨 Armazém lotado! Sem posições de estocagem livres no mapa físico.")
+            st.error("🚨 Sem posições de estocagem livres. Cadastre novos endereços primeiro.")
 
 # --- TELA 2: SEPARAÇÃO E BAIXA (PICKING) ---
 elif menu == "📤 Separação e Baixa":
     st.subheader("📤 Separação de Pedidos e Picking de Expedição")
     
-    df_mov = pd.DataFrame(db["movimentacoes"])
+    df_mov = pd.DataFrame(db.get("movimentacoes", []))
     if df_mov.empty:
         st.info("Nenhum material estocado no armazém atualmente.")
     else:
@@ -194,17 +180,26 @@ elif menu == "📤 Separação e Baixa":
                 st.success(f"Picking processado! {qtd_retirar} volumes expedidos de {alvo['posicao']}.")
                 st.rerun()
 
-# --- TELA 3: KARDEX E INVENTÁRIO (COM MÓDULO EXCEL) ---
+# --- TELA 3: KARDEX E INVENTÁRIO ---
 elif menu == "📋 Kardex e Inventário" and cargo == "Supervisor":
     st.subheader("📋 Relatório Kardex de Posições e Ocupação Real")
     
-    df_mov = pd.DataFrame(db["movimentacoes"])
+    df_mov = pd.DataFrame(db.get("movimentacoes", []))
     if df_mov.empty:
         df_inventario = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
     else:
         df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['qtd'] if r['tipo'] == 'ENTRADA' else -r['qtd'], axis=1)
         saldos = df_mov.groupby(['sku', 'produto', 'posicao'])['qtd_sinal'].sum().reset_index()
         df_inventario = saldos[saldos['qtd_sinal'] > 0]
+        if not df_inventario.empty:
+            df_inventario.columns = ['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual']
+        else:
+            df_inventario = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
+        
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df_inventario.to_excel(writer, index=False, sheet_name='Inventário Real')
+    buffer.seek(0)
 
 
 

@@ -4,19 +4,53 @@ import pandas as pd
 import io
 import hashlib
 import hmac
+import json
+import os
 
 # Configuração da página profissional e responsiva
 st.set_page_config(page_title="WMS Logística Pro", layout="wide", page_icon="📦")
 
-# --- CONEXÃO NATIVA COM O BANCO DE DADOS DO STREAMLIT ---
-# Tenta conectar ao banco oficial do Streamlit, se não achar, roda em modo demonstração
-try:
-    conn = st.connection("postgresql", type="sql")
-    banco_configurado = True
-except Exception:
-    banco_configurado = False
+# --- BANCO DE DADOS LOCAL EM ARQUIVO JSON AUTO-GERENCIADO ---
+# Cria um arquivo de texto que simula um banco de dados em nuvem estável
+ARQUIVO_BANCO = "wms_dados_armazenados.json"
 
-# --- FUNÇÕES DE SEGURANÇA NATIVAS DO PYTHON ---
+def carregar_dados():
+    if not os.path.exists(ARQUIVO_BANCO):
+        # Dados iniciais caso o arquivo não exista
+        dados_iniciais = {
+            "usuarios": [
+                {
+                    "usuario": "admin",
+                    "senha_hash": "63f6955df987e148e42f9ef02b7db5b3fb00234a9b6c93433a0172e7f91c9441", # hash de 334409
+                    "cargo": "Supervisor"
+                },
+                {
+                    "usuario": "operador",
+                    "senha_hash": "20b411dfa428277a87e597c231713d3d82d4314e3089d79ca8474b7617b0728c", # hash de operador123
+                    "cargo": "Operador"
+                }
+            ],
+            "enderecos": [{"posicao": "PRD-01-A-01"}, {"posicao": "PRD-01-A-02"}, {"posicao": "PRD-01-B-01"}],
+            "movimentacoes": []
+        }
+        with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
+            json.dump(dados_iniciais, f, indent=4)
+        return dados_iniciais
+    
+    try:
+        with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"usuarios": [], "enderecos": [], "movimentacoes": []}
+
+def salvar_dados(dados):
+    with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
+        json.dump(dados, f, indent=4)
+
+# Inicializa a leitura dos dados do sistema
+db = carregar_dados()
+
+# --- FUNÇÕES DE SEGURANÇA NATIVAS ---
 def gerar_senha_hash(senha):
     salt = b"wms_logistica_secret_salt_2026"
     return hmac.new(salt, senha.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -41,37 +75,20 @@ if not st.session_state["logado"]:
     p = st.text_input("Senha de Acesso:", type="password", key="login_senha").strip()
     
     if st.button("Autenticar no Sistema", use_container_width=True):
-        if banco_configurado:
-            try:
-                # Busca o usuário de forma segura no banco nativo
-                query = "SELECT senha_hash, cargo FROM usuarios WHERE usuario = :u"
-                dados_usuario = conn.query(query, params={"u": u}, ttl=0)
+        usuario_encontrado = None
+        for user in db["usuarios"]:
+            if user["usuario"] == u:
+                usuario_encontrado = user
+                break
                 
-                if not dados_usuario.empty:
-                    senha_db = dados_usuario.iloc[0]['senha_hash']
-                    cargo_db = dados_usuario.iloc[0]['cargo']
-                    
-                    if verificar_senha(p, senha_db):
-                        st.session_state["logado"] = True
-                        st.session_state["usuario_atual"] = u
-                        st.session_state["cargo_atual"] = cargo_db
-                        st.success("Autenticado com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Usuário ou senha incorretos.")
-                else:
-                    st.error("Usuário ou senha incorretos.")
-            except Exception:
-                st.error("Tabelas do banco não encontradas. Ative o banco no painel do Streamlit.")
+        if usuario_encontrado and verificar_senha(p, usuario_encontrado["senha_hash"]):
+            st.session_state["logado"] = True
+            st.session_state["usuario_atual"] = u
+            st.session_state["cargo_atual"] = usuario_encontrado["cargo"]
+            st.success("Autenticado com sucesso!")
+            st.rerun()
         else:
-            # Login de Administrador de teste caso o banco não esteja ligado
-            if u == "admin" and p == "334409":
-                st.session_state["logado"] = True
-                st.session_state["usuario_atual"] = "admin"
-                st.session_state["cargo_atual"] = "Supervisor"
-                st.rerun()
-            else:
-                st.error("Modo de teste ativo. Use o usuário admin para entrar.")
+            st.error("Usuário ou senha incorretos.")
     st.stop()
 
 # --- PAINEL DO USUÁRIO LOGADO ---
@@ -94,9 +111,6 @@ if cargo_do_usuario == "Supervisor":
 tela = st.sidebar.radio("Navegação Operacional:", opcoes_menu)
 st.markdown("---")
 
-if not banco_configurado:
-    st.warning("⚠️ Sistema rodando temporariamente sem banco de dados na nuvem.")
-
 # --- TELA 1: ENTRADA E ENDEREÇAMENTO ---
 if tela == "📥 Entrada e Endereçamento":
     st.subheader("📥 Recebimento e Alocação de Mercadoria")
@@ -105,12 +119,8 @@ if tela == "📥 Entrada e Endereçamento":
     nome_prod = st.text_input("Descrição / Nome do Produto:", key="entrada_nome")
     qtd_input = st.number_input("Quantidade de Itens:", min_value=1.0, step=1.0, value=1.0, key="entrada_qtd")
     
-    if banco_configurado:
-        todos_enderecos = conn.query("SELECT posicao FROM enderecos", ttl=0).to_dict(orient="records")
-        movimentacoes = conn.query("SELECT posicao, tipo_movimentacao, quantidade FROM movimentacoes", ttl=0).to_dict(orient="records")
-    else:
-        todos_enderecos = [{"posicao": "A-01"}, {"posicao": "A-02"}]
-        movimentacoes = []
+    todos_enderecos = db["enderecos"]
+    movimentacoes = db["movimentacoes"]
     
     df_mov = pd.DataFrame(movimentacoes)
     if not df_mov.empty:
@@ -131,13 +141,12 @@ if tela == "📥 Entrada e Endereçamento":
     if st.button("Confirmar Entrada de Material", use_container_width=True) and posicao_estoque:
         if sku_input and nome_prod:
             data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-            if banco_configurado:
-                with conn.session as s:
-                    s.execute(
-                        "INSERT INTO movimentacoes (data_registro, sku, produto, quantidade, posicao, tipo_movimentacao, usuario) VALUES (:data, :sku, :prod, :qtd, :pos, 'ENTRADA', :user)",
-                        {"data": data_hoje, "sku": sku_input, "prod": nome_prod, "qtd": qtd_input, "pos": posicao_estoque, "user": st.session_state["usuario_atual"]}
-                    )
-                    s.commit()
+            db["movimentacoes"].append({
+                "data_registro": data_hoje, "sku": sku_input, "produto": nome_prod,
+                "quantidade": qtd_input, "posicao": posicao_estoque, "tipo_movimentacao": "ENTRADA",
+                "usuario": st.session_state["usuario_atual"]
+            })
+            salvar_dados(db)
             st.success(f"Sucesso! {qtd_input} unidades alocadas na posição {posicao_estoque}.")
             st.rerun()
         else:
@@ -147,11 +156,7 @@ if tela == "📥 Entrada e Endereçamento":
 elif tela == "📤 Separação e Baixa":
     st.subheader("📤 Processar Separação de Pedidos (Picking)")
     
-    if banco_configurado:
-        movimentacoes = conn.query("SELECT sku, produto, posicao, tipo_movimentacao, quantidade FROM movimentacoes", ttl=0).to_dict(orient="records")
-    else:
-        movimentacoes = []
-        
+    movimentacoes = db["movimentacoes"]
     df_mov = pd.DataFrame(movimentacoes)
     
     if df_mov.empty:
@@ -174,13 +179,12 @@ elif tela == "📤 Separação e Baixa":
             
             if st.button("Confirmar Retirada e Expedição", use_container_width=True):
                 data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-                if banco_configurado:
-                    with conn.session as s:
-                        s.execute(
-                            "INSERT INTO movimentacoes (data_registro, sku, produto, quantidade, posicao, tipo_movimentacao, usuario) VALUES (:data, :sku, :prod, :qtd, :pos, 'SAÍDA', :user)",
-                            {"data": data_hoje, "sku": alvo['sku'], "prod": alvo['produto'], "qtd": qtd_retirar, "pos": alvo['posicao'], "user": st.session_state["usuario_atual"]}
-                        )
-                        s.commit()
+                db["movimentacoes"].append({
+                    "data_registro": data_hoje, "sku": alvo['sku'], "produto": alvo['produto'],
+                    "quantidade": qtd_retirar, "posicao": alvo['posicao'], "tipo_movimentacao": "SAÍDA",
+                    "usuario": st.session_state["usuario_atual"]
+                })
+                salvar_dados(db)
                 st.success(f"Picking concluído! {qtd_retirar} unidades retiradas de {alvo['posicao']}.")
                 st.rerun()
 
@@ -188,11 +192,7 @@ elif tela == "📤 Separação e Baixa":
 elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Supervisor":
     st.subheader("📋 Relatório Logístico de Saldos e Ocupação (Kardex)")
     
-    if banco_configurado:
-        movimentacoes = conn.query("SELECT sku, produto, posicao, tipo_movimentacao, quantidade FROM movimentacoes", ttl=0).to_dict(orient="records")
-    else:
-        movimentacoes = []
-        
+    movimentacoes = db["movimentacoes"]
     df_mov = pd.DataFrame(movimentacoes)
     
     if df_mov.empty:
@@ -201,6 +201,29 @@ elif tela == "📋 Posição de Inventário Real" and cargo_do_usuario == "Super
         df_mov['qtd_sinal'] = df_mov.apply(lambda r: r['quantidade'] if r['tipo_movimentacao'] == 'ENTRADA' else -r['quantidade'], axis=1)
         saldos = df_mov.groupby(['sku', 'produto', 'posicao'])['qtd_sinal'].sum().reset_index()
         df_ocupado = saldos[saldos['qtd_sinal'] > 0]
+        df_ocupado.columns = ['Código SKU', 'Descrição do Item', 'Endereço', 'Saldo']
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df_ocupado.to_excel(writer, index=False, sheet_name='Inventario Real')
+    buffer.seek(0)
+    
+    st.download_button(
+        label="📥 Baixar Inventário em Excel (.xlsx)", data=buffer,
+        file_name=f"inventario_wms_{datetime.now().strftime('%Y%m%d')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
+    )
+    
+    st.markdown("### 🔴 Posições Ocupadas Atualmente")
+    if df_ocupado.empty:
+        st.info("Nenhum saldo armazenado no momento.")
+    else:
+        st.dataframe(df_ocupado, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.markdown("### 🟢 Endereços Vazios (Disponíveis)")
+    todos_enderecos = db["enderecos"]
+
 
 
 

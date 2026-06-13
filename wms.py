@@ -23,7 +23,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- BANCO DE DADOS EM MEMÓRIA SEGURO (NÃO DEPENDE DE ARQUIVOS) ---
+# --- BANCO DE DADOS EM MEMÓRIA SEGURO ---
 if "db_usuarios" not in st.session_state:
     st.session_state["db_usuarios"] = [
         {"usuario": "admin", "senha": "334409", "cargo": "Supervisor"},
@@ -92,7 +92,7 @@ else:
     else:
         df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 
-# --- INTERFACE CENTRAL POR ABAS FIXAS (NÃO APAGA OS CAMPOS) ---
+# --- INTERFACE CENTRAL POR ABAS FIXAS ---
 cargo = st.session_state["cargo_atual"]
 
 if cargo == "Supervisor":
@@ -106,7 +106,7 @@ with abas[0]:
     skus_cadastrados = [prod["sku"] for prod in st.session_state["db_produtos"]]
     
     if not skus_cadastrados:
-        st.warning("Nenhum produto cadastrado no catálogo.")
+        st.warning("Nenhum produto cadastrado no catálogo atualmente.")
     else:
         sku_sel = st.selectbox("Selecione o SKU:", skus_cadastrados, key="aba1_sku")
         desc_sel = next(prod["nome"] for prod in st.session_state["db_produtos"] if prod["sku"] == sku_sel)
@@ -130,7 +130,7 @@ with abas[0]:
                 st.success(f"Alocação concluída na posição {pos_sel}!")
                 st.rerun()
         else:
-            st.error("Sem posições livres disponíveis.")
+            st.error("Sem posições livres disponíveis no armazém.")
 
 # --- ABA 2: SEPARAÇÃO ---
 with abas[1]:
@@ -169,34 +169,35 @@ if cargo == "Supervisor":
         st.write("#### Saldos Físicos")
         st.dataframe(df_inventario_real, use_container_width=True, hide_index=True)
 
-    # --- ABA 4: CADASTRAR ENDEREÇO ---
+    # --- ABA 4: CADASTRAR/EXCLUIR ENDEREÇO ---
     with abas[3]:
-        st.write("### 🛠️ Cadastrar Posição Física")
-        nova_pos = st.text_input("Identificação do Endereço (Ex: EST-01-A-03):", key="aba4_txt").strip().upper()
-        if st.button("Gravar Endereço", key="aba4_btn", use_container_width=True):
-            if nova_pos:
-                if nova_pos in st.session_state["db_enderecos"]:
-                    st.error("Esta posição já existe.")
-                else:
-                    st.session_state["db_enderecos"].append(nova_pos)
-                    st.success(f"Posição {nova_pos} gravada!")
-                    st.rerun()
-
-    # --- ABA 5: CADASTRAR PRODUTO ---
-    with abas[4]:
-        st.write("### 🏷️ Cadastrar Novo Produto")
-        novo_sku = st.text_input("Código SKU do Produto:", key="aba5_sku").strip().upper()
-        novo_nome = st.text_input("Descrição do Produto:", key="aba5_nome").strip()
-        if st.button("Gravar Produto", key="aba5_btn", use_container_width=True):
-            if novo_sku and novo_nome:
-                st.session_state["db_produtos"].append({"sku": novo_sku, "nome": novo_nome})
-                st.success(f"Produto {novo_nome} cadastrado!")
-                st.rerun()
-
-    # --- ABA 6: GESTÃO DE USUÁRIOS ---
-    with abas[5]:
-        st.write("### 👤 Cadastrar Novo Operador")
-        n_user = st.text_input("Nome de Usuário / Matrícula:", key="aba6_user").strip().lower()
+        st.write("### 🛠️ Gestão de Endereços Físicos")
+        
+        col_cad_end, col_exc_end = st.columns(2)
+        
+        with col_cad_end:
+            st.write("#### 📍 Adicionar Novo Endereço")
+            nova_pos = st.text_input("Identificação do Endereço (Ex: EST-01-A-03):", key="aba4_txt").strip().upper()
+            if st.button("Gravar Endereço", key="aba4_btn", use_container_width=True):
+                if nova_pos:
+                    if nova_pos in st.session_state["db_enderecos"]:
+                        st.error("Esta posição já existe no mapa.")
+                    else:
+                        st.session_state["db_enderecos"].append(nova_pos)
+                        st.success(f"Posição {nova_pos} gravada com sucesso!")
+                        st.rerun()
+        
+        with col_exc_end:
+            st.write("#### 🗑️ Remover Endereço do Mapa")
+            if not st.session_state["db_enderecos"]:
+                st.info("Nenhum endereço disponível para exclusão.")
+            else:
+                end_para_excluir = st.selectbox("Selecione o endereço para remover:", st.session_state["db_enderecos"], key="aba4_sel_exc")
+                
+                # Regra de Segurança: Impede excluir endereço com saldo
+                com_saldo = []
+                if not df_inventario_real.empty:
+                    com_saldo = df_inventario_real['Posição Física'].tolist()
 
 
 

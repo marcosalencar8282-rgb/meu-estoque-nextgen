@@ -103,7 +103,7 @@ if cargo == "Supervisor":
 tela = st.sidebar.radio("Navegação do Sistema:", opcoes_menu)
 st.markdown("---")
 
-# --- TELA 1: ENTRADA AND ALOCAÇÃO ---
+# --- TELA 1: ENTRADA E ALOCAÇÃO ---
 if tela == "📥 Entrada e Alocação":
     st.subheader("📥 Recebimento de Mercadorias e Endereçamento")
     skus_cadastrados = [prod["sku"] for prod in st.session_state["db_produtos"]]
@@ -130,7 +130,7 @@ if tela == "📥 Entrada e Alocação":
                     "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
                     "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
                 })
-                st.success(f"Sucesso! Volumes alocados na posição {pos_sel}.")
+                st.success(f"Sucesso! Volumes alocadas na posição {pos_sel}.")
                 st.rerun()
         else:
             st.error("🚨 Sem posições de estocagem livres disponíveis.")
@@ -188,7 +188,7 @@ elif tela == "🛠️ Gestão de Endereços" and cargo == "Supervisor":
     c1, c2 = st.columns(2)
     with c1:
         st.write("#### 📍 Adicionar Novo Endereço")
-        nova_pos = st.text_input("Identificação da Posição (Ex: EST-01-A-03):", key="t4_txt").strip().upper()
+        nova_pos = st.text_input("Identificação do Endereço (Ex: EST-01-A-03):", key="t4_txt").strip().upper()
         if st.button("Gravar Endereço no Mapa", use_container_width=True, key="t4_btn_cad"):
             if nova_pos:
                 if nova_pos in st.session_state["db_enderecos"]:

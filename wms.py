@@ -92,14 +92,22 @@ else:
     else:
         df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 
-# --- INTERFACE CENTRAL POR ABAS FIXAS E INDEXADAS ---
+# --- INTERFACE CENTRAL COM ABAS SEPARADAS INDIVIDUALMENTE ---
 cargo = st.session_state["cargo_atual"]
 
 if cargo == "Supervisor":
-    abas = st.tabs(["📥 Entrada e Alocação", "📤 Separação e Baixa", "📋 Kardex e Inventário", "🛠️ Gestão de Endereços", "🏷️ Gestão de Produtos", "👤 Gestão de Usuários"])
+    # Criando as abas e guardando cada uma em uma variável diferente
+    aba1, aba2, aba3, aba4, aba5, aba6 = st.tabs([
+        "📥 Entrada e Alocação", 
+        "📤 Separação e Baixa", 
+        "📋 Kardex e Inventário", 
+        "🛠️ Gestão de Endereços", 
+        "🏷️ Gestão de Produtos", 
+        "👤 Gestão de Usuários"
+    ])
     
-    # ABA 1: ENTRADA E ALOCAÇÃO
-    with abas[0]:
+    # TELA 1: ENTRADA E ALOCAÇÃO
+    with aba1:
         st.write("### 📥 Recebimento de Mercadorias")
         skus_cadastrados = [prod["sku"] for prod in st.session_state["db_produtos"]]
         
@@ -130,8 +138,8 @@ if cargo == "Supervisor":
             else:
                 st.error("Sem posições livres disponíveis no armazém.")
 
-    # ABA 2: SEPARAÇÃO E BAIXA
-    with abas[1]:
+    # TELA 2: SEPARAÇÃO E BAIXA
+    with aba2:
         st.write("### 📤 Separação de Pedidos (Picking)")
         if df_mov_geral.empty:
             st.info("Nenhum material estocado no armazém atualmente.")
@@ -154,8 +162,8 @@ if cargo == "Supervisor":
                     st.success("Picking processado com sucesso!")
                     st.rerun()
 
-    # ABA 3: KARDEX E INVENTÁRIO
-    with abas[2]:
+    # TELA 3: KARDEX E INVENTÁRIO
+    with aba3:
         st.write("### 📋 Kardex e Inventário")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -166,8 +174,8 @@ if cargo == "Supervisor":
         st.write("#### Saldos Físicos")
         st.dataframe(df_inventario_real, use_container_width=True, hide_index=True)
 
-    # ABA 4: GESTÃO DE ENDEREÇOS (CADASTRO E EXCLUSÃO JUNTOS)
-    with abas[3]:
+    # TELA 4: GESTÃO DE ENDEREÇOS
+    with aba4:
         st.write("### 🛠️ Gestão de Endereços Físicos")
         col_cad_end, col_exc_end = st.columns(2)
         
@@ -188,11 +196,6 @@ if cargo == "Supervisor":
             if not st.session_state["db_enderecos"]:
                 st.info("Nenhum endereço disponível para exclusão.")
             else:
-                end_para_excluir = st.selectbox("Selecione o endereço para remover:", st.session_state["db_enderecos"], key="aba4_sel_exc")
-                com_saldo = []
-                if not df_inventario_real.empty:
-
-
 
 
 

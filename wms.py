@@ -92,72 +92,69 @@ else:
     else:
         df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 
-# --- INTERFACE CENTRAL POR ABAS FIXAS ---
+# --- INTERFACE CENTRAL POR ABAS FIXAS E INDEXADAS ---
 cargo = st.session_state["cargo_atual"]
 
 if cargo == "Supervisor":
-    abas = st.tabs(["📥 Entrada e Alocação", "📤 Separação e Baixa", "📋 Kardex e Inventário", "🛠️ Cadastrar Endereço", "🏷️ Cadastrar Produto", "👤 Gestão de Usuários"])
-else:
-    abas = st.tabs(["📥 Entrada e Alocação", "📤 Separação e Baixa"])
-
-# --- ABA 1: RECEBIMENTO ---
-with abas[0]:
-    st.write("### 📥 Recebimento de Mercadorias")
-    skus_cadastrados = [prod["sku"] for prod in st.session_state["db_produtos"]]
+    abas = st.tabs(["📥 Entrada e Alocação", "📤 Separação e Baixa", "📋 Kardex e Inventário", "🛠️ Gestão de Endereços", "🏷️ Gestão de Produtos", "👤 Gestão de Usuários"])
     
-    if not skus_cadastrados:
-        st.warning("Nenhum produto cadastrado no catálogo atualmente.")
-    else:
-        sku_sel = st.selectbox("Selecione o SKU:", skus_cadastrados, key="aba1_sku")
-        desc_sel = next(prod["nome"] for prod in st.session_state["db_produtos"] if prod["sku"] == sku_sel)
-        st.info(f"Produto selecionado: **{desc_sel}**")
-        qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="aba1_qtd")
+    # ABA 1: ENTRADA E ALOCAÇÃO
+    with abas[0]:
+        st.write("### 📥 Recebimento de Mercadorias")
+        skus_cadastrados = [prod["sku"] for prod in st.session_state["db_produtos"]]
         
-        ocupados = []
-        if not df_mov_geral.empty:
-            saldos_pos = df_mov_geral.groupby('posicao')['qtd_sinal'].sum()
-            ocupados = saldos_pos[saldos_pos > 0].index.tolist()
-            
-        livres = [pos for pos in st.session_state["db_enderecos"] if pos not in ocupados]
-        
-        if livres:
-            pos_sel = st.selectbox("Selecione a Posição Física:", livres, key="aba1_pos")
-            if st.button("Confirmar Entrada (MATA250)", key="aba1_btn", use_container_width=True):
-                st.session_state["db_movimentacoes"].append({
-                    "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
-                    "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
-                })
-                st.success(f"Alocação concluída na posição {pos_sel}!")
-                st.rerun()
+        if not skus_cadastrados:
+            st.warning("Nenhum produto cadastrado no catálogo atualmente.")
         else:
-            st.error("Sem posições livres disponíveis no armazém.")
-
-# --- ABA 2: SEPARAÇÃO ---
-with abas[1]:
-    st.write("### 📤 Separação de Pedidos (Picking)")
-    if df_mov_geral.empty:
-        st.info("Nenhum material estocado no armazém atualmente.")
-    else:
-        disponiveis = saldos_calculados[saldos_calculados['qtd_sinal'] > 0].to_dict('records')
-        if not disponiveis:
-            st.info("Nenhum saldo disponível para separação.")
-        else:
-            opcoes = [f"SKU: {i['sku']} | {i['produto']} | Posição: {i['posicao']} (Saldo: {int(i['qtd_sinal'])})" for i in disponiveis]
-            item_sel = st.selectbox("Selecione a Carga Alvo:", opcoes, key="aba2_item")
-            indice = opcoes.index(item_sel)
-            alvo = disponiveis[indice]
-            qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0, key="aba2_qtd")
+            sku_sel = st.selectbox("Selecione o SKU:", skus_cadastrados, key="aba1_sku")
+            desc_sel = next(prod["nome"] for prod in st.session_state["db_produtos"] if prod["sku"] == sku_sel)
+            st.info(f"Produto selecionado: **{desc_sel}**")
+            qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="aba1_qtd")
             
-            if st.button("Confirmar Saída (MATA260)", key="aba2_btn", use_container_width=True):
-                st.session_state["db_movimentacoes"].append({
-                    "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": alvo['sku'], "produto": alvo['produto'],
-                    "qtd": qtd_retirar, "posicao": alvo['posicao'], "tipo": "SAÍDA", "operador": st.session_state["usuario_atual"]
-                })
-                st.success("Picking processado com sucesso!")
-                st.rerun()
+            ocupados = []
+            if not df_mov_geral.empty:
+                saldos_pos = df_mov_geral.groupby('posicao')['qtd_sinal'].sum()
+                ocupados = saldos_pos[saldos_pos > 0].index.tolist()
+                
+            livres = [pos for pos in st.session_state["db_enderecos"] if pos not in ocupados]
+            
+            if livres:
+                pos_sel = st.selectbox("Selecione a Posição Física:", livres, key="aba1_pos")
+                if st.button("Confirmar Entrada (MATA250)", key="aba1_btn", use_container_width=True):
+                    st.session_state["db_movimentacoes"].append({
+                        "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
+                        "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
+                    })
+                    st.success(f"Alocação concluída na posição {pos_sel}!")
+                    st.rerun()
+            else:
+                st.error("Sem posições livres disponíveis no armazém.")
 
-if cargo == "Supervisor":
-    # --- ABA 3: KARDEX ---
+    # ABA 2: SEPARAÇÃO E BAIXA
+    with abas[1]:
+        st.write("### 📤 Separação de Pedidos (Picking)")
+        if df_mov_geral.empty:
+            st.info("Nenhum material estocado no armazém atualmente.")
+        else:
+            disponiveis = saldos_calculados[saldos_calculados['qtd_sinal'] > 0].to_dict('records')
+            if not disponiveis:
+                st.info("Nenhum saldo disponível para separação.")
+            else:
+                opcoes = [f"SKU: {i['sku']} | {i['produto']} | Posição: {i['posicao']} (Saldo: {int(i['qtd_sinal'])})" for i in disponiveis]
+                item_sel = st.selectbox("Selecione a Carga Alvo:", opcoes, key="aba2_item")
+                indice = opcoes.index(item_sel)
+                alvo = disponiveis[indice]
+                qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0, key="aba2_qtd")
+                
+                if st.button("Confirmar Saída (MATA260)", key="aba2_btn", use_container_width=True):
+                    st.session_state["db_movimentacoes"].append({
+                        "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": alvo['sku'], "produto": alvo['produto'],
+                        "qtd": qtd_retirar, "posicao": alvo['posicao'], "tipo": "SAÍDA", "operador": st.session_state["usuario_atual"]
+                    })
+                    st.success("Picking processado com sucesso!")
+                    st.rerun()
+
+    # ABA 3: KARDEX E INVENTÁRIO
     with abas[2]:
         st.write("### 📋 Kardex e Inventário")
         buffer = io.BytesIO()
@@ -169,10 +166,9 @@ if cargo == "Supervisor":
         st.write("#### Saldos Físicos")
         st.dataframe(df_inventario_real, use_container_width=True, hide_index=True)
 
-    # --- ABA 4: CADASTRAR/EXCLUIR ENDEREÇO ---
+    # ABA 4: GESTÃO DE ENDEREÇOS (CADASTRO E EXCLUSÃO JUNTOS)
     with abas[3]:
         st.write("### 🛠️ Gestão de Endereços Físicos")
-        
         col_cad_end, col_exc_end = st.columns(2)
         
         with col_cad_end:
@@ -193,11 +189,9 @@ if cargo == "Supervisor":
                 st.info("Nenhum endereço disponível para exclusão.")
             else:
                 end_para_excluir = st.selectbox("Selecione o endereço para remover:", st.session_state["db_enderecos"], key="aba4_sel_exc")
-                
-                # Regra de Segurança: Impede excluir endereço com saldo
                 com_saldo = []
                 if not df_inventario_real.empty:
-                    com_saldo = df_inventario_real['Posição Física'].tolist()
+
 
 
 

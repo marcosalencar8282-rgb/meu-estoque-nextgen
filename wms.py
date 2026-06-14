@@ -94,13 +94,12 @@ else:
     else:
         df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 
-# --- 🌟 ALTERAÇÃO CRUCIAL: MENU POR CAIXA DE SELEÇÃO PROTHEUS STYLE ---
+# --- MENU POR CAIXA DE SELEÇÃO PROTHEUS STYLE ---
 cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📥 Entrada e Alocação", "📤 Separação e Baixa"]
 if cargo == "Supervisor":
     opcoes_menu.extend(["📋 Kardex e Inventário", "🛠️ Gestão de Endereços", "🏷️ Gestão de Produtos", "👤 Gestão de Usuários"])
 
-# Usando selectbox em vez de radio para forçar a seleção do primeiro item automaticamente
 tela = st.sidebar.selectbox("Selecione o Módulo Operacional:", opcoes_menu, index=0, key="menu_navegacao_principal")
 st.markdown("---")
 
@@ -191,6 +190,10 @@ if tela == "📋 Kardex e Inventário":
 
 # --- TELA 4: GESTÃO DE ENDEREÇOS ---
 if tela == "🛠️ Gestão de Endereços":
+    st.subheader("🛠️ Engenharia de Layout - Controle de Endereços")
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.form("form_cad_endereco"):
             
 
 

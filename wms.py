@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from datetime import datetime
 
 # -----------------------------------------------------------------------------
@@ -97,10 +96,11 @@ def render_dashboard():
 
     st.subheader("📈 Gráficos de Estoque")
     if total_prod > 0:
-        fig = px.bar(st.session_state.products, x='Descrição', y='Saldo Atual', title='Saldo por Produto', color='Saldo Atual')
-        st.plotly_chart(fig, use_container_width=True)
+        # Usando o gráfico nativo do Streamlit para evitar erros de dependência externa
+        chart_data = st.session_state.products.set_index('Descrição')[['Saldo Atual']]
+        st.bar_chart(chart_data, use_container_width=True)
     else:
-        st.info("Nenhum produto cadastrado.")
+        st.info("Nenhum produto cadastrado para exibir gráficos.")
 
 def render_cadastro_produtos():
     st.title("📦 Cadastro de Produtos")

@@ -94,7 +94,7 @@ else:
     else:
         df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 
-# --- NAVEGAÇÃO POR MENU LATERAL ORIGINAL ---
+# --- NAVEGAÇÃO POR MENU LATERAL ---
 cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📥 Entrada e Alocação", "📤 Separação e Baixa"]
 if cargo == "Supervisor":
@@ -136,7 +136,7 @@ if tela == "📥 Entrada e Alocação":
             st.error("🚨 Sem posições de estocagem livres disponíveis.")
 
 # --- TELA 2: SEPARAÇÃO E BAIXA ---
-elif tela == "📤 Separação e Baixa":
+if tela == "📤 Separação e Baixa":
     st.subheader("📤 Processar Separação de Pedidos (Picking)")
     if df_mov_geral.empty:
         st.info("Nenhum material estocado no armazém atualmente.")
@@ -160,7 +160,7 @@ elif tela == "📤 Separação e Baixa":
                 st.rerun()
 
 # --- TELA 3: KARDEX E INVENTÁRIO ---
-elif tela == "📋 Kardex e Inventário" and cargo == "Supervisor":
+if tela == "📋 Kardex e Inventário":
     st.subheader("📋 Relatório Kardex de Posições e Ocupação Real")
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -183,7 +183,7 @@ elif tela == "📋 Kardex e Inventário" and cargo == "Supervisor":
             st.dataframe(df_logs, use_container_width=True, hide_index=True)
 
 # --- TELA 4: GESTÃO DE ENDEREÇOS (CADASTRO E EXCLUSÃO) ---
-elif tela == "🛠️ Gestão de Endereços" and cargo == "Supervisor":
+if tela == "🛠️ Gestão de Endereços":
     st.subheader("🛠️ Engenharia de Layout - Controle de Endereços")
     c1, c2 = st.columns(2)
     with c1:
@@ -194,5 +194,6 @@ elif tela == "🛠️ Gestão de Endereços" and cargo == "Supervisor":
                 if nova_pos in st.session_state["db_enderecos"]:
                     st.error("Esta posição já existe.")
                 else:
+                    st.session_state["db_enderecos"].append(nova_pos)
 
 

@@ -79,6 +79,8 @@ if st.sidebar.button("🚪 Desconectar / Sair"):
     st.session_state["cargo_atual"] = ""
     st.rerun()
 
+st.sidebar.markdown("---")
+
 # Processamento de Saldos para os DataFrames
 df_mov_geral = pd.DataFrame(st.session_state["db_movimentacoes"])
 if df_mov_geral.empty:
@@ -96,21 +98,14 @@ else:
 cargo = st.session_state["cargo_atual"]
 
 if cargo == "Supervisor":
-    # Criando as abas e guardando cada uma em uma variável diferente
     aba1, aba2, aba3, aba4, aba5, aba6 = st.tabs([
-        "📥 Entrada e Alocação", 
-        "📤 Separação e Baixa", 
-        "📋 Kardex e Inventário", 
-        "🛠️ Gestão de Endereços", 
-        "🏷️ Gestão de Produtos", 
-        "👤 Gestão de Usuários"
+        "📥 Entrada e Alocação", "📤 Separação e Baixa", "📋 Kardex e Inventário", 
+        "🛠️ Gestão de Endereços", "🏷️ Gestão de Produtos", "👤 Gestão de Usuários"
     ])
     
-    # TELA 1: ENTRADA E ALOCAÇÃO
     with aba1:
         st.write("### 📥 Recebimento de Mercadorias")
         skus_cadastrados = [prod["sku"] for prod in st.session_state["db_produtos"]]
-        
         if not skus_cadastrados:
             st.warning("Nenhum produto cadastrado no catálogo atualmente.")
         else:
@@ -118,14 +113,11 @@ if cargo == "Supervisor":
             desc_sel = next(prod["nome"] for prod in st.session_state["db_produtos"] if prod["sku"] == sku_sel)
             st.info(f"Produto selecionado: **{desc_sel}**")
             qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="aba1_qtd")
-            
             ocupados = []
             if not df_mov_geral.empty:
                 saldos_pos = df_mov_geral.groupby('posicao')['qtd_sinal'].sum()
                 ocupados = saldos_pos[saldos_pos > 0].index.tolist()
-                
             livres = [pos for pos in st.session_state["db_enderecos"] if pos not in ocupados]
-            
             if livres:
                 pos_sel = st.selectbox("Selecione a Posição Física:", livres, key="aba1_pos")
                 if st.button("Confirmar Entrada (MATA250)", key="aba1_btn", use_container_width=True):
@@ -138,7 +130,6 @@ if cargo == "Supervisor":
             else:
                 st.error("Sem posições livres disponíveis no armazém.")
 
-    # TELA 2: SEPARAÇÃO E BAIXA
     with aba2:
         st.write("### 📤 Separação de Pedidos (Picking)")
         if df_mov_geral.empty:
@@ -153,7 +144,6 @@ if cargo == "Supervisor":
                 indice = opcoes.index(item_sel)
                 alvo = disponiveis[indice]
                 qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, max_value=float(alvo['qtd_sinal']), step=1.0, key="aba2_qtd")
-                
                 if st.button("Confirmar Saída (MATA260)", key="aba2_btn", use_container_width=True):
                     st.session_state["db_movimentacoes"].append({
                         "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": alvo['sku'], "produto": alvo['produto'],
@@ -162,7 +152,6 @@ if cargo == "Supervisor":
                     st.success("Picking processado com sucesso!")
                     st.rerun()
 
-    # TELA 3: KARDEX E INVENTÁRIO
     with aba3:
         st.write("### 📋 Kardex e Inventário")
         buffer = io.BytesIO()
@@ -170,15 +159,12 @@ if cargo == "Supervisor":
             df_inventario_real.to_excel(writer, index=False, sheet_name='Inventário Real')
         buffer.seek(0)
         st.download_button(label="📥 Exportar Planilha para Excel (.xlsx)", data=buffer, file_name="inventario.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="aba3_btn")
-        
         st.write("#### Saldos Físicos")
         st.dataframe(df_inventario_real, use_container_width=True, hide_index=True)
 
-    # TELA 4: GESTÃO DE ENDEREÇOS
     with aba4:
         st.write("### 🛠️ Gestão de Endereços Físicos")
         col_cad_end, col_exc_end = st.columns(2)
-        
         with col_cad_end:
             st.write("#### 📍 Adicionar Novo Endereço")
             nova_pos = st.text_input("Identificação do Endereço (Ex: EST-01-A-03):", key="aba4_txt").strip().upper()
@@ -190,12 +176,15 @@ if cargo == "Supervisor":
                         st.session_state["db_enderecos"].append(nova_pos)
                         st.success(f"Posição {nova_pos} gravada com sucesso!")
                         st.rerun()
-        
         with col_exc_end:
             st.write("#### 🗑️ Remover Endereço do Mapa")
             if not st.session_state["db_enderecos"]:
                 st.info("Nenhum endereço disponível para exclusão.")
             else:
-
+                end_para_excluir = st.selectbox("Selecione o endereço para remover:", st.session_state["db_enderecos"], key="aba4_sel_exc")
+                com_saldo = []
+                if not df_inventario_real.empty:
+                    com_saldo = df_inventario_real['Posição Física'].tolist()
+                if st.button("🔴 Excluir Endereço Definitivamente", key="aba4_btn_exc", use_container_width=True):
 
 

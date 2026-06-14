@@ -130,7 +130,7 @@ if tela == "📥 Entrada e Alocação":
                     "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
                     "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
                 })
-                st.success(f"Sucesso! Volumes alocadas na posição {pos_sel}.")
+                st.success(f"Sucesso! Volumes alocados na posição {pos_sel}.")
                 st.rerun()
         else:
             st.error("🚨 Sem posições de estocagem livres disponíveis.")

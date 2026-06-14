@@ -94,7 +94,7 @@ else:
     else:
         df_inventario_real = pd.DataFrame(columns=['Código SKU', 'Descrição do Produto', 'Posição Física', 'Saldo Atual'])
 
-# --- MENU POR CAIXA DE SELEÇÃO PROTHEUS STYLE ---
+# --- NAVEGAÇÃO POR CAIXA DE SELEÇÃO PROTHEUS STYLE ---
 cargo = st.session_state["cargo_atual"]
 opcoes_menu = ["📥 Entrada e Alocação", "📤 Separação e Baixa"]
 if cargo == "Supervisor":
@@ -111,30 +111,29 @@ if tela == "📥 Entrada e Alocação":
     if not skus_cadastrados:
         st.warning("⚠️ Nenhum produto cadastrado no catálogo atualmente.")
     else:
-        with st.form("form_entrada"):
-            sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados, key="t1_sku")
-            qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="t1_qtd")
+        sku_sel = st.selectbox("Selecione o SKU do Produto:", skus_cadastrados, key="t1_sku")
+        desc_sel = next(prod["nome"] for prod in st.session_state["db_produtos"] if prod["sku"] == sku_sel)
+        st.info(f"📋 Descrição do Item: **{desc_sel}**")
+        qtd = st.number_input("Quantidade de Volumes:", min_value=1.0, step=1.0, value=1.0, key="t1_qtd")
+        
+        ocupados = []
+        if not df_mov_geral.empty:
+            saldos_pos = df_mov_geral.groupby('posicao')['qtd_sinal'].sum()
+            ocupados = saldos_pos[saldos_pos > 0].index.tolist()
             
-            ocupados = []
-            if not df_mov_geral.empty:
-                saldos_pos = df_mov_geral.groupby('posicao')['qtd_sinal'].sum()
-                ocupados = saldos_pos[saldos_pos > 0].index.tolist()
-                
-            livres = [pos for pos in st.session_state["db_enderecos"] if pos not in ocupados]
-            
-            if livres:
-                pos_sel = st.selectbox("Selecione a Posição Física Disponível:", livres, key="t1_pos")
-                btn_envio = st.form_submit_button("Confirmar Entrada (MATA250)", use_container_width=True)
-                if btn_envio:
-                    desc_sel = next(prod["nome"] for prod in st.session_state["db_produtos"] if prod["sku"] == sku_sel)
-                    st.session_state["db_movimentacoes"].append({
-                        "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
-                        "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
-                    })
-                    st.success(f"Sucesso! Volumes alocados na posição {pos_sel}.")
-                    st.rerun()
-            else:
-                st.error("🚨 Sem posições de estocagem livres disponíveis.")
+        livres = [pos for pos in st.session_state["db_enderecos"] if pos not in ocupados]
+        
+        if livres:
+            pos_sel = st.selectbox("Selecione a Posição Física Disponível:", livres, key="t1_pos")
+            if st.button("Confirmar Entrada (MATA250)", use_container_width=True, key="t1_btn"):
+                st.session_state["db_movimentacoes"].append({
+                    "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": sku_sel, "produto": desc_sel,
+                    "qtd": qtd, "posicao": pos_sel, "tipo": "ENTRADA", "operador": st.session_state["usuario_atual"]
+                })
+                st.success(f"Sucesso! Volumes alocados na posição {pos_sel}.")
+                st.rerun()
+        else:
+            st.error("🚨 Sem posições de estocagem livres disponíveis.")
 
 # --- TELA 2: SEPARAÇÃO E BAIXA ---
 if tela == "📤 Separação e Baixa":
@@ -146,24 +145,21 @@ if tela == "📤 Separação e Baixa":
         if not disponiveis:
             st.info("Nenhum saldo disponível para separação.")
         else:
-            with st.form("form_picking"):
-                opcoes = [f"SKU: {i['sku']} | {i['produto']} | Posição: {i['posicao']} (Saldo: {int(i['qtd_sinal'])})" for i in disponiveis]
-                item_sel = st.selectbox("Selecione a Carga Alvo para Picking:", opcoes, key="t2_item")
-                qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, step=1.0, value=1.0, key="t2_qtd")
-                btn_picking = st.form_submit_button("Confirmar Saída (MATA260)", use_container_width=True)
-                
-                if btn_picking:
-                    indice = opcoes.index(item_sel)
-                    alvo = disponiveis[indice]
-                    if qtd_retirar > float(alvo['qtd_sinal']):
-                        st.error("Quantidade superior ao saldo disponível!")
-                    else:
-                        st.session_state["db_movimentacoes"].append({
-                            "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": alvo['sku'], "produto": alvo['produto'],
-                            "qtd": qtd_retirar, "posicao": alvo['posicao'], "tipo": "SAÍDA", "operador": st.session_state["usuario_atual"]
-                        })
-                        st.success("Picking processado com sucesso!")
-                        st.rerun()
+            item_sel = st.selectbox("Selecione a Carga Alvo para Picking:", [f"SKU: {i['sku']} | {i['produto']} | Posição: {i['posicao']} (Saldo: {int(i['qtd_sinal'])})" for i in disponiveis], key="t2_item")
+            qtd_retirar = st.number_input("Quantidade a Retirar:", min_value=1.0, step=1.0, value=1.0, key="t2_qtd")
+            
+            if st.button("Confirmar Saída (MATA260)", use_container_width=True, key="t2_btn"):
+                indice = [f"SKU: {i['sku']} | {i['produto']} | Posição: {i['posicao']} (Saldo: {int(i['qtd_sinal'])})" for i in disponiveis].index(item_sel)
+                alvo = disponiveis[indice]
+                if qtd_retirar > float(alvo['qtd_sinal']):
+                    st.error("Quantidade superior ao saldo disponível!")
+                else:
+                    st.session_state["db_movimentacoes"].append({
+                        "data": datetime.now().strftime("%d/%m/%Y %H:%M"), "sku": alvo['sku'], "produto": alvo['produto'],
+                        "qtd": qtd_retirar, "posicao": alvo['posicao'], "tipo": "SAÍDA", "operador": st.session_state["usuario_atual"]
+                    })
+                    st.success("Picking processado com sucesso!")
+                    st.rerun()
 
 # --- TELA 3: KARDEX E INVENTÁRIO ---
 if tela == "📋 Kardex e Inventário":
@@ -191,9 +187,8 @@ if tela == "📋 Kardex e Inventário":
 # --- TELA 4: GESTÃO DE ENDEREÇOS ---
 if tela == "🛠️ Gestão de Endereços":
     st.subheader("🛠️ Engenharia de Layout - Controle de Endereços")
-    c1, c2 = st.columns(2)
-    with c1:
-        with st.form("form_cad_endereco"):
-            
+    st.write("#### 📍 Adicionar Novo Endereço")
+    nova_pos = st.text_input("Identificação do Endereço (Ex: EST-01-A-03):", key="t4_txt").strip().upper()
+    if st.button("Gravar Endereço no Mapa", use_container_width=True, key="t4_btn_cad"):
 
 

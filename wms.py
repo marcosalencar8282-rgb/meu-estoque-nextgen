@@ -4,13 +4,12 @@ from datetime import datetime
 import os
 
 # Configuração inicial obrigatória
-st.set_page_config(page_title="WMS - Endereçamento de Estoque", layout="wide")
+st.set_page_config(page_title="WMS - Endereçamento de Estoque Livre", layout="wide")
 
 # ==========================================
 # SISTEMA DE BANCO DE DADOS PERSISTENTE (JSON)
 # ==========================================
 def carregar_dados():
-    # Inicializa usuários padrão se não existirem
     if 'users' not in st.session_state:
         st.session_state.users = {
             'admin': {'password': '123', 'profile': 'Administrador', 'active': True},
@@ -18,22 +17,7 @@ def carregar_dados():
             'conferente': {'password': '123', 'profile': 'Conferente', 'active': True},
             'consulta': {'password': '123', 'profile': 'Consulta', 'active': True}
         }
-    
-    # Carrega Estrutura de Endereços
-    if os.path.exists('wms_enderecos.json'):
-        try:
-            st.session_state.locations = pd.read_json('wms_enderecos.json')
-        except Exception:
-            st.session_state.locations = pd.DataFrame(columns=['Endereço', 'Rua', 'Prédio', 'Nível', 'Vão', 'Status'])
-    
-    if 'locations' not in st.session_state or st.session_state.locations.empty:
-        st.session_state.locations = pd.DataFrame([
-            {'Endereço': 'A-01-02-01', 'Rua': 'A', 'Prédio': '01', 'Nível': '02', 'Vão': '01', 'Status': 'Disponível'},
-            {'Endereço': 'A-01-02-02', 'Rua': 'A', 'Prédio': '01', 'Nível': '02', 'Vão': '02', 'Status': 'Disponível'},
-            {'Endereço': 'B-04-01-01', 'Rua': 'B', 'Prédio': '04', 'Nível': '01', 'Vão': '01', 'Status': 'Disponível'},
-        ])
 
-    # Carrega Saldo de Estoque por Endereço
     if os.path.exists('wms_inventario.json'):
         try:
             st.session_state.inventory = pd.read_json('wms_inventario.json')
@@ -45,7 +29,6 @@ def carregar_dados():
     if st.session_state.inventory.empty:
         st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
 
-    # Carrega Histórico de Movimentações
     if os.path.exists('wms_movimentacoes.json'):
         try:
             st.session_state.movements = pd.read_json('wms_movimentacoes.json')
@@ -54,10 +37,6 @@ def carregar_dados():
     else:
         st.session_state.movements = pd.DataFrame(columns=['Tipo', 'Endereço Origem', 'Endereço Destino', 'Produto', 'Quantidade', 'Data Hora', 'Operador'])
 
-    if st.session_state.movements.empty:
-        st.session_state.movements = pd.DataFrame(columns=['Tipo', 'Endereço Origem', 'Endereço Destino', 'Produto', 'Quantidade', 'Data Hora', 'Operador'])
-
-    # Carrega Auditoria
     if os.path.exists('wms_auditoria.json'):
         try:
             st.session_state.auditory = pd.read_json('wms_auditoria.json')
@@ -66,22 +45,16 @@ def carregar_dados():
     else:
         st.session_state.auditory = pd.DataFrame(columns=['Usuário', 'Ação', 'Registro', 'Data Hora'])
 
-    if st.session_state.auditory.empty:
-        st.session_state.auditory = pd.DataFrame(columns=['Usuário', 'Ação', 'Registro', 'Data Hora'])
-
     if 'config' not in st.session_state:
         st.session_state.config = {'Empresa': 'WMS Endereçamento S/A'}
 
 def salvar_dados():
-    st.session_state.locations.to_json('wms_enderecos.json', orient='records', indent=4)
     st.session_state.inventory.to_json('wms_inventario.json', orient='records', indent=4)
     st.session_state.movements.to_json('wms_movimentacoes.json', orient='records', indent=4)
     st.session_state.auditory.to_json('wms_auditoria.json', orient='records', indent=4)
 
-# Executa a carga dos dados armazenados no disco
 carregar_dados()
 
-# Sistema de logs de auditoria
 def registrar_auditoria(acao, registro):
     usuario_atual = st.session_state.get('user', 'Sistema')
     novo_log = pd.DataFrame([{
@@ -91,7 +64,6 @@ def registrar_auditoria(acao, registro):
     st.session_state.auditory = pd.concat([st.session_state.auditory, novo_log], ignore_index=True)
     salvar_dados()
 
-# Função de verificação de permissões por perfil
 def validar_perfil(perfis_permitidos):
     if 'user' not in st.session_state:
         return False
@@ -117,7 +89,6 @@ if 'user' not in st.session_state:
         else:
             st.error("Credenciais incorretas.")
 else:
-    # Barra lateral de controle e navegação
     st.sidebar.write(f"🏢 **{st.session_state.config['Empresa']}**")
     st.sidebar.write(f"👤 `{st.session_state.user}` ({st.session_state.users[st.session_state.user]['profile']})")
     if st.sidebar.button("Efetuar Logout / Sair"):
@@ -126,73 +97,92 @@ else:
         st.rerun()
         
     st.sidebar.divider()
-    
     opcao_menu = st.sidebar.radio(
         "Módulos WMS", 
-        ["Dashboard Ocupação", "Estrutura de Endereços", "Entrada (Armazenagem)", "Movimentação Interna", "Saída (Picking)", "Consulta de Posições", "Auditoria"]
+        ["Visão Geral do Estoque", "Entrada (Armazenagem)", "Movimentação Interna", "Saída (Picking)", "Auditoria"]
     )
     
-    # 1. Dashboard de Ocupação
-    if opcao_menu == "Dashboard Ocupação":
-        st.title("📊 Dashboard de Ocupação do Armazém")
+    # 1. Visão Geral do Estoque
+    if opcao_menu == "Visão Geral do Estoque":
+        st.title("📊 Visão Geral e Posições Ocupadas")
         
-        total_posicoes = len(st.session_state.locations)
-        posicoes_ocupadas = len(st.session_state.locations[st.session_state.locations['Status'] == 'Ocupado'])
-        posicoes_livres = total_posicoes - posicoes_ocupadas
-        taxa_ocupacao = (posicoes_ocupadas / total_posicoes * 100) if total_posicoes > 0 else 0
+        total_posicoes_ocupadas = len(st.session_state.inventory['Endereço'].unique())
+        total_itens = int(st.session_state.inventory['Quantidade'].sum()) if not st.session_state.inventory.empty else 0
         
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total de Posições", total_posicoes)
-        c2.metric("Posições Ocupadas 📥", posicoes_ocupadas)
-        c3.metric("Posições Livres 🟢", posicoes_livres)
-        c4.metric("Taxa de Ocupação", f"{taxa_ocupacao:.1f}%")
+        c1, c2 = st.columns(2)
+        c1.metric("Posições Ocupadas no Momento 📥", total_posicoes_ocupadas)
+        c2.metric("Total de Peças/Volumes em Estoque 📦", total_itens)
         
-        st.subheader("📍 Ocupação Atual Detalhada")
-        if not st.session_state.inventory.empty:
-            st.dataframe(st.session_state.inventory, use_container_width=True)
-        else:
-            st.info("O armazém está completamente vazio.")
-
-    # 2. Cadastro Estrutural de Endereços
-    elif opcao_menu == "Estrutura de Endereços":
-        st.title("🧱 Cadastro de Estrutura Física (Endereços)")
-        if not validar_perfil(['Administrador']):
-            st.error("Acesso Restrito ao Perfil Administrador.")
-            st.stop()
+        st.subheader("📍 Filtro de Inventário")
+        busca = st.text_input("Filtrar por Produto ou Código do Endereço").upper()
+        
+        df_exibicao = st.session_state.inventory.copy()
+        if busca and not df_exibicao.empty:
+            df_exibicao = df_exibicao[
+                df_exibicao['Endereço'].astype(str).str.upper().str.contains(busca) | 
+                df_exibicao['Código Produto'].astype(str).str.upper().str.contains(busca) | 
+                df_exibicao['Descrição'].astype(str).str.upper().str.contains(busca)
+            ]
             
-        with st.form("c_endereco"):
-            st.write("Crie uma nova posição de estoque usando o padrão logístico: **Rua-Prédio-Nível-Vão**")
-            rua = st.text_input("Rua / Corredor (Ex: A)", max_chars=2).upper()
-            predio = st.text_input("Prédio / Coluna (Ex: 01)", max_chars=3)
-            nivel = st.text_input("Nível / Andar (Ex: 03)", max_chars=2)
-            vao = st.text_input("Vão / Posição (Ex: 02)", max_chars=2)
-            
-            if st.form_submit_button("Gerar e Cadastrar Endereço"):
-                if rua and predio and nivel and vao:
-                    codigo_endereco = f"{rua}-{predio}-{nivel}-{vao}"
-                    if codigo_endereco in st.session_state.locations['Endereço'].values:
-                        st.error("Este endereço já está cadastrado no sistema.")
-                    else:
-                        novo_end = pd.DataFrame([{'Endereço': codigo_endereco, 'Rua': rua, 'Prédio': predio, 'Nível': nivel, 'Vão': vao, 'Status': 'Disponível'}])
-                        st.session_state.locations = pd.concat([st.session_state.locations, novo_end], ignore_index=True)
-                        salvar_dados()
-                        registrar_auditoria(f"Cadastrou endereço {codigo_endereco}", "Estrutura")
-                        st.success(f"Endereço {codigo_endereco} criado com sucesso!")
-                        st.rerun()
-                else:
-                    st.warning("Preencha todos os níveis hierárquicos do endereço.")
-        
-        st.subheader("📋 Mapa de Endereços Cadastrados")
-        st.dataframe(st.session_state.locations, use_container_width=True)
+        st.dataframe(df_exibicao, use_container_width=True)
 
-    # 3. Entrada e Armazenagem Direcionada
+    # 2. Entrada (Armazenagem)
     elif opcao_menu == "Entrada (Armazenagem)":
-        st.title("📥 Entrada de Produtos por Endereço")
+        st.title("📥 Guardar Produto (Armazenagem Livre)")
         if not validar_perfil(['Almoxarife', 'Conferente']):
-            st.error("Perfil sem autorização para entrada de estoque.")
-            st.stop()
+            st.error("Acesso negado."); st.stop()
             
-        enderecos_livres = st.session_state.locations[st.session_state.locations['Status'] == 'Disponível']['Endereço'].tolist()
+        with st.form("armazenagem"):
+            st.info("Digite abaixo a identificação do endereço onde o produto está sendo colocado.")
+            endereco_destino = st.text_input("Código do Endereço (Ex: RUA-A-01)").upper().strip()
+            cod_prod = st.text_input("Código do Produto")
+            desc_prod = st.text_input("Descrição do Produto")
+            qtd = st.number_input("Quantidade", min_value=1, value=1)
+            lote = st.text_input("Lote / Validade", value="N/A")
+            
+            if st.form_submit_button("Confirmar Armazenagem"):
+                if endereco_destino and cod_prod and desc_prod:
+                    # Verifica se o endereço já possui esse produto para somar, ou cria nova linha
+                    filtro_existente = (st.session_state.inventory['Endereço'] == endereco_destino) & (st.session_state.inventory['Código Produto'] == cod_prod) & (st.session_state.inventory['Lote'] == lote)
+                    
+                    if not st.session_state.inventory.empty and filtro_existente.any():
+                        st.session_state.inventory.loc[filtro_existente, 'Quantidade'] += qtd
+                        st.session_state.inventory.loc[filtro_existente, 'Última Atualização'] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    else:
+                        nova_alocacao = pd.DataFrame([{'Endereço': endereco_destino, 'Código Produto': cod_prod, 'Descrição': desc_prod, 'Quantidade': qtd, 'Lote': lote, 'Última Atualização': datetime.now().strftime('%d/%m/%Y %H:%M')}])
+                        st.session_state.inventory = pd.concat([st.session_state.inventory, nova_alocacao], ignore_index=True)
+                    
+                    novo_mov = pd.DataFrame([{'Tipo': 'Entrada', 'Endereço Origem': 'Docas', 'Endereço Destino': endereco_destino, 'Produto': cod_prod, 'Quantidade': qtd, 'Data Hora': datetime.now().strftime('%d/%m/%Y %H:%M'), 'Operador': st.session_state.user}])
+                    st.session_state.movements = pd.concat([st.session_state.movements, novo_mov], ignore_index=True)
+                    
+                    salvar_dados()
+                    registrar_auditoria(f"Armazenou {cod_prod} no endereço {endereco_destino}", "Inventário")
+                    st.success(f"Registrado com sucesso no endereço {endereco_destino}!")
+                    st.rerun()
+                else:
+                    st.warning("Preencha o Endereço, Código e Descrição do Produto.")
+
+    # 3. Movimentação Interna
+    elif opcao_menu == "Movimentação Interna":
+        st.title("🔄 Transferência entre Endereços")
+        if not validar_perfil(['Almoxarife']):
+            st.error("Acesso restrito."); st.stop()
+            
+        enderecos_ocupados = st.session_state.inventory['Endereço'].unique().tolist()
         
-        if not enderecos_livres:
+        if not enderecos_ocupados:
+            st.info("Não há nenhum produto em estoque para movimentar.")
+        else:
+            with st.form("transferencia"):
+                origem = st.selectbox("Selecione o Endereço de Origem (Onde o item está)", enderecos_ocupados)
+                destino_input = st.text_input("Digite o Endereço de Destino (Para onde vai)").upper().strip()
+                
+                if st.form_submit_button("Efetuar Movimentação"):
+                    if destino_input:
+                        df_item = st.session_state.inventory[st.session_state.inventory['Endereço'] == origem]
+                        
+                        if not df_item.empty:
+                            p_codigo = str(df_item['Código Produto'].values)
+                            p_desc = str(df_item['Descrição'].values)
+
 

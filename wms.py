@@ -106,7 +106,7 @@ else:
     st.sidebar.divider()
     opcao_menu = st.sidebar.radio(
         "Módulos WMS", 
-        ["Visão Geral do Estoque", "Entrada (Armazenagem)", "Movimentação Interna", "Saída (Picking)", "Auditoria"]
+        ["Visão Geral do Estoque", "Entrada (Armazenagem)", "Movimentação Interna", "Saída (Picking)", "Histórico de Movimentações", "Auditoria"]
     )
     
     # 1. Visão Geral do Estoque
@@ -185,6 +185,5 @@ else:
                 
                 if st.form_submit_button("Efetuar Movimentação"):
                     if destino_input:
-                        df_item = st.session_state.inventory[st.session_state.inventory['Endereço'] == origem]
 
 

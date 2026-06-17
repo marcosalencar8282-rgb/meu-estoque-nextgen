@@ -2,13 +2,12 @@ import streamlit as st
 from datetime import datetime
 import os
 import json
-import pandas as pd
 
 # Configuração inicial obrigatória
 st.set_page_config(page_title="WMS - Estoque e Endereçamento", layout="wide")
 
 # ==========================================
-# BANCO DE DADOS EM ARQUIVO EM FORMATO SEGURO
+# BANCO DE DADOS EM ARQUIVO EM FORMATO SEGURO (SEM PANDAS)
 # ==========================================
 def carregar_dados():
     if 'users' not in st.session_state:
@@ -23,12 +22,28 @@ def carregar_dados():
         st.session_state.inventory = []
         if os.path.exists('wms_inventario_livre.json'):
             try:
-                # Carrega o arquivo usando o Pandas de forma robusta e converte imediatamente para lista pura
-                df = pd.read_json('wms_inventario_livre.json')
-                if not df.empty:
-                    st.session_state.inventory = df.to_dict(orient='records')
-                else:
-                    st.session_state.inventory = []
+                with open('wms_inventario_livre.json', 'r', encoding='utf-8') as f:
+                    dados = json.load(f)
+                    
+                    # Se o JSON antigo era um dicionário (formato Pandas), converte para lista pura
+                    if isinstance(dados, dict):
+                        # Pega a primeira chave para saber os índices (ex: 'Endereço')
+                        primeira_chave = list(dados.keys())[0] if dados.keys() else None
+                        if primeira_chave and isinstance(dados[primeira_chave], dict):
+                            indices = list(dados[primeira_chave].keys())
+                            for i in indices:
+                                st.session_state.inventory.append({
+                                    'Endereço': str(dados.get('Endereço', {}).get(i, '')),
+                                    'Código Produto': str(dados.get('Código Produto', {}).get(i, '')),
+                                    'Descrição': str(dados.get('Descrição', {}).get(i, '')),
+                                    'Quantidade': int(dados.get('Quantidade', {}).get(i, 0)),
+                                    'Lote': str(dados.get('Lote', {}).get(i, 'N/A')),
+                                    'Última Atualização': str(dados.get('Última Atualização', {}).get(i, ''))
+                                })
+                        else:
+                            st.session_state.inventory = []
+                    elif isinstance(dados, list):
+                        st.session_state.inventory = [i for i in dados if isinstance(i, dict)]
             except Exception:
                 st.session_state.inventory = []
 
@@ -37,12 +52,10 @@ def carregar_dados():
 
 def salvar_dados():
     try:
-        # Converte para DataFrame na hora de salvar para manter o arquivo JSON limpo e estruturado
-        df = pd.DataFrame(st.session_state.inventory)
-        df.to_json('wms_inventario_livre.json', orient='records', indent=4, force_ascii=False)
-    except Exception:
         with open('wms_inventario_livre.json', 'w', encoding='utf-8') as f:
             json.dump(st.session_state.inventory, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        st.error(f"Erro ao salvar arquivo: {e}")
 
 carregar_dados()
 
@@ -130,7 +143,6 @@ else:
             if st.form_submit_button("Confirmar Entrada"):
                 if endereco_destino and cod_prod and desc_prod:
                     encontrou = False
-                    # Varre a lista pura garantindo que as operações de soma funcionem sem gerar erros do Pandas
                     for item in st.session_state.inventory:
                         if isinstance(item, dict) and item.get('Endereço') == endereco_destino and item.get('Código Produto') == cod_prod and item.get('Lote') == lote:
                             item['Quantidade'] = int(item.get('Quantidade', 0)) + qtd
@@ -182,13 +194,6 @@ else:
                             st.session_state.inventory = [item for item in st.session_state.inventory if isinstance(item, dict) and item.get('Endereço') != endereco_retirada]
                         else:
                             for item in st.session_state.inventory:
-                                if isinstance(item, dict) and item.get('Endereço') == endereco_retirada:
-                                    item['Quantidade'] = int(item.get('Quantidade', 0)) - qtd_retirar
-                                    break
-                        
-                        salvar_dados()
-                        st.success("Picking concluído e saldo atualizado!")
-
 
 
 

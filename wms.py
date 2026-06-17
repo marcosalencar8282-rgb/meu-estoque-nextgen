@@ -1,15 +1,16 @@
 import streamlit as st
-import pandas as pd
 from datetime import datetime
 import os
+import json
 
 # Configuração inicial obrigatória
 st.set_page_config(page_title="WMS - Endereçamento de Estoque Livre", layout="wide")
 
 # ==========================================
-# SISTEMA DE BANCO DE DADOS PERSISTENTE (JSON)
+# BANCO DE DADOS EM ARQUIVO (FORMA MAIS FÁCIL)
 # ==========================================
 def carregar_dados():
+    # Inicializa usuários padrão
     if 'users' not in st.session_state:
         st.session_state.users = {
             'admin': {'password': '123', 'profile': 'Administrador', 'active': True},
@@ -18,50 +19,50 @@ def carregar_dados():
             'consulta': {'password': '123', 'profile': 'Consulta', 'active': True}
         }
 
-    if os.path.exists('wms_inventario.json'):
-        try:
-            st.session_state.inventory = pd.read_json('wms_inventario.json')
-        except Exception:
-            st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
-    else:
-        st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
+    # Carrega Inventário (Lista simples de dicionários)
+    if 'inventory' not in st.session_state:
+        if os.path.exists('wms_inventario_livre.json'):
+            with open('wms_inventario_livre.json', 'r', encoding='utf-8') as f:
+                st.session_state.inventory = json.load(f)
+        else:
+            st.session_state.inventory = []
 
-    if st.session_state.inventory.empty:
-        st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
+    # Carrega Movimentações
+    if 'movements' not in st.session_state:
+        if os.path.exists('wms_movimentacoes_livre.json'):
+            with open('wms_movimentacoes_livre.json', 'r', encoding='utf-8') as f:
+                st.session_state.movements = json.load(f)
+        else:
+            st.session_state.movements = []
 
-    if os.path.exists('wms_movimentacoes.json'):
-        try:
-            st.session_state.movements = pd.read_json('wms_movimentacoes.json')
-        except Exception:
-            st.session_state.movements = pd.DataFrame(columns=['Tipo', 'Endereço Origem', 'Endereço Destino', 'Produto', 'Quantidade', 'Data Hora', 'Operador'])
-    else:
-        st.session_state.movements = pd.DataFrame(columns=['Tipo', 'Endereço Origem', 'Endereço Destino', 'Produto', 'Quantidade', 'Data Hora', 'Operador'])
-
-    if os.path.exists('wms_auditoria.json'):
-        try:
-            st.session_state.auditory = pd.read_json('wms_auditoria.json')
-        except Exception:
-            st.session_state.auditory = pd.DataFrame(columns=['Usuário', 'Ação', 'Registro', 'Data Hora'])
-    else:
-        st.session_state.auditory = pd.DataFrame(columns=['Usuário', 'Ação', 'Registro', 'Data Hora'])
+    # Carrega Auditoria
+    if 'auditory' not in st.session_state:
+        if os.path.exists('wms_auditoria_livre.json'):
+            with open('wms_auditoria_livre.json', 'r', encoding='utf-8') as f:
+                st.session_state.auditory = json.load(f)
+        else:
+            st.session_state.auditory = []
 
     if 'config' not in st.session_state:
         st.session_state.config = {'Empresa': 'WMS Endereçamento S/A'}
 
 def salvar_dados():
-    st.session_state.inventory.to_json('wms_inventario.json', orient='records', indent=4)
-    st.session_state.movements.to_json('wms_movimentacoes.json', orient='records', indent=4)
-    st.session_state.auditory.to_json('wms_auditoria.json', orient='records', indent=4)
+    with open('wms_inventario_livre.json', 'w', encoding='utf-8') as f:
+        json.dump(st.session_state.inventory, f, indent=4, ensure_ascii=False)
+    with open('wms_movimentacoes_livre.json', 'w', encoding='utf-8') as f:
+        json.dump(st.session_state.movements, f, indent=4, ensure_ascii=False)
+    with open('wms_auditoria_livre.json', 'w', encoding='utf-8') as f:
+        json.dump(st.session_state.auditory, f, indent=4, ensure_ascii=False)
 
 carregar_dados()
 
 def registrar_auditoria(acao, registro):
     usuario_atual = st.session_state.get('user', 'Sistema')
-    novo_log = pd.DataFrame([{
+    novo_log = {
         'Usuário': usuario_atual, 'Ação': acao, 'Registro': registro,
         'Data Hora': datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    }])
-    st.session_state.auditory = pd.concat([st.session_state.auditory, novo_log], ignore_index=True)
+    }
+    st.session_state.auditory.append(novo_log)
     salvar_dados()
 
 def validar_perfil(perfis_permitidos):
@@ -113,25 +114,24 @@ else:
     if opcao_menu == "Visão Geral do Estoque":
         st.title("📊 Visão Geral e Posições Ocupadas")
         
-        total_posicoes_ocupadas = len(st.session_state.inventory['Endereço'].unique())
-        total_itens = int(st.session_state.inventory['Quantidade'].sum()) if not st.session_state.inventory.empty else 0
+        total_posicoes = len(set([item['Endereço'] for item in st.session_state.inventory]))
+        total_itens = sum([int(item['Quantidade']) for item in st.session_state.inventory])
         
         c1, c2 = st.columns(2)
-        c1.metric("Posições Ocupadas no Momento 📥", total_posicoes_ocupadas)
+        c1.metric("Posições Ocupadas no Momento 📥", total_posicoes)
         c2.metric("Total de Peças/Volumes em Estoque 📦", total_itens)
         
         st.subheader("📍 Filtro de Inventário")
         busca = st.text_input("Filtrar por Produto ou Código do Endereço").upper()
         
-        df_exibicao = st.session_state.inventory.copy()
-        if busca and not df_exibicao.empty:
-            df_exibicao = df_exibicao[
-                df_exibicao['Endereço'].astype(str).str.upper().str.contains(busca) | 
-                df_exibicao['Código Produto'].astype(str).str.upper().str.contains(busca) | 
-                df_exibicao['Descrição'].astype(str).str.upper().str.contains(busca)
+        lista_exibicao = st.session_state.inventory
+        if busca:
+            lista_exibicao = [
+                item for item in st.session_state.inventory 
+                if busca in str(item['Endereço']).upper() or busca in str(item['Código Produto']).upper() or busca in str(item['Descrição']).upper()
             ]
             
-        st.dataframe(df_exibicao, use_container_width=True)
+        st.dataframe(lista_exibicao, use_container_width=True)
 
     # 2. Entrada (Armazenagem)
     elif opcao_menu == "Entrada (Armazenagem)":
@@ -149,17 +149,26 @@ else:
             
             if st.form_submit_button("Confirmar Armazenagem"):
                 if endereco_destino and cod_prod and desc_prod:
-                    filtro_existente = (st.session_state.inventory['Endereço'] == endereco_destino) & (st.session_state.inventory['Código Produto'] == cod_prod) & (st.session_state.inventory['Lote'] == lote)
+                    encontrou = False
+                    for item in st.session_state.inventory:
+                        if item['Endereço'] == endereco_destino and item['Código Produto'] == cod_prod and item['Lote'] == lote:
+                            item['Quantidade'] += qtd
+                            item['Última Atualização'] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                            encontrou = True
+                            break
                     
-                    if not st.session_state.inventory.empty and filtro_existente.any():
-                        st.session_state.inventory.loc[filtro_existente, 'Quantidade'] += qtd
-                        st.session_state.inventory.loc[filtro_existente, 'Última Atualização'] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    else:
-                        nova_alocacao = pd.DataFrame([{'Endereço': endereco_destino, 'Código Produto': cod_prod, 'Descrição': desc_prod, 'Quantidade': qtd, 'Lote': lote, 'Última Atualização': datetime.now().strftime('%d/%m/%Y %H:%M')}])
-                        st.session_state.inventory = pd.concat([st.session_state.inventory, nova_alocacao], ignore_index=True)
+                    if not encontrou:
+                        nova_alocacao = {
+                            'Endereço': endereco_destino, 'Código Produto': cod_prod, 'Descrição': desc_prod, 
+                            'Quantidade': qtd, 'Lote': lote, 'Última Atualização': datetime.now().strftime('%d/%m/%Y %H:%M')
+                        }
+                        st.session_state.inventory.append(nova_alocacao)
                     
-                    novo_mov = pd.DataFrame([{'Tipo': 'Entrada', 'Endereço Origem': 'Docas', 'Endereço Destino': endereco_destino, 'Produto': cod_prod, 'Quantidade': qtd, 'Data Hora': datetime.now().strftime('%d/%m/%Y %H:%M'), 'Operador': st.session_state.user}])
-                    st.session_state.movements = pd.concat([st.session_state.movements, novo_mov], ignore_index=True)
+                    novo_mov = {
+                        'Tipo': 'Entrada', 'Endereço Origem': 'Docas', 'Endereço Destino': endereco_destino, 
+                        'Produto': desc_prod, 'Quantidade': qtd, 'Data Hora': datetime.now().strftime('%d/%m/%Y %H:%M'), 'Operador': st.session_state.user
+                    }
+                    st.session_state.movements.append(novo_mov)
                     
                     salvar_dados()
                     registrar_auditoria(f"Armazenou {cod_prod} no endereço {endereco_destino}", "Inventário")
@@ -174,7 +183,7 @@ else:
         if not validar_perfil(['Almoxarife']):
             st.error("Acesso restrito."); st.stop()
             
-        enderecos_ocupados = st.session_state.inventory['Endereço'].unique().tolist()
+        enderecos_ocupados = list(set([item['Endereço'] for item in st.session_state.inventory]))
         
         if not enderecos_ocupados:
             st.info("Não há nenhum produto em estoque para movimentar.")
@@ -185,6 +194,20 @@ else:
                 
                 if st.form_submit_button("Efetuar Movimentação"):
                     if destino_input:
+                        item_movido = None
+                        for item in st.session_state.inventory:
+                            if item['Endereço'] == origin:
+                                item_movido = item
+                                break
+                        
+                        if item_movido:
+                            p_codigo = item_movido['Código Produto']
+                            p_desc = item_movido['Descrição']
+                            p_qtd = item_movido['Quantidade']
+                            p_lote = item_movido['Lote']
+                            
+                            # Adiciona no destino
+
 
 
 

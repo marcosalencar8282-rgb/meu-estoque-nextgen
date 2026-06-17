@@ -195,3 +195,4 @@ else:
         enderecos_livres = st.session_state.locations[st.session_state.locations['Status'] == 'Disponível']['Endereço'].tolist()
         
         if not enderecos_livres:
+

@@ -74,7 +74,6 @@ def validar_perfil(perfis_permitidos):
 # TELA DE LOGIN CENTRALIZADA E MENOR
 # ==========================================
 if 'user' not in st.session_state:
-    # Divide a tela em 3 colunas para estreitar o centro
     col_vazia_esq, col_login, col_vazia_dir = st.columns([2, 1.5, 2])
     
     with col_login:
@@ -186,6 +185,6 @@ else:
                 
                 if st.form_submit_button("Efetuar Movimentação"):
                     if destino_input:
-
+                        df_item = st.session_state.inventory[st.session_state.inventory['Endereço'] == origem]
 
 

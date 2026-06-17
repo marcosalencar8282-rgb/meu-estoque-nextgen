@@ -4,13 +4,12 @@ import os
 import json
 
 # Configuração inicial obrigatória
-st.set_page_config(page_title="WMS - Endereçamento de Estoque Livre", layout="wide")
+st.set_page_config(page_title="WMS - Estoque e Endereçamento", layout="wide")
 
 # ==========================================
-# BANCO DE DADOS EM ARQUIVO (FORMA MAIS FÁCIL)
+# BANCO DE DADOS EM ARQUIVO EM FORMATO SEGURO
 # ==========================================
 def carregar_dados():
-    # Inicializa usuários padrão
     if 'users' not in st.session_state:
         st.session_state.users = {
             'admin': {'password': '123', 'profile': 'Administrador', 'active': True},
@@ -19,57 +18,27 @@ def carregar_dados():
             'consulta': {'password': '123', 'profile': 'Consulta', 'active': True}
         }
 
-    # Carrega Inventário (Com correção automática de formato caso dê erro)
     if 'inventory' not in st.session_state:
         st.session_state.inventory = []
         if os.path.exists('wms_inventario_livre.json'):
             try:
                 with open('wms_inventario_livre.json', 'r', encoding='utf-8') as f:
                     dados = json.load(f)
-                    # Força a conversão caso venha no formato antigo de colunas do Pandas
-                    if isinstance(dados, dict):
-                        if 'Endereço' in dados:
-                            chaves = list(dados['Endereço'].keys())
-                            for c in chaves:
-                                st.session_state.inventory.append({
-                                    'Endereço': str(dados['Endereço'].get(c, '')),
-                                    'Código Produto': str(dados['Código Produto'].get(c, '')),
-                                    'Descrição': str(dados['Descrição'].get(c, '')),
-                                    'Quantidade': int(dados['Quantidade'].get(c, 0)),
-                                    'Lote': str(dados['Lote'].get(c, 'N/A')),
-                                    'Última Atualização': str(dados['Última Atualização'].get(c, ''))
-                                })
-                        else:
-                            st.session_state.inventory = []
+                    if isinstance(dados, dict) and 'Endereço' in dados:
+                        chaves = list(dados['Endereço'].keys())
+                        for c in chaves:
+                            st.session_state.inventory.append({
+                                'Endereço': str(dados['Endereço'].get(c, '')),
+                                'Código Produto': str(dados['Código Produto'].get(c, '')),
+                                'Descrição': str(dados['Descrição'].get(c, '')),
+                                'Quantidade': int(dados['Quantidade'].get(c, 0)),
+                                'Lote': str(dados['Lote'].get(c, 'N/A')),
+                                'Última Atualização': str(dados['Última Atualização'].get(c, ''))
+                            })
                     elif isinstance(dados, list):
-                        # Garante que cada item interno seja um dicionário válido
                         st.session_state.inventory = [i for i in dados if isinstance(i, dict)]
             except Exception:
                 st.session_state.inventory = []
-
-    # Carrega Movimentações
-    if 'movements' not in st.session_state:
-        st.session_state.movements = []
-        if os.path.exists('wms_movimentacoes_livre.json'):
-            try:
-                with open('wms_movimentacoes_livre.json', 'r', encoding='utf-8') as f:
-                    dados = json.load(f)
-                    if isinstance(dados, list):
-                        st.session_state.movements = [m for m in dados if isinstance(m, dict)]
-            except Exception:
-                st.session_state.movements = []
-
-    # Carrega Auditoria
-    if 'auditory' not in st.session_state:
-        st.session_state.auditory = []
-        if os.path.exists('wms_auditoria_livre.json'):
-            try:
-                with open('wms_auditoria_livre.json', 'r', encoding='utf-8') as f:
-                    dados = json.load(f)
-                    if isinstance(dados, list):
-                        st.session_state.auditory = [a for a in dados if isinstance(a, dict)]
-            except Exception:
-                st.session_state.auditory = []
 
     if 'config' not in st.session_state:
         st.session_state.config = {'Empresa': 'WMS Endereçamento S/A'}
@@ -77,21 +46,8 @@ def carregar_dados():
 def salvar_dados():
     with open('wms_inventario_livre.json', 'w', encoding='utf-8') as f:
         json.dump(st.session_state.inventory, f, indent=4, ensure_ascii=False)
-    with open('wms_movimentacoes_livre.json', 'w', encoding='utf-8') as f:
-        json.dump(st.session_state.movements, f, indent=4, ensure_ascii=False)
-    with open('wms_auditoria_livre.json', 'w', encoding='utf-8') as f:
-        json.dump(st.session_state.auditory, f, indent=4, ensure_ascii=False)
 
 carregar_dados()
-
-def registrar_auditoria(acao, registro):
-    usuario_atual = st.session_state.get('user', 'Sistema')
-    novo_log = {
-        'Usuário': usuario_atual, 'Ação': acao, 'Registro': registro,
-        'Data Hora': datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    }
-    st.session_state.auditory.append(novo_log)
-    salvar_dados()
 
 def validar_perfil(perfis_permitidos):
     if 'user' not in st.session_state:
@@ -118,7 +74,6 @@ if 'user' not in st.session_state:
                 if usuario_input in st.session_state.users and st.session_state.users[usuario_input]['password'] == senha_input:
                     if st.session_state.users[usuario_input]['active']:
                         st.session_state.user = usuario_input
-                        registrar_auditoria("Login efetuado", "Sessão")
                         st.rerun()
                     else:
                         st.error("Acesso bloqueado: Usuário Inativo.")
@@ -126,32 +81,32 @@ if 'user' not in st.session_state:
                     st.error("Credenciais incorretas.")
 else:
     st.sidebar.write(f"🏢 **{st.session_state.config['Empresa']}**")
-    st.sidebar.write(f"👤 `{st.session_state.user}` ({st.session_state.users[st.session_state.user]['profile']})")
+    st.sidebar.write(f"👤 `{st.session_state.user}`")
     if st.sidebar.button("Efetuar Logout / Sair"):
-        registrar_auditoria("Logout efetuado", "Sessão")
         del st.session_state.user
         st.rerun()
         
     st.sidebar.divider()
+    
+    # Apenas os módulos solicitados na barra lateral
     opcao_menu = st.sidebar.radio(
         "Módulos WMS", 
-        ["Visão Geral do Estoque", "Entrada (Armazenagem)", "Movimentação Interna", "Saída (Picking)", "Histórico de Movimentações", "Auditoria"]
+        ["Endereçamento (Visão Geral)", "Entrada (Armazenagem)", "Saída (Picking)"]
     )
     
-    # 1. Visão Geral do Estoque
-    if opcao_menu == "Visão Geral do Estoque":
-        st.title("📊 Visão Geral e Posições Ocupadas")
+    # 1. MÓDULO ENDEREÇAMENTO (VISÃO GERAL DO ESTOQUE)
+    if opcao_menu == "Endereçamento (Visão Geral)":
+        st.title("🧱 Consulta de Posições e Endereçamento")
         
-        # Leitura com proteção para chaves que possam estar ausentes
         total_posicoes = len(set([str(item.get('Endereço', '')) for item in st.session_state.inventory if isinstance(item, dict)]))
         total_itens = sum([int(item.get('Quantidade', 0)) for item in st.session_state.inventory if isinstance(item, dict)])
         
         c1, c2 = st.columns(2)
         c1.metric("Posições Ocupadas no Momento 📥", total_posicoes)
-        c2.metric("Total de Peças/Volumes em Estoque 📦", total_itens)
+        c2.metric("Total de Itens Armazenados 📦", total_itens)
         
-        st.subheader("📍 Filtro de Inventário")
-        busca = st.text_input("Filtrar por Produto ou Código do Endereço").upper()
+        st.subheader("🔍 Filtro de Posições")
+        busca = st.text_input("Buscar por Endereço ou Produto").upper()
         
         lista_exibicao = [i for i in st.session_state.inventory if isinstance(i, dict)]
         if busca:
@@ -162,21 +117,21 @@ else:
             
         st.dataframe(lista_exibicao, use_container_width=True)
 
-    # 2. Entrada (Armazenagem)
+    # 2. MÓDULO ENTRADA (ARMAZENAGEM)
     elif opcao_menu == "Entrada (Armazenagem)":
-        st.title("📥 Guardar Produto (Armazenagem Livre)")
+        st.title("📥 Entrada de Mercadoria por Endereço")
         if not validar_perfil(['Almoxarife', 'Conferente']):
             st.error("Acesso negado."); st.stop()
             
         with st.form("armazenagem"):
-            st.info("Digite abaixo a identificação do endereço onde o produto está sendo colocado.")
-            endereco_destino = st.text_input("Código do Endereço (Ex: RUA-A-01)").upper().strip()
+            st.info("Digite o código do endereço onde o produto será armazenado.")
+            endereco_destino = st.text_input("Código do Endereço (Ex: PRATELEIRA-A1)").upper().strip()
             cod_prod = st.text_input("Código do Produto")
             desc_prod = st.text_input("Descrição do Produto")
             qtd = st.number_input("Quantidade", min_value=1, value=1)
             lote = st.text_input("Lote / Validade", value="N/A")
             
-            if st.form_submit_button("Confirmar Armazenagem"):
+            if st.form_submit_button("Confirmar Entrada"):
                 if endereco_destino and cod_prod and desc_prod:
                     encontrou = False
                     for item in st.session_state.inventory:
@@ -187,14 +142,57 @@ else:
                             break
                     
                     if not encontrou:
-                        nova_alocacao = {
+                        st.session_state.inventory.append({
                             'Endereço': endereco_destino, 'Código Produto': cod_prod, 'Descrição': desc_prod, 
                             'Quantidade': qtd, 'Lote': lote, 'Última Atualização': datetime.now().strftime('%d/%m/%Y %H:%M')
-                        }
-                        st.session_state.inventory.append(nova_alocacao)
+                        })
                     
-                    novo_mov = {
-                        'Tipo': 'Entrada', 'Endereço Origem': 'Docas', 'Endereço Destino': endereco_destino,
+                    salvar_dados()
+                    st.success(f"Produto guardado com sucesso no endereço {endereco_destino}!")
+                    st.rerun()
+                else:
+                    st.warning("Preencha todos os campos obrigatórios.")
+
+    # 3. MÓDULO SAÍDA (PICKING)
+    elif opcao_menu == "Saída (Picking)":
+        st.title("📤 Retirada de Estoque (Picking)")
+        if not validar_perfil(['Almoxarife', 'Conferente']):
+            st.error("Acesso negado."); st.stop()
+            
+        enderecos_ocupados = list(set([item.get('Endereço', '') for item in st.session_state.inventory if isinstance(item, dict) and item.get('Endereço')]))
+        if not enderecos_ocupados:
+            st.info("Não há itens registrados em nenhum endereço.")
+        else:
+            with st.form("picking"):
+                endereco_retirada = st.selectbox("Selecione o Endereço de Retirada", enderecos_ocupados)
+                
+                item_localizado = None
+                for item in st.session_state.inventory:
+                    if isinstance(item, dict) and item.get('Endereço') == endereco_retirada:
+                        item_localizado = item
+                        break
+                
+                if item_localizado:
+                    p_desc = item_localizado.get('Descrição', '')
+                    p_qtd_max = int(item_localizado.get('Quantidade', 0))
+                    p_lote = item_localizado.get('Lote', 'N/A')
+                    
+                    st.warning(f"📦 Item na posição: {p_desc} | Lote: {p_lote} | Saldo: {p_qtd_max}")
+                    qtd_retirar = st.number_input("Quantidade a Retirar", min_value=1, max_value=p_qtd_max, value=p_qtd_max)
+                    
+                    if st.form_submit_button("Confirmar Baixa/Saída"):
+                        if qtd_retirar == p_qtd_max:
+                            st.session_state.inventory = [item for item in st.session_state.inventory if isinstance(item, dict) and item.get('Endereço') != endereco_retirada]
+                        else:
+                            for item in st.session_state.inventory:
+                                if isinstance(item, dict) and item.get('Endereço') == endereco_retirada:
+                                    item['Quantidade'] = int(item.get('Quantidade', 0)) - qtd_retirar
+                                    break
+                        
+                        salvar_dados()
+                        st.success("Picking concluído e saldo atualizado!")
+                        st.rerun()
+
 
 
 

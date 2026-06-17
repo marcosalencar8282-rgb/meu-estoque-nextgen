@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
-import json
 
 # Configuração inicial obrigatória
 st.set_page_config(page_title="WMS - Endereçamento de Estoque", layout="wide")
@@ -33,7 +32,6 @@ def carregar_dados():
     # Carrega Saldo de Estoque por Endereço
     if os.path.exists('wms_inventario.json'):
         st.session_state.inventory = pd.read_json('wms_inventario.json')
-        # Garante tipos corretos se o JSON vier vazio
         if st.session_state.inventory.empty:
             st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
     else:

@@ -21,8 +21,12 @@ def carregar_dados():
     
     # Carrega Estrutura de Endereços
     if os.path.exists('wms_enderecos.json'):
-        st.session_state.locations = pd.read_json('wms_enderecos.json')
-    else:
+        try:
+            st.session_state.locations = pd.read_json('wms_enderecos.json')
+        except Exception:
+            st.session_state.locations = pd.DataFrame(columns=['Endereço', 'Rua', 'Prédio', 'Nível', 'Vão', 'Status'])
+    
+    if 'locations' not in st.session_state or st.session_state.locations.empty:
         st.session_state.locations = pd.DataFrame([
             {'Endereço': 'A-01-02-01', 'Rua': 'A', 'Prédio': '01', 'Nível': '02', 'Vão': '01', 'Status': 'Disponível'},
             {'Endereço': 'A-01-02-02', 'Rua': 'A', 'Prédio': '01', 'Nível': '02', 'Vão': '02', 'Status': 'Disponível'},
@@ -31,26 +35,38 @@ def carregar_dados():
 
     # Carrega Saldo de Estoque por Endereço
     if os.path.exists('wms_inventario.json'):
-        st.session_state.inventory = pd.read_json('wms_inventario.json')
-        if st.session_state.inventory.empty:
+        try:
+            st.session_state.inventory = pd.read_json('wms_inventario.json')
+        except Exception:
             st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
     else:
         st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
 
+    if st.session_state.inventory.empty:
+        st.session_state.inventory = pd.DataFrame(columns=['Endereço', 'Código Produto', 'Descrição', 'Quantidade', 'Lote', 'Última Atualização'])
+
     # Carrega Histórico de Movimentações
     if os.path.exists('wms_movimentacoes.json'):
-        st.session_state.movements = pd.read_json('wms_movimentacoes.json')
-        if st.session_state.movements.empty:
+        try:
+            st.session_state.movements = pd.read_json('wms_movimentacoes.json')
+        except Exception:
             st.session_state.movements = pd.DataFrame(columns=['Tipo', 'Endereço Origem', 'Endereço Destino', 'Produto', 'Quantidade', 'Data Hora', 'Operador'])
     else:
         st.session_state.movements = pd.DataFrame(columns=['Tipo', 'Endereço Origem', 'Endereço Destino', 'Produto', 'Quantidade', 'Data Hora', 'Operador'])
 
+    if st.session_state.movements.empty:
+        st.session_state.movements = pd.DataFrame(columns=['Tipo', 'Endereço Origem', 'Endereço Destino', 'Produto', 'Quantidade', 'Data Hora', 'Operador'])
+
     # Carrega Auditoria
     if os.path.exists('wms_auditoria.json'):
-        st.session_state.auditory = pd.read_json('wms_auditoria.json')
-        if st.session_state.auditory.empty:
+        try:
+            st.session_state.auditory = pd.read_json('wms_auditoria.json')
+        except Exception:
             st.session_state.auditory = pd.DataFrame(columns=['Usuário', 'Ação', 'Registro', 'Data Hora'])
     else:
+        st.session_state.auditory = pd.DataFrame(columns=['Usuário', 'Ação', 'Registro', 'Data Hora'])
+
+    if st.session_state.auditory.empty:
         st.session_state.auditory = pd.DataFrame(columns=['Usuário', 'Ação', 'Registro', 'Data Hora'])
 
     if 'config' not in st.session_state:
@@ -179,15 +195,3 @@ else:
         enderecos_livres = st.session_state.locations[st.session_state.locations['Status'] == 'Disponível']['Endereço'].tolist()
         
         if not enderecos_livres:
-            st.error("❌ Não há endereços vagos disponíveis no armazém. Libere ou cadastre novas posições.")
-        else:
-            with st.form("armazenagem"):
-                endereco_destino = st.selectbox("Selecione o Endereço Vago Destino", enderecos_livres)
-                cod_prod = st.text_input("Código do Produto")
-                desc_prod = st.text_input("Descrição do Produto")
-                qtd = st.number_input("Quantidade", min_value=1, value=1)
-                lote = st.text_input("Lote / Validade", value="N/A")
-                
-                if st.form_submit_button("Confirmar Armazenagem"):
-                    if cod_prod and desc_prod:
-                        nova_alocacao = pd.DataFrame([{

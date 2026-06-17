@@ -71,23 +71,31 @@ def validar_perfil(perfis_permitidos):
     return perfil_usuario in perfis_permitidos or perfil_usuario == 'Administrador'
 
 # ==========================================
-# TELA DE LOGIN
+# TELA DE LOGIN CENTRALIZADA E MENOR
 # ==========================================
 if 'user' not in st.session_state:
-    st.subheader("🔑 Login do Sistema de Endereçamento (WMS)")
-    usuario_input = st.text_input("Usuário", key="usr")
-    senha_input = st.text_input("Senha", type="password", key="pwd")
+    # Divide a tela em 3 colunas para estreitar o centro
+    col_vazia_esq, col_login, col_vazia_dir = st.columns([2, 1.5, 2])
     
-    if st.button("Entrar no Sistema", type="primary"):
-        if usuario_input in st.session_state.users and st.session_state.users[usuario_input]['password'] == senha_input:
-            if st.session_state.users[usuario_input]['active']:
-                st.session_state.user = usuario_input
-                registrar_auditoria("Login efetuado", "Sessão")
-                st.rerun()
-            else:
-                st.error("Acesso bloqueado: Usuário Inativo.")
-        else:
-            st.error("Credenciais incorretas.")
+    with col_login:
+        st.write("---")
+        st.subheader("🔑 Login - WMS Livre")
+        
+        with st.form("form_login"):
+            usuario_input = st.text_input("Usuário", key="usr")
+            senha_input = st.text_input("Senha", type="password", key="pwd")
+            botao_entrar = st.form_submit_button("Entrar no Sistema", type="primary", use_container_width=True)
+            
+            if botao_entrar:
+                if usuario_input in st.session_state.users and st.session_state.users[usuario_input]['password'] == senha_input:
+                    if st.session_state.users[usuario_input]['active']:
+                        st.session_state.user = usuario_input
+                        registrar_auditoria("Login efetuado", "Sessão")
+                        st.rerun()
+                    else:
+                        st.error("Acesso bloqueado: Usuário Inativo.")
+                else:
+                    st.error("Credenciais incorretas.")
 else:
     st.sidebar.write(f"🏢 **{st.session_state.config['Empresa']}**")
     st.sidebar.write(f"👤 `{st.session_state.user}` ({st.session_state.users[st.session_state.user]['profile']})")
@@ -142,7 +150,6 @@ else:
             
             if st.form_submit_button("Confirmar Armazenagem"):
                 if endereco_destino and cod_prod and desc_prod:
-                    # Verifica se o endereço já possui esse produto para somar, ou cria nova linha
                     filtro_existente = (st.session_state.inventory['Endereço'] == endereco_destino) & (st.session_state.inventory['Código Produto'] == cod_prod) & (st.session_state.inventory['Lote'] == lote)
                     
                     if not st.session_state.inventory.empty and filtro_existente.any():
@@ -179,10 +186,6 @@ else:
                 
                 if st.form_submit_button("Efetuar Movimentação"):
                     if destino_input:
-                        df_item = st.session_state.inventory[st.session_state.inventory['Endereço'] == origem]
-                        
-                        if not df_item.empty:
-                            p_codigo = str(df_item['Código Produto'].values)
-                            p_desc = str(df_item['Descrição'].values)
+
 
 

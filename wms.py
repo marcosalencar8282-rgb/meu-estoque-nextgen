@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime
 import os
 import json
+import pandas as pd
 
 # Configuração inicial obrigatória
 st.set_page_config(page_title="WMS - Estoque e Endereçamento", layout="wide")
@@ -22,21 +23,12 @@ def carregar_dados():
         st.session_state.inventory = []
         if os.path.exists('wms_inventario_livre.json'):
             try:
-                with open('wms_inventario_livre.json', 'r', encoding='utf-8') as f:
-                    dados = json.load(f)
-                    if isinstance(dados, dict) and 'Endereço' in dados:
-                        chaves = list(dados['Endereço'].keys())
-                        for c in chaves:
-                            st.session_state.inventory.append({
-                                'Endereço': str(dados['Endereço'].get(c, '')),
-                                'Código Produto': str(dados['Código Produto'].get(c, '')),
-                                'Descrição': str(dados['Descrição'].get(c, '')),
-                                'Quantidade': int(dados['Quantidade'].get(c, 0)),
-                                'Lote': str(dados['Lote'].get(c, 'N/A')),
-                                'Última Atualização': str(dados['Última Atualização'].get(c, ''))
-                            })
-                    elif isinstance(dados, list):
-                        st.session_state.inventory = [i for i in dados if isinstance(i, dict)]
+                # Carrega o arquivo usando o Pandas de forma robusta e converte imediatamente para lista pura
+                df = pd.read_json('wms_inventario_livre.json')
+                if not df.empty:
+                    st.session_state.inventory = df.to_dict(orient='records')
+                else:
+                    st.session_state.inventory = []
             except Exception:
                 st.session_state.inventory = []
 
@@ -44,8 +36,13 @@ def carregar_dados():
         st.session_state.config = {'Empresa': 'WMS Endereçamento S/A'}
 
 def salvar_dados():
-    with open('wms_inventario_livre.json', 'w', encoding='utf-8') as f:
-        json.dump(st.session_state.inventory, f, indent=4, ensure_ascii=False)
+    try:
+        # Converte para DataFrame na hora de salvar para manter o arquivo JSON limpo e estruturado
+        df = pd.DataFrame(st.session_state.inventory)
+        df.to_json('wms_inventario_livre.json', orient='records', indent=4, force_ascii=False)
+    except Exception:
+        with open('wms_inventario_livre.json', 'w', encoding='utf-8') as f:
+            json.dump(st.session_state.inventory, f, indent=4, ensure_ascii=False)
 
 carregar_dados()
 
@@ -88,7 +85,6 @@ else:
         
     st.sidebar.divider()
     
-    # Apenas os módulos solicitados na barra lateral
     opcao_menu = st.sidebar.radio(
         "Módulos WMS", 
         ["Endereçamento (Visão Geral)", "Entrada (Armazenagem)", "Saída (Picking)"]
@@ -134,6 +130,7 @@ else:
             if st.form_submit_button("Confirmar Entrada"):
                 if endereco_destino and cod_prod and desc_prod:
                     encontrou = False
+                    # Varre a lista pura garantindo que as operações de soma funcionem sem gerar erros do Pandas
                     for item in st.session_state.inventory:
                         if isinstance(item, dict) and item.get('Endereço') == endereco_destino and item.get('Código Produto') == cod_prod and item.get('Lote') == lote:
                             item['Quantidade'] = int(item.get('Quantidade', 0)) + qtd
@@ -191,8 +188,6 @@ else:
                         
                         salvar_dados()
                         st.success("Picking concluído e saldo atualizado!")
-                        st.rerun()
-
 
 
 

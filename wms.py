@@ -125,7 +125,7 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
     st.dataframe(linhas_tabela, use_container_width=True)
 
 # ==========================================
-# 6. MÓDULO: CADASTRO DE PRODUTOS (COM EXCLUSÃO)
+# 6. MÓDULO: CADASTRO DE PRODUTOS
 # ==========================================
 elif opcao_menu == "📦 Cadastro de Produtos":
     st.title("📦 Cadastro de Itens e SKUs")
@@ -144,8 +144,9 @@ elif opcao_menu == "📦 Cadastro de Produtos":
                 if any(p["codigo"] == codigo for p in st.session_state.bd["produtos"]):
                     st.error("Este código de produto já está cadastrado!")
                 else:
+                    # CORREÇÃO DA VARIÁVEL: trocado 'unit' por 'unidade'
                     st.session_state.bd["produtos"].append({
-                        "codigo": codigo, "descricao": descricao, "categoria": categoria, "unidade": unit
+                        "codigo": codigo, "descricao": descricao, "categoria": categoria, "unidade": unidade
                     })
                     salvar_dados()
                     st.success(f"Produto {codigo} cadastrado com sucesso!")
@@ -156,7 +157,6 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     st.subheader("Itens Cadastrados")
     st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
 
-    # BOTÃO PARA EXCLUIR PRODUTO (SEM COMPROMETER O SISTEMA)
     if st.session_state.bd["produtos"]:
         st.markdown("---")
         st.subheader("🗑️ Remover Produto")
@@ -164,7 +164,6 @@ elif opcao_menu == "📦 Cadastro de Produtos":
         prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod)
         
         if st.button("Confirmar Exclusão de Produto", type="destructive"):
-            # Impede a exclusão caso o produto tenha registros de saldo pendentes no WMS
             tem_estoque = any(i["codigo_produto"] == prod_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
             
             if tem_estoque:
@@ -176,7 +175,7 @@ elif opcao_menu == "📦 Cadastro de Produtos":
                 st.rerun()
 
 # ==========================================
-# 7. MÓDULO: CADASTRO DE ENDEREÇOS (COM EXCLUSÃO)
+# 7. MÓDULO: CADASTRO DE ENDEREÇOS
 # ==========================================
 elif opcao_menu == "🧱 Cadastro de Endereços":
     st.title("🧱 Cadastro de Endereço Único")
@@ -199,7 +198,6 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
     st.subheader("Endereços Ativos no Sistema")
     st.dataframe(st.session_state.bd["enderecos"], use_container_width=True)
 
-    # BOTÃO PARA EXCLUIR ENDEREÇO (SEM COMPROMETER O SISTEMA)
     if st.session_state.bd["enderecos"]:
         st.markdown("---")
         st.subheader("🗑️ Remover Endereço")
@@ -207,7 +205,6 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
         end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end)
         
         if st.button("Confirmar Exclusão de Endereço", type="destructive"):
-            # Impede a exclusão se houver qualquer tipo de mercadoria alocada nesta posição
             endereco_ocupado = any(i["endereco"] == end_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
             
             if endereco_ocupado:
@@ -222,6 +219,10 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
 # 8. MÓDULO: ENTRADA & ARMAZENAGEM
 # ==========================================
 elif opcao_menu == "📥 Entrada & Armazenagem":
+    st.title("📥 Entrada de Mercadoria por Validação")
+    
+    if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
+        st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
 
 
 

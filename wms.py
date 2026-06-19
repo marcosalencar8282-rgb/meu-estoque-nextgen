@@ -160,12 +160,13 @@ elif opcao_menu == "📦 Cadastro de Produtos":
         st.markdown("---")
         st.subheader("🗑️ Remover Produto")
         
-        # CORREÇÃO CRÍTICA: Exclusão isolada em formulário para evitar StreamlitAPIException
+        # CORREÇÃO: Utilizando a sintaxe de formulário com o gerenciador de contexto completo
         with st.form("form_deletar_produto"):
             lista_remover_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
             prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod)
+            botao_excluir_prod = st.form_submit_button("Confirmar Exclusão de Produto", type="destructive")
             
-            if st.form_submit_button("Confirmar Exclusão de Produto", type="destructive"):
+            if botao_excluir_prod:
                 tem_estoque = any(i["codigo_produto"] == prod_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
                 
                 if tem_estoque:
@@ -204,12 +205,13 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
         st.markdown("---")
         st.subheader("🗑️ Remover Endereço")
         
-        # CORREÇÃO CRÍTICA: Exclusão isolada em formulário para evitar StreamlitAPIException
+        # CORREÇÃO: Utilizando a sintaxe de formulário com o gerenciador de contexto completo
         with st.form("form_deletar_endereco"):
             lista_remover_end = [e["completo"] for e in st.session_state.bd["enderecos"]]
             end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end)
+            botao_excluir_end = st.form_submit_button("Confirmar Exclusão de Endereço", type="destructive")
             
-            if st.form_submit_button("Confirmar Exclusão de Endereço", type="destructive"):
+            if botao_excluir_end:
                 endereco_ocupado = any(i["endereco"] == end_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
                 
                 if endereco_ocupado:
@@ -218,10 +220,6 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
                     st.session_state.bd["enderecos"] = [e for e in st.session_state.bd["enderecos"] if e["completo"] != end_para_remover]
                     salvar_dados()
                     st.success(f"Endereço {end_para_remover} removido com sucesso!")
-                    st.rerun()
-
-# ==========================================
-# 8. MÓDULO: ENTRADA & ARMAZENAGEM
 
 
 

@@ -32,7 +32,6 @@ if 'logado' not in st.session_state:
     st.session_state.logado = False
 
 if not st.session_state.logado:
-    # Cria colunas para espremer o formulário no centro da tela
     col_esq, col_login, col_dir = st.columns([1.5, 1.2, 1.5])
     
     with col_login:
@@ -64,7 +63,7 @@ st.sidebar.write(f"👤 Operador: `admin`")
 st.sidebar.markdown("---")
 opcao = st.sidebar.radio(
     "Navegação de Módulos", 
-    ["📊 Visão Geral", "🧱 Cadastrar Endereço", "📥 Entrada de Mercadoria", "📤 Saída de Mercadoria (Picking)"]
+    ["📊 Visão Geral", "🧱 Cadastrar Endereço", "📥 Entrada de Mercadoria", "📤 Saída de Mercadoria"]
 )
 st.sidebar.markdown("---")
 
@@ -73,19 +72,17 @@ if st.sidebar.button("Efetuar Logout", type="secondary", use_container_width=Tru
     st.rerun()
 
 # ==========================================
-# 1. VISÃO GERAL (PAINEL BONITO COM MÉTRICAS)
+# 1. VISÃO GERAL
 # ==========================================
-if opcao == "Visão Geral":
+if opcao == "📊 Visão Geral":
     st.markdown("## 📊 Posição Geral e Indicadores de Estoque")
     st.markdown("Consulte os saldos consolidados e localizações físicas em tempo real.")
     st.write("#")
     
-    # Cálculo de Indicadores Rápidos
     total_enderecos = len(st.session_state.bd["enderecos"])
     posicoes_ocupadas = len(set([i["endereco"] for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]))
     total_pecas = sum([i["quantidade"] for i in st.session_state.bd["estoque"]])
     
-    # Grid de Métricas Visuais
     m1, m2, m3 = st.columns(3)
     m1.metric("Total de Endereços Ativos", total_enderecos)
     m2.metric("Vagas Ocupadas no Pátio", posicoes_ocupadas)
@@ -114,7 +111,7 @@ if opcao == "Visão Geral":
 # ==========================================
 # 2. CADASTRAR ENDEREÇO
 # ==========================================
-elif opcao == "Cadastrar Endereço":
+elif opcao == "🧱 Cadastrar Endereço":
     st.markdown("## 🧱 Mapeamento de Estrutura Física")
     st.markdown("Adicione novas localizações, box, prateleiras ou paletes ao sistema.")
     st.write("#")
@@ -148,13 +145,13 @@ elif opcao == "Cadastrar Endereço":
 # ==========================================
 # 3. ENTRADA DE MERCADORIA
 # ==========================================
-elif opcao == "Entrada":
+elif opcao == "📥 Entrada de Mercadoria":
     st.markdown("## 📥 Recebimento e Alocação de Mercadoria")
     st.markdown("Dê entrada direta informando o produto e o endereço de destino.")
     st.write("#")
     
     if not st.session_state.bd["enderecos"]:
-        st.error("🛑 Erro operacional: Cadastre pelo menos um endereço na aba ao lado antes de efetuar movimentações.")
+        st.error("🛑 Erro operacional: Cadastre pelo menos um endereço na aba ao lado antes de levantar movimentações.")
     else:
         col_form_entrada, _ = st.columns([1.5, 1])
         with col_form_entrada:
@@ -189,9 +186,9 @@ elif opcao == "Entrada":
                         st.warning("Preencha o código do produto.")
 
 # ==========================================
-# 4. SAÍDA DE MERCADORIA (PICKING COM SUMIÇO AUTOMÁTICO)
+# 4. SAÍDA DE MERCADORIA
 # ==========================================
-elif opcao == "Saída":
+elif opcao == "📤 Saída de Mercadoria":
     st.markdown("## 📤 Expedição e Separação de Pedidos (Picking)")
     st.markdown("Dê baixa nos saldos armazenados. Itens zerados somem automaticamente da malha de estoque.")
     st.write("#")
@@ -215,7 +212,9 @@ elif opcao == "Saída":
                     item_estoque = itens_disponiveis[idx]
                     
                     if qtd_retirada > item_estoque["quantidade"]:
-
+                        st.error(f"❌ Erro operacional: Quantidade solicitada é maior que o saldo real ({item_estoque['quantidade']}).")
+                    else:
+                        item_estoque["quantidade"] -= qtd_retirada
 
 
 

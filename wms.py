@@ -144,7 +144,6 @@ elif opcao_menu == "📦 Cadastro de Produtos":
                 if any(p["codigo"] == codigo for p in st.session_state.bd["produtos"]):
                     st.error("Este código de produto já está cadastrado!")
                 else:
-                    # CORREÇÃO DA VARIÁVEL: trocado 'unit' por 'unidade'
                     st.session_state.bd["produtos"].append({
                         "codigo": codigo, "descricao": descricao, "categoria": categoria, "unidade": unidade
                     })
@@ -161,9 +160,10 @@ elif opcao_menu == "📦 Cadastro de Produtos":
         st.markdown("---")
         st.subheader("🗑️ Remover Produto")
         lista_remover_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
-        prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod)
+        prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod, key="sb_remover_prod")
         
-        if st.button("Confirmar Exclusão de Produto", type="destructive"):
+        # CORREÇÃO: Adicionado 'key' único para evitar falhas de API do Streamlit
+        if st.button("Confirmar Exclusão de Produto", type="destructive", key="btn_remover_prod"):
             tem_estoque = any(i["codigo_produto"] == prod_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
             
             if tem_estoque:
@@ -202,9 +202,10 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
         st.markdown("---")
         st.subheader("🗑️ Remover Endereço")
         lista_remover_end = [e["completo"] for e in st.session_state.bd["enderecos"]]
-        end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end)
+        end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end, key="sb_remover_end")
         
-        if st.button("Confirmar Exclusão de Endereço", type="destructive"):
+        # CORREÇÃO: Adicionado 'key' único para evitar falhas de API do Streamlit
+        if st.button("Confirmar Exclusão de Endereço", type="destructive", key="btn_remover_end"):
             endereco_ocupado = any(i["endereco"] == end_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
             
             if endereco_ocupado:
@@ -220,9 +221,6 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
 # ==========================================
 elif opcao_menu == "📥 Entrada & Armazenagem":
     st.title("📥 Entrada de Mercadoria por Validação")
-    
-    if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
-        st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
 
 
 

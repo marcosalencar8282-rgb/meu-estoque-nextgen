@@ -125,7 +125,7 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
     st.dataframe(linhas_tabela, use_container_width=True)
 
 # ==========================================
-# 6. MÓDULO: CADASTRO DE PRODUTOS (ALTERAÇÃO CORRIGIDA)
+# 6. MÓDULO: CADASTRO DE PRODUTOS
 # ==========================================
 elif opcao_menu == "📦 Cadastro de Produtos":
     st.title("📦 Cadastro de Itens e SKUs")
@@ -157,7 +157,6 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     st.subheader("Itens Cadastrados")
     st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
 
-    # REORGANIZADO: Modificação direta sem usar sub-formulários (Garante a gravação imediata)
     if st.session_state.bd["produtos"]:
         st.markdown("---")
         st.subheader("📝 Alterar Informações do Produto")
@@ -165,11 +164,9 @@ elif opcao_menu == "📦 Cadastro de Produtos":
         lista_edit_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
         prod_selecionado_edit = st.selectbox("Selecione o produto para modificar dados", lista_edit_prod)
         
-        # Localiza o índice e os dados do item alvo no array JSON
         idx_alvo = next(i for i, p in enumerate(st.session_state.bd["produtos"]) if p["codigo"] == prod_selecionado_edit)
         dados_atuais = st.session_state.bd["produtos"][idx_alvo]
         
-        # Inputs livres fora de sub-formulários para não reter o estado antigo
         nova_descricao = st.text_input("Nova Descrição do Item", value=dados_atuais["descricao"])
         
         cats = ["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"]
@@ -180,7 +177,6 @@ elif opcao_menu == "📦 Cadastro de Produtos":
         
         if st.button("Atualizar Cadastro do Produto", type="primary"):
             if nova_descricao:
-                # Altera os dados direto na referência do banco do session_state
                 st.session_state.bd["produtos"][idx_alvo]["descricao"] = nova_descricao
                 st.session_state.bd["produtos"][idx_alvo]["categoria"] = nova_categoria
                 st.session_state.bd["produtos"][idx_alvo]["unidade"] = nova_unidade
@@ -222,6 +218,13 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
     st.title("📥 Entrada de Mercadoria por Validação")
     
     if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
+        st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
+    else:
+        lista_prods = [f"{p['codigo']} - {p['descricao']}" for p in st.session_state.bd["produtos"]]
+        lista_ends = [e["completo"] for e in st.session_state.bd["enderecos"]]
+        
+        with st.form("mov_entrada", clear_on_submit=True):
+
 
 
 

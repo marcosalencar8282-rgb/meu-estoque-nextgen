@@ -18,13 +18,18 @@ def carregar_dados():
                 with open(ARQUIVO_BD, 'r', encoding='utf-8') as f:
                     st.session_state.bd = json.load(f)
             except Exception:
-                st.session_state.bd = {"produtos": [], "enderecos": [], "estoque": []}
+                st.session_state.bd = {"usuarios": [{"usuario": "admin", "senha": "admin"}], "produtos": [], "enderecos": [], "estoque": []}
         else:
             st.session_state.bd = {
-                "produtos": [],     # Estrutura: {codigo, descricao, categoria, unidade}
-                "enderecos": [],    # Estrutura: {completo}
-                "estoque": []       # Estrutura: {endereco, codigo_produto, quantidade, lote, atualizacao}
+                "usuarios": [{"usuario": "admin", "senha": "admin"}], # Usuário padrão inicial
+                "produtos": [],     
+                "enderecos": [],    
+                "estoque": []       
             }
+    
+    # Garante que a chave de usuários exista caso o arquivo seja antigo
+    if "usuarios" not in st.session_state.bd:
+        st.session_state.bd["usuarios"] = [{"usuario": "admin", "senha": "admin"}]
 
 def salvar_dados():
     try:
@@ -36,9 +41,45 @@ def salvar_dados():
 carregar_dados()
 
 # ==========================================
-# 3. NAVEGAÇÃO / MENU LATERAL
+# 3. CONTROLE DE FLUXO DE AUTENTICAÇÃO
+# ==========================================
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    # Interface Centralizada de Login
+    col_esq, col_centro, col_dir = st.columns([1, 1.2, 1])
+    with col_centro:
+        st.write("#")
+        st.write("#")
+        st.title("🔐 Acesso ao Sistema WMS")
+        with st.form("login_form", clear_on_submit=False):
+            usuario_input = st.text_input("Usuário").strip()
+            senha_input = st.text_input("Senha", type="password").strip()
+            
+            if st.form_submit_button("Entrar", type="primary", use_container_width=True):
+                # Valida as credenciais direto na lista de usuários do JSON
+                valido = any(u["usuario"] == usuario_input and u["senha"] == senha_input for u in st.session_state.bd["usuarios"])
+                
+                if valido:
+                    st.session_state.autenticado = True
+                    st.session_state.usuario_atual = usuario_input
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+    st.stop() # Bloqueia o carregamento do restante da página caso não logado
+
+# ==========================================
+# 4. NAVEGAÇÃO / MENU LATERAL (SÓ APARECE LOGADO)
 # ==========================================
 st.sidebar.title("📦 WMS Corporativo")
+st.sidebar.write(f"👤 Usuário: `{st.session_state.usuario_atual}`")
+
+if st.sidebar.button("Sair / Logout", type="secondary", use_container_width=True):
+    st.session_state.autenticado = False
+    st.session_state.usuario_atual = None
+    st.rerun()
+
 st.sidebar.markdown("---")
 opcao_menu = st.sidebar.radio(
     "Navegação do Sistema", 
@@ -52,7 +93,7 @@ opcao_menu = st.sidebar.radio(
 )
 
 # ==========================================
-# 4. MÓDULO: PAINEL GERAL (ESTOQUE)
+# 5. MÓDULO: PAINEL GERAL (ESTOQUE)
 # ==========================================
 if opcao_menu == "📊 Painel Geral (Estoque)":
     st.title("📊 Posição de Estoque e Ocupação")
@@ -87,7 +128,7 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
     st.dataframe(linhas_tabela, use_container_width=True)
 
 # ==========================================
-# 5. MÓDULO: CADASTRO DE PRODUTOS
+# 6. MÓDULO: CADASTRO DE PRODUTOS
 # ==========================================
 elif opcao_menu == "📦 Cadastro de Produtos":
     st.title("📦 Cadastro de Itens e SKUs")
@@ -119,7 +160,7 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
 
 # ==========================================
-# 6. MÓDULO: CADASTRO DE ENDEREÇOS
+# 7. MÓDULO: CADASTRO DE ENDEREÇOS
 # ==========================================
 elif opcao_menu == "🧱 Cadastro de Endereços":
     st.title("🧱 Cadastro de Endereço Único")
@@ -143,7 +184,7 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
     st.dataframe(st.session_state.bd["enderecos"], use_container_width=True)
 
 # ==========================================
-# 7. MÓDULO: ENTRADA & ARMAZENAGEM
+# 8. MÓDULO: ENTRADA & ARMAZENAGEM
 # ==========================================
 elif opcao_menu == "📥 Entrada & Armazenagem":
     st.title("📥 Entrada de Mercadoria por Validação")
@@ -163,6 +204,7 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
             lote = c2.text_input("Lote / Validade", value="N/A").upper()
             
             if st.form_submit_button("Executar Entrada"):
+                # Captura apenas o código (posição 0) da string separada
                 cod_prod = prod_selecionado.split(" - ")[0].strip()
                 
                 encontrou = False
@@ -181,44 +223,5 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
                         "lote": lote, 
                         "atualizacao": datetime.now().strftime('%d/%m/%Y %H:%M')
                     })
-                
-                salvar_dados()
-                st.success(f"Quantidade de {qtd} do item {cod_prod} alocada em {end_selecionado}!")
-                st.rerun()
-
-# ==========================================
-# 8. MÓDULO: SAÍDA & PICKING
-# ==========================================
-elif opcao_menu == "📤 Saída & Picking":
-    st.title("📤 Baixa de Estoque (Picking)")
-    
-    itens_com_saldo = [i for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
-    
-    if not itens_com_saldo:
-        st.info("Não há mercadorias com saldo disponível para retirada no momento.")
-    else:
-        lista_opcoes_saida = [
-            f"Endereço: {i['endereco']} | SKU: {i['codigo_produto']} | Lote: {i['lote']} (Saldo: {i['quantidade']})" 
-            for i in itens_com_saldo
-        ]
-        
-        with st.form("mov_saida"):
-            item_escolhido = st.selectbox("Selecione a Posição de Origem para Retirada", lista_opcoes_saida)
-            qtd_retirada = st.number_input("Quantidade a Retirar", min_value=1, value=1)
-            
-            if st.form_submit_button("Confirmar Separação / Baixa", type="primary"):
-                idx_selecionado = lista_opcoes_saida.index(item_escolhido)
-                item_estoque = itens_com_saldo[idx_selecionado]
-                
-                if qtd_retirada > item_estoque["quantidade"]:
-                    st.error(f"Operação cancelada! A quantidade solicitada é maior que o saldo real ({item_estoque['quantidade']}).")
-                else:
-                    item_estoque["quantidade"] -= qtd_retirada
-                    item_estoque["atualizacao"] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    
-                    if item_estoque["quantidade"] == 0:
-                        st.session_state.bd["estoque"].remove(item_estoque)
-                        
-                    salvar_dados()
 
 

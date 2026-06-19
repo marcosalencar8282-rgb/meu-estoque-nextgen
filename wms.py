@@ -44,7 +44,7 @@ opcao_menu = st.sidebar.radio(
     "Navegação do Sistema", 
     [
         "📊 Painel Geral (Estoque)", 
-        "🍎 Cadastro de Produtos", 
+        "📦 Cadastro de Produtos", 
         "🧱 Cadastro de Endereços", 
         "📥 Entrada & Armazenagem", 
         "📤 Saída & Picking"
@@ -89,8 +89,8 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
 # ==========================================
 # 5. MÓDULO: CADASTRO DE PRODUTOS
 # ==========================================
-elif opcao_menu == "🍎 Cadastro de Produtos":
-    st.title("🍎 Cadastro de Itens e SKUs")
+elif opcao_menu == "📦 Cadastro de Produtos":
+    st.title("📦 Cadastro de Itens e SKUs")
     
     with st.form("cad_produto", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -125,7 +125,6 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
     st.title("🧱 Cadastro de Endereço Único")
     
     with st.form("cad_endereco", clear_on_submit=True):
-        # CAMPO ÚNICO SOLICITADO
         cod_completo = st.text_input("Código do Endereço (Ex: A-01, PRATELEIRA-2, BOX-A)").upper().strip()
         
         if st.form_submit_button("Cadastrar Endereço", type="primary"):
@@ -164,7 +163,6 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
             lote = c2.text_input("Lote / Validade", value="N/A").upper()
             
             if st.form_submit_button("Executar Entrada"):
-                # CORREÇÃO DA ENTRADA: Isola estritamente o código do produto antes do hífen
                 cod_prod = prod_selecionado.split(" - ")[0].strip()
                 
                 encontrou = False
@@ -217,5 +215,10 @@ elif opcao_menu == "📤 Saída & Picking":
                 else:
                     item_estoque["quantidade"] -= qtd_retirada
                     item_estoque["atualizacao"] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    
+                    if item_estoque["quantidade"] == 0:
+                        st.session_state.bd["estoque"].remove(item_estoque)
+                        
+                    salvar_dados()
 
 

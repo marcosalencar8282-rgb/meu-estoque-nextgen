@@ -83,6 +83,7 @@ opcao_menu = st.sidebar.radio(
     [
         "📊 Painel Geral (Estoque)", 
         "📦 Cadastro de Produtos", 
+        "📝 Ajustar Produtos",
         "🧱 Cadastro de Endereços", 
         "📥 Entrada & Armazenagem", 
         "📤 Saída & Picking"
@@ -157,35 +158,41 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     st.subheader("Itens Cadastrados")
     st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
 
-    if st.session_state.bd["produtos"]:
-        st.markdown("---")
-        st.subheader("📝 Alterar Informações do Produto")
-        
+# ==========================================
+# 6B. MÓDULO: AJUSTAR PRODUTOS (ISOLADO PARA NÃO QUEBRAR O FLUXO)
+# ==========================================
+elif opcao_menu == "📝 Ajustar Produtos":
+    st.title("📝 Alterar Informações de Produtos Cadastrados")
+    
+    if not st.session_state.bd["produtos"]:
+        st.info("Nenhum produto cadastrado no sistema para ser modificado.")
+    else:
         lista_edit_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
-        prod_selecionado_edit = st.selectbox("Selecione o produto para modificar dados", lista_edit_prod)
+        prod_selecionado_edit = st.selectbox("Selecione o código do produto que deseja modificar", lista_edit_prod)
         
         idx_alvo = next(i for i, p in enumerate(st.session_state.bd["produtos"]) if p["codigo"] == prod_selecionado_edit)
         dados_atuais = st.session_state.bd["produtos"][idx_alvo]
         
-        nova_descricao = st.text_input("Nova Descrição do Item", value=dados_atuais["descricao"])
-        
-        cats = ["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"]
-        nova_categoria = st.selectbox("Nova Categoria", cats, index=cats.index(dados_atuais["categoria"]) if dados_atuais["categoria"] in cats else 0)
-        
-        unds = ["UN", "KG", "CX", "PCT", "L"]
-        nova_unidade = st.selectbox("Nova Unidade", unds, index=unds.index(dados_atuais["unidade"]) if dados_atuais["unidade"] in unds else 0)
-        
-        if st.button("Atualizar Cadastro do Produto", type="primary"):
-            if nova_descricao:
-                st.session_state.bd["produtos"][idx_alvo]["descricao"] = nova_descricao
-                st.session_state.bd["produtos"][idx_alvo]["categoria"] = nova_categoria
-                st.session_state.bd["produtos"][idx_alvo]["unidade"] = nova_unidade
-                
-                salvar_dados()
-                st.success("Dados modificados com sucesso no banco de dados!")
-                st.rerun()
-            else:
-                st.warning("A descrição do produto não pode ficar vazia.")
+        with st.form("form_ajuste_interno"):
+            st.write(f"Modificando o item código: **{prod_selecionado_edit}**")
+            nova_descricao = st.text_input("Nova Descrição do Item", value=dados_atuais["descricao"])
+            
+            cats = ["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"]
+            nova_categoria = st.selectbox("Nova Categoria", cats, index=cats.index(dados_atuais["categoria"]) if dados_atuais["categoria"] in cats else 0)
+            
+            unds = ["UN", "KG", "CX", "PCT", "L"]
+            nova_unidade = st.selectbox("Nova Unidade", unds, index=unds.index(dados_atuais["unidade"]) if dados_atuais["unidade"] in unds else 0)
+            
+            if st.form_submit_button("Confirmar Atualização de Dados", type="primary"):
+                if nova_descricao:
+                    st.session_state.bd["produtos"][idx_alvo]["descricao"] = nova_descricao
+                    st.session_state.bd["produtos"][idx_alvo]["categoria"] = nova_categoria
+                    st.session_state.bd["produtos"][idx_alvo]["unidade"] = nova_unidade
+                    salvar_dados()
+                    st.success("Cadastro modificado com sucesso!")
+                    st.rerun()
+                else:
+                    st.warning("A descrição não pode ficar vazia.")
 
 # ==========================================
 # 7. MÓDULO: CADASTRO DE ENDEREÇOS
@@ -216,13 +223,7 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
 # ==========================================
 elif opcao_menu == "📥 Entrada & Armazenagem":
     st.title("📥 Entrada de Mercadoria por Validação")
-    
-    if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
-        st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
-    else:
-        # LISTAS BASEADAS EM ÍNDICES REAIS (Mapeamento livre de erros por string)
-        lista_opcoes_produtos = [p["codigo"] for p in st.session_state.bd["produtos"]]
-        lista_opcoes_enderecos = [e["completo"] for e in st.session_state.bd["enderecos"]]
+
 
 
 

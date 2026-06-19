@@ -12,7 +12,6 @@ st.set_page_config(page_title="WMS Global - Cadastro e Endereçamento", layout="
 ARQUIVO_BD = "wms_global_db.json"
 
 def carregar_dados():
-    # Zera estados antigos corrompidos da memória do navegador
     if 'bd' not in st.session_state or not isinstance(st.session_state.bd, dict):
         if os.path.exists(ARQUIVO_BD):
             try:
@@ -28,7 +27,6 @@ def carregar_dados():
                 "estoque": []       
             }
             
-    # Força a existência de todas as chaves limpas
     for chave in ["usuarios", "produtos", "enderecos", "estoque"]:
         if chave not in st.session_state.bd:
             st.session_state.bd[chave] = []
@@ -226,6 +224,9 @@ elif opcao_menu == "Cadastro de Endereços":
 # 8. MÓDULO: ENTRADA & ARMAZENAGEM
 # ==========================================
 elif opcao_menu == "Entrada & Armazenagem":
+    st.title("Entrada de Mercadoria por Validação")
+    
+    lista_opcoes_produtos = [p["codigo"] for p in st.session_state.bd["produtos"]]
 
 
 

@@ -3,9 +3,7 @@ from datetime import datetime
 import json
 import os
 
-# Configuração de Layout e Identidade Visual do WMS
-st.set_page_config(page_title="NextGen WMS", layout="wide", initial_sidebar_state="expanded")
-
+st.set_page_config(page_title="NextGen WMS", layout="wide")
 ARQUIVO_BD = "wms_simplificado_db.json"
 
 # ==========================================
@@ -16,13 +14,9 @@ if 'bd' not in st.session_state:
         try:
             with open(ARQUIVO_BD, 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                
                 if isinstance(dados, dict) and "estoque" in dados:
                     estoque_bruto = dados["estoque"]
                     enderecos_brutos = dados.get("enderecos", [])
-                elif isinstance(dados, dict):
-                    estoque_bruto = [dados] if dados else []
-                    enderecos_brutos = []
                 else:
                     estoque_bruto = dados if isinstance(dados, list) else []
                     enderecos_brutos = []
@@ -31,15 +25,13 @@ if 'bd' not in st.session_state:
                 for item in estoque_bruto:
                     if isinstance(item, dict):
                         endereco = item.get("endereco") or item.get("Endereço") or "N/A"
-                        produto = item.get("produto") or item.get("Código Produto") or item.get("codigo_produto") or item.get("Cód. Produto") or "N/A"
-                        
+                        produto = item.get("produto") or item.get("Código Produto") or "N/A"
                         if isinstance(produto, list):
                             produto = str(produto) if produto else "N/A"
                         produto = str(produto).replace("[", "").replace("]", "").replace("'", "").strip()
-                        
-                        quantidade = item.get("quantidade") or item.get("Quantidade") or item.get("Qtd") or 0
+                        quantidade = item.get("quantidade") or item.get("Quantidade") or 0
                         lote = item.get("lote") or item.get("Lote") or "N/A"
-                        data = item.get("data") or item.get("atualizacao") or item.get("Última Atualização") or datetime.now().strftime('%d/%m/%Y %H:%M')
+                        data = item.get("data") or item.get("atualizacao") or datetime.now().strftime('%d/%m/%Y %H:%M')
                         
                         estoque_corrigido.append({
                             "endereco": str(endereco).strip(),
@@ -51,19 +43,12 @@ if 'bd' not in st.session_state:
                 
                 lista_enderecos = []
                 for e in enderecos_brutos:
-                    if isinstance(e, dict):
-                        lista_enderecos.append(e.get("completo") or "N/A")
-                    else:
-                        lista_enderecos.append(str(e))
-                
+                    lista_enderecos.append(str(e))
                 for item in estoque_corrigido:
-                    if item["endereco"] not in lista_enderecos and item["endereco"] != "N/A":
+                    if item["endereco"] not in lista_enderecos:
                         lista_enderecos.append(item["endereco"])
 
-                st.session_state.bd = {
-                    "enderecos": lista_enderecos,
-                    "estoque": estoque_corrigido
-                }
+                st.session_state.bd = {"enderecos": lista_enderecos, "estoque": estoque_corrigido}
         except:
             st.session_state.bd = {"enderecos": [], "estoque": []}
     else:
@@ -74,26 +59,20 @@ def salvar():
         json.dump(st.session_state.bd, f, indent=4, ensure_ascii=False)
 
 # ==========================================
-# TELA DE LOGIN CENTRALIZADA E REDUZIDA
+# TELA DE LOGIN
 # ==========================================
 if 'logado' not in st.session_state:
     st.session_state.logado = False
 
 if not st.session_state.logado:
     col_esq, col_login, col_dir = st.columns([1.5, 1.2, 1.5])
-    
     with col_login:
         st.write("#")
-        st.write("#")
         st.markdown("<h2 style='text-align: center;'>Acesso ao WMS</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: gray;'>Insira as credenciais padrão corporativas</p>", unsafe_allow_html=True)
-        
         with st.form("login_wms"):
             user = st.text_input("Usuário").strip()
             password = st.text_input("Senha", type="password").strip()
-            botao_entrar = st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True)
-            
-            if botao_entrar:
+            if st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True):
                 if user == "admin" and password == "admin":
                     st.session_state.logado = True
                     st.rerun()
@@ -102,21 +81,11 @@ if not st.session_state.logado:
     st.stop()
 
 # ==========================================
-# MENU LATERAL DESIGN CORPORATIVO
+# MENU LATERAL
 # ==========================================
-st.sidebar.markdown("<h2 style='margin-bottom:0px;'>WMS NextGen</h2>", unsafe_allow_html=True)
-st.sidebar.markdown("<p style='color: gray; font-size:13px;'>Ambiente Logístico Ativo</p>", unsafe_allow_html=True)
-st.sidebar.write(f"Operador: `admin`")
-
-st.sidebar.markdown("---")
-# Removidos emojis dos valores internos de navegação para evitar qualquer erro de chave textual
-opcao = st.sidebar.radio(
-    "Navegação de Módulos", 
-    ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"]
-)
-st.sidebar.markdown("---")
-
-if st.sidebar.button("Efetuar Logout", type="secondary", use_container_width=True):
+st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
+opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
+if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
     st.rerun()
 
@@ -124,23 +93,14 @@ if st.sidebar.button("Efetuar Logout", type="secondary", use_container_width=Tru
 # 1. VISÃO GERAL
 # ==========================================
 if opcao == "Visão Geral":
-    st.markdown("## Posição Geral e Indicadores de Estoque")
-    st.markdown("Consulte os saldos consolidados e localizações físicas em tempo real.")
-    st.write("#")
-    
-    total_enderecos = len(st.session_state.bd["enderecos"])
-    posicoes_ocupadas = len(set([i["endereco"] for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]))
-    total_pecas = sum([i["quantidade"] for i in st.session_state.bd["estoque"]])
+    st.markdown("## Posição Geral do Estoque")
     
     m1, m2, m3 = st.columns(3)
-    m1.metric("Total de Endereços Ativos", total_enderecos)
-    m2.metric("Vagas Ocupadas no Pátio", posicoes_ocupadas)
-    m3.metric("Volume Total de Itens", total_pecas)
+    m1.metric("Total de Endereços Ativos", len(st.session_state.bd["enderecos"]))
+    m2.metric("Vagas Ocupadas", len(set([i["endereco"] for i in st.session_state.bd["estoque"] if i["quantidade"] > 0])))
+    m3.metric("Volume Total de Itens", sum([i["quantidade"] for i in st.session_state.bd["estoque"]]))
     
-    st.write("#")
-    st.markdown("### Filtro Avançado de Posições")
-    busca = st.text_input("Digite o endereço ou o código do produto para buscar...").upper()
-    
+    busca = st.text_input("Filtrar por endereço ou produto...").upper()
     tabela = []
     for i in st.session_state.bd["estoque"]:
         if (not busca) or (busca in i["endereco"].upper() or busca in i["produto"].upper()):
@@ -151,72 +111,83 @@ if opcao == "Visão Geral":
                 "Quantidade Saldo": i["quantidade"],
                 "Última Atualização": i["data"]
             })
-            
-    if tabela:
-        st.dataframe(tabela, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhum saldo localizado para os critérios informados.")
+    st.dataframe(tabela, use_container_width=True, hide_index=True)
 
 # ==========================================
 # 2. CADASTRAR ENDEREÇO
 # ==========================================
 elif opcao == "Cadastrar Endereço":
     st.markdown("## Mapeamento de Estrutura Física")
-    st.markdown("Adicione novas localizações, box, prateleiras ou paletes ao sistema.")
-    st.write("#")
-    
     c_form, c_lista = st.columns([1.2, 1])
-    
     with c_form:
         with st.form("cad_end", clear_on_submit=True):
-            st.markdown("#### Informar Nova Localização")
-            novo_end = st.text_input("Código do Endereço (Ex: RUA-A, PRATELEIRA-02, BOX-10)").upper().strip()
-            
+            novo_end = st.text_input("Código do Endereço (Ex: RUA-A, BOX-10)").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
-                if novo_end:
-                    if novo_end not in st.session_state.bd["enderecos"]:
-                        st.session_state.bd["enderecos"].append(novo_end)
-                        salvar()
-                        st.success(f"Endereço '{novo_end}' integrado com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Este código de endereço já consta na base do sistema.")
-                else:
-                    st.warning("Preencha o campo de endereço.")
-                    
+                if novo_end and novo_end not in st.session_state.bd["enderecos"]:
+                    st.session_state.bd["enderecos"].append(novo_end)
+                    salvar()
+                    st.success("Endereço cadastrado!")
+                    st.rerun()
     with c_lista:
-        st.markdown("#### Endereços Ativos")
-        if st.session_state.bd["enderecos"]:
-            st.dataframe({"Lista de Endereços Cadastrados": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhuma malha logística cadastrada até o momento.")
+        st.dataframe({"Lista de Endereços": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
 
 # ==========================================
 # 3. ENTRADA DE MERCADORIA
 # ==========================================
 elif opcao == "Entrada de Mercadoria":
-    st.markdown("## Recebimento e Alocação de Mercadoria")
-    st.markdown("Dê entrada direta informando o produto e o endereço de destino.")
-    st.write("#")
-    
+    st.markdown("## Recebimento e Alocação")
     if not st.session_state.bd["enderecos"]:
-        st.error("Erro operacional: Cadastre pelo menos um endereço na aba ao lado antes de efetuar movimentações.")
+        st.error("Cadastre pelo menos um endereço antes.")
     else:
-        col_form_entrada, _ = st.columns([1.5, 1])
-        with col_form_entrada:
-            with st.form("form_entrada", clear_on_submit=True):
-                st.markdown("#### Dados do Documento de Entrada")
-                end = st.selectbox("Endereço de Destino", st.session_state.bd["enderecos"])
-                prod = st.text_input("Código/SKU do Produto").upper().strip()
-                
-                c1, c2 = st.columns(2)
-                qtd = c1.number_input("Quantidade de Volumes", min_value=1, value=1)
-                lote = c2.text_input("Número do Lote / Série", value="N/A").upper().strip()
-                
-                if st.form_submit_button("Confirmar Entrada no Pátio", type="primary", use_container_width=True):
-                    if prod:
-                        encontrou = False
-                        for item in st.session_state.bd["estoque"]:
+        with st.form("form_entrada", clear_on_submit=True):
+            end = st.selectbox("Endereço de Destino", st.session_state.bd["enderecos"])
+            prod = st.text_input("Código do Produto").upper().strip()
+            qtd = st.number_input("Quantidade", min_value=1, value=1)
+            lote = st.text_input("Lote", value="N/A").upper().strip()
+            
+            if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
+                if prod:
+                    encontrou = False
+                    for item in st.session_state.bd["estoque"]:
+                        if item["endereco"] == end and item["produto"] == prod and item["lote"] == lote:
+                            item["quantidade"] += qtd
+                            item["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                            encontrou = True
+                            break
+                    if not encontrou:
+                        st.session_state.bd["estoque"].append({
+                            "endereco": end, "produto": prod, "quantidade": qtd, "lote": lote, "data": datetime.now().strftime('%d/%m/%Y %H:%M')
+                        })
+                    salvar()
+                    st.success("Entrada realizada com sucesso!")
+                    st.rerun()
+
+# ==========================================
+# 4. SAÍDA DE MERCADORIA
+# ==========================================
+elif opcao == "Saída de Mercadoria":
+    st.markdown("## Expedição (Picking)")
+    itens_disponiveis = [i for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
+    if not itens_disponiveis:
+        st.info("Estoque vazio.")
+    else:
+        lista_saida = [f"Local: {x['endereco']} | SKU: {x['produto']} | Lote: {x['lote']} (Saldo: {x['quantidade']})" for x in itens_disponiveis]
+        with st.form("form_saida"):
+            selecionado = st.selectbox("Selecione o Item", lista_saida)
+            qtd_retirar = st.number_input("Quantidade para Retirada", min_value=1, value=1)
+            if st.form_submit_button("Confirmar Baixa", type="primary", use_container_width=True):
+                idx = lista_saida.index(selecionado)
+                item_estoque = itens_disponiveis[idx]
+                if qtd_retirar > item_estoque["quantidade"]:
+                    st.error("Quantidade indisponível.")
+                else:
+                    item_estoque["quantidade"] -= qtd_retirar
+                    item_estoque["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    if item_estoque["quantidade"] == 0:
+                        st.session_state.bd["estoque"].remove(item_estoque)
+                    salvar()
+                    st.success("Baixa processada!")
+                    st.rerun()
 
 
 

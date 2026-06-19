@@ -177,7 +177,7 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
             lote = c2.text_input("Lote / Validade", value="N/A").upper()
             
             if st.form_submit_button("Executar Entrada"):
-                # CORREÇÃO: Captura apenas a string do código (antes do hífen) de forma limpa
+                # Captura apenas o ID (tudo antes do hífen) de forma limpa e em formato string
                 cod_prod = prod_selecionado.split(" - ")[0].strip()
                 
                 # Se o mesmo produto e lote já existirem nesta vaga, apenas soma o saldo

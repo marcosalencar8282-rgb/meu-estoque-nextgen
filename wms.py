@@ -22,7 +22,7 @@ def carregar_dados():
         else:
             st.session_state.bd = {
                 "produtos": [],     # Estrutura: {codigo, descricao, categoria, unidade}
-                "enderecos": [],    # Estrutura: {rua, predio, nivel, apartamento, completo}
+                "enderecos": [],    # Estrutura: {completo}
                 "estoque": []       # Estrutura: {endereco, codigo_produto, quantidade, lote, atualizacao}
             }
 
@@ -122,33 +122,25 @@ elif opcao_menu == "🍎 Cadastro de Produtos":
 # 6. MÓDULO: CADASTRO DE ENDEREÇOS
 # ==========================================
 elif opcao_menu == "🧱 Cadastro de Endereços":
-    st.title("🧱 Cadastro da Estrutura Física (Endereçamento)")
-    st.info("Padrão de Endereçamento Logístico: Rua - Prédio - Nível - Apartamento")
+    st.title("🧱 Cadastro de Endereço Único")
     
     with st.form("cad_endereco", clear_on_submit=True):
-        c1, c2, c3, c4 = st.columns(4)
-        rua = c1.text_input("Rua (Ex: A, B, 01)").upper().strip()
-        predio = c2.text_input("Prédio/Módulo (Ex: 01, 02)").strip()
-        nivel = c3.text_input("Nível/Andar (Ex: 01, 02)").strip()
-        apto = c4.text_input("Apartamento/Vão (Ex: A, B)").upper().strip()
+        # CAMPO ÚNICO SOLICITADO
+        cod_completo = st.text_input("Código do Endereço (Ex: A-01, PRATELEIRA-2, BOX-A)").upper().strip()
         
-        if st.form_submit_button("Gerar e Cadastrar Posição", type="primary"):
-            if rua and predio and nivel and apto:
-                cod_completo = f"R{rua}-P{predio}-N{nivel}-A{apto}"
-                
+        if st.form_submit_button("Cadastrar Endereço", type="primary"):
+            if cod_completo:
                 if any(e["completo"] == cod_completo for e in st.session_state.bd["enderecos"]):
                     st.error("Este endereço já existe no sistema!")
                 else:
-                    st.session_state.bd["enderecos"].append({
-                        "rua": rua, "predio": predio, "nivel": nivel, "apartamento": apto, "completo": cod_completo
-                    })
+                    st.session_state.bd["enderecos"].append({"completo": cod_completo})
                     salvar_dados()
-                    st.success(f"Endereço {cod_completo} criado com sucesso!")
+                    st.success(f"Endereço '{cod_completo}' criado com sucesso!")
                     st.rerun()
             else:
-                st.warning("Preencha todos os quadrantes para gerar o endereço.")
+                st.warning("Por favor, digite o código do endereço.")
                 
-    st.subheader("Malha de Endereços Ativos")
+    st.subheader("Endereços Ativos no Sistema")
     st.dataframe(st.session_state.bd["enderecos"], use_container_width=True)
 
 # ==========================================
@@ -172,7 +164,7 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
             lote = c2.text_input("Lote / Validade", value="N/A").upper()
             
             if st.form_submit_button("Executar Entrada"):
-                # Captura o texto que antecede o hífen de maneira segura usando f-string
+                # CORREÇÃO DA ENTRADA: Isola estritamente o código do produto antes do hífen
                 cod_prod = prod_selecionado.split(" - ")[0].strip()
                 
                 encontrou = False
@@ -218,5 +210,12 @@ elif opcao_menu == "📤 Saída & Picking":
             
             if st.form_submit_button("Confirmar Separação / Baixa", type="primary"):
                 idx_selecionado = lista_opcoes_saida.index(item_escolhido)
+                item_estoque = itens_com_saldo[idx_selecionado]
+                
+                if qtd_retirada > item_estoque["quantidade"]:
+                    st.error(f"Operação cancelada! A quantidade solicitada é maior que o saldo real ({item_estoque['quantidade']}).")
+                else:
+                    item_estoque["quantidade"] -= qtd_retirada
+                    item_estoque["atualizacao"] = datetime.now().strftime('%d/%m/%Y %H:%M')
 
 

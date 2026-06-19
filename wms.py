@@ -159,20 +159,22 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     if st.session_state.bd["produtos"]:
         st.markdown("---")
         st.subheader("🗑️ Remover Produto")
-        lista_remover_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
-        prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod, key="sb_remover_prod")
         
-        # CORREÇÃO: Adicionado 'key' único para evitar falhas de API do Streamlit
-        if st.button("Confirmar Exclusão de Produto", type="destructive", key="btn_remover_prod"):
-            tem_estoque = any(i["codigo_produto"] == prod_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
+        # CORREÇÃO CRÍTICA: Exclusão isolada em formulário para evitar StreamlitAPIException
+        with st.form("form_deletar_produto"):
+            lista_remover_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
+            prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod)
             
-            if tem_estoque:
-                st.error("Não é possível excluir! Este produto possui saldo físico armazenado em algum endereço.")
-            else:
-                st.session_state.bd["produtos"] = [p for p in st.session_state.bd["produtos"] if p["codigo"] != prod_para_remover]
-                salvar_dados()
-                st.success(f"Produto {prod_para_remover} removido com sucesso!")
-                st.rerun()
+            if st.form_submit_button("Confirmar Exclusão de Produto", type="destructive"):
+                tem_estoque = any(i["codigo_produto"] == prod_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
+                
+                if tem_estoque:
+                    st.error("Não é possível excluir! Este produto possui saldo físico armazenado em algum endereço.")
+                else:
+                    st.session_state.bd["produtos"] = [p for p in st.session_state.bd["produtos"] if p["codigo"] != prod_para_remover]
+                    salvar_dados()
+                    st.success(f"Produto {prod_para_remover} removido com sucesso!")
+                    st.rerun()
 
 # ==========================================
 # 7. MÓDULO: CADASTRO DE ENDEREÇOS
@@ -201,26 +203,26 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
     if st.session_state.bd["enderecos"]:
         st.markdown("---")
         st.subheader("🗑️ Remover Endereço")
-        lista_remover_end = [e["completo"] for e in st.session_state.bd["enderecos"]]
-        end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end, key="sb_remover_end")
         
-        # CORREÇÃO: Adicionado 'key' único para evitar falhas de API do Streamlit
-        if st.button("Confirmar Exclusão de Endereço", type="destructive", key="btn_remover_end"):
-            endereco_ocupado = any(i["endereco"] == end_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
+        # CORREÇÃO CRÍTICA: Exclusão isolada em formulário para evitar StreamlitAPIException
+        with st.form("form_deletar_endereco"):
+            lista_remover_end = [e["completo"] for e in st.session_state.bd["enderecos"]]
+            end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end)
             
-            if endereco_ocupado:
-                st.error("Não é possível excluir! Este endereço está ocupado por mercadorias no momento.")
-            else:
-                st.session_state.bd["enderecos"] = [e for e in st.session_state.bd["enderecos"] if e["completo"] != end_para_remover]
-                salvar_dados()
-                st.success(f"Endereço {end_para_remover} removido com sucesso!")
-                st.rerun()
+            if st.form_submit_button("Confirmar Exclusão de Endereço", type="destructive"):
+                endereco_ocupado = any(i["endereco"] == end_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
+                
+                if endereco_ocupado:
+                    st.error("Não é possível excluir! Este endereço está ocupado por mercadorias no momento.")
+                else:
+                    st.session_state.bd["enderecos"] = [e for e in st.session_state.bd["enderecos"] if e["completo"] != end_para_remover]
+                    salvar_dados()
+                    st.success(f"Endereço {end_para_remover} removido com sucesso!")
+                    st.rerun()
 
 # ==========================================
 # 8. MÓDULO: ENTRADA & ARMAZENAGEM
-# ==========================================
-elif opcao_menu == "📥 Entrada & Armazenagem":
-    st.title("📥 Entrada de Mercadoria por Validação")
+
 
 
 

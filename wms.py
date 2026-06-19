@@ -29,6 +29,12 @@ def carregar_dados():
     
     if "usuarios" not in st.session_state.bd:
         st.session_state.bd["usuarios"] = [{"usuario": "admin", "senha": "admin"}]
+    if "produtos" not in st.session_state.bd:
+        st.session_state.bd["produtos"] = []
+    if "enderecos" not in st.session_state.bd:
+        st.session_state.bd["enderecos"] = []
+    if "estoque" not in st.session_state.bd:
+        st.session_state.bd["estoque"] = []
 
 def salvar_dados():
     try:
@@ -50,7 +56,7 @@ if not st.session_state.autenticado:
     with col_centro:
         st.write("#")
         st.write("#")
-        st.title("🔐 Acesso ao Sistema WMS")
+        st.title("Acesso ao Sistema WMS")
         with st.form("login_form", clear_on_submit=False):
             usuario_input = st.text_input("Usuário").strip()
             senha_input = st.text_input("Senha", type="password").strip()
@@ -69,8 +75,8 @@ if not st.session_state.autenticado:
 # ==========================================
 # 4. NAVEGAÇÃO / MENU LATERAL
 # ==========================================
-st.sidebar.title("📦 WMS Corporativo")
-st.sidebar.write(f"👤 Usuário: `{st.session_state.usuario_atual}`")
+st.sidebar.title("WMS Corporativo")
+st.sidebar.write(f"Usuário: `{st.session_state.usuario_atual}`")
 
 if st.sidebar.button("Sair / Logout", type="secondary", use_container_width=True):
     st.session_state.autenticado = False
@@ -81,20 +87,20 @@ st.sidebar.markdown("---")
 opcao_menu = st.sidebar.radio(
     "Navegação do Sistema", 
     [
-        "📊 Painel Geral (Estoque)", 
-        "📦 Cadastro de Produtos", 
-        "📝 Ajustar Produtos",
-        "🧱 Cadastro de Endereços", 
-        "📥 Entrada & Armazenagem", 
-        "📤 Saída & Picking"
+        "Painel Geral (Estoque)", 
+        "Cadastro de Produtos", 
+        "Ajustar Produtos",
+        "Cadastro de Endereços", 
+        "Entrada & Armazenagem", 
+        "Saída & Picking"
     ]
 )
 
 # ==========================================
 # 5. MÓDULO: PAINEL GERAL (ESTOQUE)
 # ==========================================
-if opcao_menu == "📊 Painel Geral (Estoque)":
-    st.title("📊 Posição de Estoque e Ocupação")
+if opcao_menu == "Painel Geral (Estoque)":
+    st.title("Posição de Estoque e Ocupação")
     
     total_prods = len(st.session_state.bd["produtos"])
     total_ends = len(st.session_state.bd["enderecos"])
@@ -106,7 +112,7 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
     c2.metric("Endereços Cadastrados", total_ends)
     c3.metric("Taxa de Ocupação", f"{taxa_ocupacao:.1f}%")
     
-    st.subheader("🔍 Consulta Rápida")
+    st.subheader("Consulta Rápida")
     busca = st.text_input("Filtrar por Endereço, Código ou Descrição").upper()
     
     linhas_tabela = []
@@ -128,8 +134,8 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
 # ==========================================
 # 6. MÓDULO: CADASTRO DE PRODUTOS
 # ==========================================
-elif opcao_menu == "📦 Cadastro de Produtos":
-    st.title("📦 Cadastro de Itens e SKUs")
+elif opcao_menu == "Cadastro de Produtos":
+    st.title("Cadastro de Itens e SKUs")
     
     with st.form("cad_produto", clear_on_submit=True):
         st.subheader("Novo Cadastro")
@@ -159,10 +165,10 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
 
 # ==========================================
-# 6B. MÓDULO: AJUSTAR PRODUTOS (ISOLADO PARA NÃO QUEBRAR O FLUXO)
+# 6B. MÓDULO: AJUSTAR PRODUTOS
 # ==========================================
-elif opcao_menu == "📝 Ajustar Produtos":
-    st.title("📝 Alterar Informações de Produtos Cadastrados")
+elif opcao_menu == "Ajustar Produtos":
+    st.title("Alterar Informações de Produtos Cadastrados")
     
     if not st.session_state.bd["produtos"]:
         st.info("Nenhum produto cadastrado no sistema para ser modificado.")
@@ -173,32 +179,30 @@ elif opcao_menu == "📝 Ajustar Produtos":
         idx_alvo = next(i for i, p in enumerate(st.session_state.bd["produtos"]) if p["codigo"] == prod_selecionado_edit)
         dados_atuais = st.session_state.bd["produtos"][idx_alvo]
         
-        with st.form("form_ajuste_interno"):
-            st.write(f"Modificando o item código: **{prod_selecionado_edit}**")
-            nova_descricao = st.text_input("Nova Descrição do Item", value=dados_atuais["descricao"])
-            
-            cats = ["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"]
-            nova_categoria = st.selectbox("Nova Categoria", cats, index=cats.index(dados_atuais["categoria"]) if dados_atuais["categoria"] in cats else 0)
-            
-            unds = ["UN", "KG", "CX", "PCT", "L"]
-            nova_unidade = st.selectbox("Nova Unidade", unds, index=unds.index(dados_atuais["unidade"]) if dados_atuais["unidade"] in unds else 0)
-            
-            if st.form_submit_button("Confirmar Atualização de Dados", type="primary"):
-                if nova_descricao:
-                    st.session_state.bd["produtos"][idx_alvo]["descricao"] = nova_descricao
-                    st.session_state.bd["produtos"][idx_alvo]["categoria"] = nova_categoria
-                    st.session_state.bd["produtos"][idx_alvo]["unidade"] = nova_unidade
-                    salvar_dados()
-                    st.success("Cadastro modificado com sucesso!")
-                    st.rerun()
-                else:
-                    st.warning("A descrição não pode ficar vazia.")
+        nova_descricao = st.text_input("Nova Descrição do Item", value=dados_atuais["descricao"])
+        
+        cats = ["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"]
+        nova_categoria = st.selectbox("Nova Categoria", cats, index=cats.index(dados_atuais["categoria"]) if dados_atuais["categoria"] in cats else 0)
+        
+        unds = ["UN", "KG", "CX", "PCT", "L"]
+        nova_unidade = st.selectbox("Nova Unidade", unds, index=unds.index(dados_atuais["unidade"]) if dados_atuais["unidade"] in unds else 0)
+        
+        if st.button("Atualizar Cadastro do Produto", type="primary"):
+            if nova_descricao:
+                st.session_state.bd["produtos"][idx_alvo]["descricao"] = nova_descricao
+                st.session_state.bd["produtos"][idx_alvo]["categoria"] = nova_categoria
+                st.session_state.bd["produtos"][idx_alvo]["unidade"] = nova_unidade
+                salvar_dados()
+                st.success("Dados modificados com sucesso!")
+                st.rerun()
+            else:
+                st.warning("A descrição não pode ficar vazia.")
 
 # ==========================================
 # 7. MÓDULO: CADASTRO DE ENDEREÇOS
 # ==========================================
-elif opcao_menu == "🧱 Cadastro de Endereços":
-    st.title("🧱 Cadastro de Endereço Único")
+elif opcao_menu == "Cadastro de Endereços":
+    st.title("Cadastro de Endereço Único")
     
     with st.form("cad_endereco", clear_on_submit=True):
         cod_completo = st.text_input("Código do Endereço (Ex: A-01, PRATELEIRA-2, BOX-A)").upper().strip()
@@ -221,8 +225,8 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
 # ==========================================
 # 8. MÓDULO: ENTRADA & ARMAZENAGEM
 # ==========================================
-elif opcao_menu == "📥 Entrada & Armazenagem":
-    st.title("📥 Entrada de Mercadoria por Validação")
+elif opcao_menu == "Entrada & Armazenagem":
+    st.title("Entrada de Mercadoria por Validação")
 
 
 

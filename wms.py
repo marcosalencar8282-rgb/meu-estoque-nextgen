@@ -125,12 +125,13 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
     st.dataframe(linhas_tabela, use_container_width=True)
 
 # ==========================================
-# 6. MÓDULO: CADASTRO DE PRODUTOS
+# 6. MÓDULO: CADASTRO DE PRODUTOS (COM ALTERAÇÃO SEGURA)
 # ==========================================
 elif opcao_menu == "📦 Cadastro de Produtos":
     st.title("📦 Cadastro de Itens e SKUs")
     
     with st.form("cad_produto", clear_on_submit=True):
+        st.subheader("Novo Cadastro")
         col1, col2 = st.columns(2)
         codigo = col1.text_input("Código do Produto (SKU / EAN)").upper().strip()
         descricao = col2.text_input("Descrição Completa do Item")
@@ -156,25 +157,29 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     st.subheader("Itens Cadastrados")
     st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
 
+    # ABA SEGURA DE ALTERAÇÃO (SUBSTITUI A EXCLUSÃO PERIGOSA)
     if st.session_state.bd["produtos"]:
         st.markdown("---")
-        st.subheader("🗑️ Remover Produto")
+        st.subheader("📝 Alterar Informações do Produto")
         
-        # CORREÇÃO: Utilizando a sintaxe de formulário com o gerenciador de contexto completo
-        with st.form("form_deletar_produto"):
-            lista_remover_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
-            prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod)
-            botao_excluir_prod = st.form_submit_button("Confirmar Exclusão de Produto", type="destructive")
+        lista_edit_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
+        prod_selecionado_edit = st.selectbox("Selecione o produto para modificar dados", lista_edit_prod)
+        
+        # Encontra os dados atuais do produto para preencher os campos automaticamente
+        dados_atuais = next(p for p in st.session_state.bd["produtos"] if p["codigo"] == prod_selecionado_edit)
+        
+        with st.form("form_editar_produto"):
+            nova_descricao = st.text_input("Nova Descrição do Item", value=dados_atuais["descricao"])
+            nova_categoria = st.selectbox("Nova Categoria", ["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"], index=["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"].index(dados_atuais["categoria"]))
+            nova_unidade = st.selectbox("Nova Unidade", ["UN", "KG", "CX", "PCT", "L"], index=["UN", "KG", "CX", "PCT", "L"].index(dados_atuais["unidade"]))
             
-            if botao_excluir_prod:
-                tem_estoque = any(i["codigo_produto"] == prod_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
-                
-                if tem_estoque:
-                    st.error("Não é possível excluir! Este produto possui saldo físico armazenado em algum endereço.")
-                else:
-                    st.session_state.bd["produtos"] = [p for p in st.session_state.bd["produtos"] if p["codigo"] != prod_para_remover]
+            if st.form_submit_button("Atualizar Cadastro", type="primary"):
+                if nova_descricao:
+                    dados_atuais["descricao"] = nova_descricao
+                    dados_atuais["categoria"] = nova_categoria
+                    dados_atuais["unidade"] = nova_unidade
                     salvar_dados()
-                    st.success(f"Produto {prod_para_remover} removido com sucesso!")
+                    st.success("Dados do produto atualizados com sucesso!")
                     st.rerun()
 
 # ==========================================
@@ -201,25 +206,20 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
     st.subheader("Endereços Ativos no Sistema")
     st.dataframe(st.session_state.bd["enderecos"], use_container_width=True)
 
-    if st.session_state.bd["enderecos"]:
-        st.markdown("---")
-        st.subheader("🗑️ Remover Endereço")
+# ==========================================
+# 8. MÓDULO: ENTRADA & ARMAZENAGEM
+# ==========================================
+elif opcao_menu == "📥 Entrada & Armazenagem":
+    st.title("📥 Entrada de Mercadoria por Validação")
+    
+    if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
+        st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
+    else:
+        lista_prods = [f"{p['codigo']} - {p['descricao']}" for p in st.session_state.bd["produtos"]]
+        lista_ends = [e["completo"] for e in st.session_state.bd["enderecos"]]
         
-        # CORREÇÃO: Utilizando a sintaxe de formulário com o gerenciador de contexto completo
-        with st.form("form_deletar_endereco"):
-            lista_remover_end = [e["completo"] for e in st.session_state.bd["enderecos"]]
-            end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end)
-            botao_excluir_end = st.form_submit_button("Confirmar Exclusão de Endereço", type="destructive")
-            
-            if botao_excluir_end:
-                endereco_ocupado = any(i["endereco"] == end_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
-                
-                if endereco_ocupado:
-                    st.error("Não é possível excluir! Este endereço está ocupado por mercadorias no momento.")
-                else:
-                    st.session_state.bd["enderecos"] = [e for e in st.session_state.bd["enderecos"] if e["completo"] != end_para_remover]
-                    salvar_dados()
-                    st.success(f"Endereço {end_para_remover} removido com sucesso!")
+        with st.form("mov_entrada", clear_on_submit=True):
+            prod_selecionado = st.selectbox("Selecione o Produto Cadastrado", lista_prods)
 
 
 

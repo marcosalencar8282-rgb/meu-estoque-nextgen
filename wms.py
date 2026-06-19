@@ -220,10 +220,9 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
     if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
         st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
     else:
-        lista_prods = [f"{p['codigo']} - {p['descricao']}" for p in st.session_state.bd["produtos"]]
-        lista_ends = [e["completo"] for e in st.session_state.bd["enderecos"]]
-        
-        with st.form("mov_entrada", clear_on_submit=True):
+        # LISTAS BASEADAS EM ÍNDICES REAIS (Mapeamento livre de erros por string)
+        lista_opcoes_produtos = [p["codigo"] for p in st.session_state.bd["produtos"]]
+        lista_opcoes_enderecos = [e["completo"] for e in st.session_state.bd["enderecos"]]
 
 
 

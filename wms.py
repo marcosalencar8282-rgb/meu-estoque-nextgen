@@ -23,7 +23,7 @@ def carregar_dados():
             st.session_state.bd = {
                 "produtos": [],     # Estrutura: {codigo, descricao, categoria, unidade}
                 "enderecos": [],    # Estrutura: {rua, predio, nivel, apartamento, completo}
-                "estoque": []       # Estrutura: {endereco, codigo_produto, quantity, lote, atualizacao}
+                "estoque": []       # Estrutura: {endereco, codigo_produto, quantidade, lote, atualizacao}
             }
 
 def salvar_dados():
@@ -172,7 +172,7 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
             lote = c2.text_input("Lote / Validade", value="N/A").upper()
             
             if st.form_submit_button("Executar Entrada"):
-                # CORREÇÃO DEFINITIVA: Extrai a primeira parte da lista do split e remove espaços
+                # Captura o texto que antecede o hífen de maneira segura usando f-string
                 cod_prod = prod_selecionado.split(" - ")[0].strip()
                 
                 encontrou = False
@@ -217,5 +217,6 @@ elif opcao_menu == "📤 Saída & Picking":
             qtd_retirada = st.number_input("Quantidade a Retirar", min_value=1, value=1)
             
             if st.form_submit_button("Confirmar Separação / Baixa", type="primary"):
+                idx_selecionado = lista_opcoes_saida.index(item_escolhido)
 
 

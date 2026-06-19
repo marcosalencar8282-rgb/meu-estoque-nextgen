@@ -21,13 +21,12 @@ def carregar_dados():
                 st.session_state.bd = {"usuarios": [{"usuario": "admin", "senha": "admin"}], "produtos": [], "enderecos": [], "estoque": []}
         else:
             st.session_state.bd = {
-                "usuarios": [{"usuario": "admin", "senha": "admin"}], # Usuário padrão inicial
+                "usuarios": [{"usuario": "admin", "senha": "admin"}], 
                 "produtos": [],     
                 "enderecos": [],    
                 "estoque": []       
             }
     
-    # Garante que a chave de usuários exista caso o arquivo seja antigo
     if "usuarios" not in st.session_state.bd:
         st.session_state.bd["usuarios"] = [{"usuario": "admin", "senha": "admin"}]
 
@@ -47,7 +46,6 @@ if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
-    # Interface Centralizada de Login
     col_esq, col_centro, col_dir = st.columns([1, 1.2, 1])
     with col_centro:
         st.write("#")
@@ -58,7 +56,6 @@ if not st.session_state.autenticado:
             senha_input = st.text_input("Senha", type="password").strip()
             
             if st.form_submit_button("Entrar", type="primary", use_container_width=True):
-                # Valida as credenciais direto na lista de usuários do JSON
                 valido = any(u["usuario"] == usuario_input and u["senha"] == senha_input for u in st.session_state.bd["usuarios"])
                 
                 if valido:
@@ -67,10 +64,10 @@ if not st.session_state.autenticado:
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos.")
-    st.stop() # Bloqueia o carregamento do restante da página caso não logado
+    st.stop()
 
 # ==========================================
-# 4. NAVEGAÇÃO / MENU LATERAL (SÓ APARECE LOGADO)
+# 4. NAVEGAÇÃO / MENU LATERAL
 # ==========================================
 st.sidebar.title("📦 WMS Corporativo")
 st.sidebar.write(f"👤 Usuário: `{st.session_state.usuario_atual}`")
@@ -128,7 +125,7 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
     st.dataframe(linhas_tabela, use_container_width=True)
 
 # ==========================================
-# 6. MÓDULO: CADASTRO DE PRODUTOS
+# 6. MÓDULO: CADASTRO DE PRODUTOS (COM EXCLUSÃO)
 # ==========================================
 elif opcao_menu == "📦 Cadastro de Produtos":
     st.title("📦 Cadastro de Itens e SKUs")
@@ -148,7 +145,7 @@ elif opcao_menu == "📦 Cadastro de Produtos":
                     st.error("Este código de produto já está cadastrado!")
                 else:
                     st.session_state.bd["produtos"].append({
-                        "codigo": codigo, "descricao": descricao, "categoria": categoria, "unidade": unidade
+                        "codigo": codigo, "descricao": descricao, "categoria": categoria, "unidade": unit
                     })
                     salvar_dados()
                     st.success(f"Produto {codigo} cadastrado com sucesso!")
@@ -159,8 +156,27 @@ elif opcao_menu == "📦 Cadastro de Produtos":
     st.subheader("Itens Cadastrados")
     st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
 
+    # BOTÃO PARA EXCLUIR PRODUTO (SEM COMPROMETER O SISTEMA)
+    if st.session_state.bd["produtos"]:
+        st.markdown("---")
+        st.subheader("🗑️ Remover Produto")
+        lista_remover_prod = [p["codigo"] for p in st.session_state.bd["produtos"]]
+        prod_para_remover = st.selectbox("Selecione o produto para excluir", lista_remover_prod)
+        
+        if st.button("Confirmar Exclusão de Produto", type="destructive"):
+            # Impede a exclusão caso o produto tenha registros de saldo pendentes no WMS
+            tem_estoque = any(i["codigo_produto"] == prod_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
+            
+            if tem_estoque:
+                st.error("Não é possível excluir! Este produto possui saldo físico armazenado em algum endereço.")
+            else:
+                st.session_state.bd["produtos"] = [p for p in st.session_state.bd["produtos"] if p["codigo"] != prod_para_remover]
+                salvar_dados()
+                st.success(f"Produto {prod_para_remover} removido com sucesso!")
+                st.rerun()
+
 # ==========================================
-# 7. MÓDULO: CADASTRO DE ENDEREÇOS
+# 7. MÓDULO: CADASTRO DE ENDEREÇOS (COM EXCLUSÃO)
 # ==========================================
 elif opcao_menu == "🧱 Cadastro de Endereços":
     st.title("🧱 Cadastro de Endereço Único")
@@ -183,45 +199,29 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
     st.subheader("Endereços Ativos no Sistema")
     st.dataframe(st.session_state.bd["enderecos"], use_container_width=True)
 
+    # BOTÃO PARA EXCLUIR ENDEREÇO (SEM COMPROMETER O SISTEMA)
+    if st.session_state.bd["enderecos"]:
+        st.markdown("---")
+        st.subheader("🗑️ Remover Endereço")
+        lista_remover_end = [e["completo"] for e in st.session_state.bd["enderecos"]]
+        end_para_remover = st.selectbox("Selecione o endereço para excluir", lista_remover_end)
+        
+        if st.button("Confirmar Exclusão de Endereço", type="destructive"):
+            # Impede a exclusão se houver qualquer tipo de mercadoria alocada nesta posição
+            endereco_ocupado = any(i["endereco"] == end_para_remover and i["quantidade"] > 0 for i in st.session_state.bd["estoque"])
+            
+            if endereco_ocupado:
+                st.error("Não é possível excluir! Este endereço está ocupado por mercadorias no momento.")
+            else:
+                st.session_state.bd["enderecos"] = [e for e in st.session_state.bd["enderecos"] if e["completo"] != end_para_remover]
+                salvar_dados()
+                st.success(f"Endereço {end_para_remover} removido com sucesso!")
+                st.rerun()
+
 # ==========================================
 # 8. MÓDULO: ENTRADA & ARMAZENAGEM
 # ==========================================
 elif opcao_menu == "📥 Entrada & Armazenagem":
-    st.title("📥 Entrada de Mercadoria por Validação")
-    
-    if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
-        st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
-    else:
-        lista_prods = [f"{p['codigo']} - {p['descricao']}" for p in st.session_state.bd["produtos"]]
-        lista_ends = [e["completo"] for e in st.session_state.bd["enderecos"]]
-        
-        with st.form("mov_entrada", clear_on_submit=True):
-            prod_selecionado = st.selectbox("Selecione o Produto Cadastrado", lista_prods)
-            end_selecionado = st.selectbox("Selecione o Endereço de Destino", lista_ends)
-            
-            c1, c2 = st.columns(2)
-            qtd = c1.number_input("Quantidade", min_value=1, value=1)
-            lote = c2.text_input("Lote / Validade", value="N/A").upper()
-            
-            if st.form_submit_button("Executar Entrada"):
-                # Captura apenas o código (posição 0) da string separada
-                cod_prod = prod_selecionado.split(" - ")[0].strip()
-                
-                encontrou = False
-                for item in st.session_state.bd["estoque"]:
-                    if item["endereco"] == end_selecionado and item["codigo_produto"] == cod_prod and item["lote"] == lote:
-                        item["quantidade"] += qtd
-                        item["atualizacao"] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                        encontrou = True
-                        break
-                
-                if not encontrou:
-                    st.session_state.bd["estoque"].append({
-                        "endereco": end_selecionado, 
-                        "codigo_produto": cod_prod, 
-                        "quantidade": qtd, 
-                        "lote": lote, 
-                        "atualizacao": datetime.now().strftime('%d/%m/%Y %H:%M')
-                    })
+
 
 

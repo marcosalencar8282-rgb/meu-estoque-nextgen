@@ -1,199 +1,221 @@
 import streamlit as st
 from datetime import datetime
-import os
 import json
+import os
 
-# Configuração inicial obrigatória
-st.set_page_config(page_title="WMS - Estoque e Endereçamento", layout="wide")
+# 1. CONFIGURAÇÃO DA PÁGINA
+st.set_page_config(page_title="WMS Global - Cadastro e Endereçamento", layout="wide")
 
 # ==========================================
-# BANCO DE DADOS EM ARQUIVO EM FORMATO SEGURO (SEM PANDAS)
+# 2. BANCO DE DADOS EM ARQUIVO (JSON PURO)
 # ==========================================
+ARQUIVO_BD = "wms_global_db.json"
+
 def carregar_dados():
-    if 'users' not in st.session_state:
-        st.session_state.users = {
-            'admin': {'password': '123', 'profile': 'Administrador', 'active': True},
-            'almoxarife': {'password': '123', 'profile': 'Almoxarife', 'active': True},
-            'conferente': {'password': '123', 'profile': 'Conferente', 'active': True},
-            'consulta': {'password': '123', 'profile': 'Consulta', 'active': True}
-        }
-
-    if 'inventory' not in st.session_state:
-        st.session_state.inventory = []
-        if os.path.exists('wms_inventario_livre.json'):
+    if 'bd' not in st.session_state:
+        if os.path.exists(ARQUIVO_BD):
             try:
-                with open('wms_inventario_livre.json', 'r', encoding='utf-8') as f:
-                    dados = json.load(f)
-                    
-                    # Se o JSON antigo era um dicionário (formato Pandas), converte para lista pura
-                    if isinstance(dados, dict):
-                        # Pega a primeira chave para saber os índices (ex: 'Endereço')
-                        primeira_chave = list(dados.keys())[0] if dados.keys() else None
-                        if primeira_chave and isinstance(dados[primeira_chave], dict):
-                            indices = list(dados[primeira_chave].keys())
-                            for i in indices:
-                                st.session_state.inventory.append({
-                                    'Endereço': str(dados.get('Endereço', {}).get(i, '')),
-                                    'Código Produto': str(dados.get('Código Produto', {}).get(i, '')),
-                                    'Descrição': str(dados.get('Descrição', {}).get(i, '')),
-                                    'Quantidade': int(dados.get('Quantidade', {}).get(i, 0)),
-                                    'Lote': str(dados.get('Lote', {}).get(i, 'N/A')),
-                                    'Última Atualização': str(dados.get('Última Atualização', {}).get(i, ''))
-                                })
-                        else:
-                            st.session_state.inventory = []
-                    elif isinstance(dados, list):
-                        st.session_state.inventory = [i for i in dados if isinstance(i, dict)]
+                with open(ARQUIVO_BD, 'r', encoding='utf-8') as f:
+                    st.session_state.bd = json.load(f)
             except Exception:
-                st.session_state.inventory = []
-
-    if 'config' not in st.session_state:
-        st.session_state.config = {'Empresa': 'WMS Endereçamento S/A'}
+                st.session_state.bd = {"produtos": [], "enderecos": [], "estoque": []}
+        else:
+            st.session_state.bd = {
+                "produtos": [],     # {codigo, descricao, categoria, um}
+                "enderecos": [],    # {rua, predio, nivel, apartamento, completo, status}
+                "estoque": []       # {endereco, codigo_produto, quantidade, lote, atualizacao}
+            }
 
 def salvar_dados():
     try:
-        with open('wms_inventario_livre.json', 'w', encoding='utf-8') as f:
-            json.dump(st.session_state.inventory, f, indent=4, ensure_ascii=False)
+        with open(ARQUIVO_BD, 'w', encoding='utf-8') as f:
+            json.dump(st.session_state.bd, f, indent=4, ensure_ascii=False)
     except Exception as e:
-        st.error(f"Erro ao salvar arquivo: {e}")
+        st.error(f"Erro ao salvar dados: {e}")
 
 carregar_dados()
 
-def validar_perfil(perfis_permitidos):
-    if 'user' not in st.session_state:
-        return False
-    perfil_usuario = st.session_state.users[st.session_state.user]['profile']
-    return perfil_usuario in perfis_permitidos or perfil_usuario == 'Administrador'
+# ==========================================
+# 3. NAVEGAÇÃO / MENU LATERAL
+# ==========================================
+st.sidebar.title("📦 WMS Corporativo")
+st.sidebar.markdown("---")
+opcao_menu = st.sidebar.radio(
+    "Navegação do Sistema", 
+    [
+        "📊 Painel Geral (Estoque)", 
+        "🍎 Cadastro de Produtos", 
+        "🧱 Cadastro de Endereços", 
+        "📥 Entrada & Armazenagem", 
+        "📤 Saída & Picking"
+    ]
+)
 
 # ==========================================
-# TELA DE LOGIN CENTRALIZADA E MENOR
+# 4. MÓDULO: PAINEL GERAL (ESTOQUE)
 # ==========================================
-if 'user' not in st.session_state:
-    col_vazia_esq, col_login, col_vazia_dir = st.columns([2, 1.5, 2])
+if opcao_menu == "📊 Painel Geral (Estoque)":
+    st.title("📊 Posição de Estoque e Ocupação")
     
-    with col_login:
-        st.write("---")
-        st.subheader("🔑 Login - WMS Livre")
+    # Métricas
+    total_prods = len(st.session_state.bd["produtos"])
+    total_ends = len(st.session_state.bd["enderecos"])
+    ends_ocupados = len(set([item["endereco"] for item in st.session_state.bd["estoque"] if item["quantidade"] > 0]))
+    taxa_ocupacao = (ends_ocupados / total_ends * 100) if total_ends > 0 else 0
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Produtos Cadastrados", total_prods)
+    c2.metric("Endereços Cadastrados", total_ends)
+    c3.metric("Taxa de Ocupação", f"{taxa_ocupacao:.1f}%")
+    
+    st.subheader("🔍 Consulta Rápida")
+    busca = st.text_input("Filtrar por Endereço, Código ou Descrição").upper()
+    
+    # Cruzamento de dados para exibição rica
+    linhas_tabela = []
+    for item in st.session_state.bd["estoque"]:
+        desc = next((p["descricao"] for p in st.session_state.bd["produtos"] if p["codigo"] == item["codigo_produto"]), "Não Cadastrado")
         
-        with st.form("form_login"):
-            usuario_input = st.text_input("Usuário", key="usr")
-            senha_input = st.text_input("Senha", type="password", key="pwd")
-            botao_entrar = st.form_submit_button("Entrar no Sistema", type="primary", use_container_width=True)
+        if (not busca) or (busca in item["endereco"] or busca in item["codigo_produto"] or busca in desc.upper()):
+            linhas_tabela.append({
+                "Endereço": item["endereco"],
+                "Cód. Produto": item["codigo_produto"],
+                "Descrição": desc,
+                "Qtd": item["quantidade"],
+                "Lote": item["lote"],
+                "Últ. Movimentação": item["atualizacao"]
+            })
             
-            if botao_entrar:
-                if usuario_input in st.session_state.users and st.session_state.users[usuario_input]['password'] == senha_input:
-                    if st.session_state.users[usuario_input]['active']:
-                        st.session_state.user = usuario_input
-                        st.rerun()
-                    else:
-                        st.error("Acesso bloqueado: Usuário Inativo.")
+    st.dataframe(linhas_tabela, use_container_width=True)
+
+# ==========================================
+# 5. MÓDULO: CADASTRO DE PRODUTOS
+# ==========================================
+elif opcao_menu == "🍎 Cadastro de Produtos":
+    st.title("🍎 Cadastro de Itens e SKUs")
+    
+    with st.form("cad_produto", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        codigo = col1.text_input("Código do Produto (SKU / EAN)").upper().strip()
+        descricao = col2.text_input("Descrição Completa do Item")
+        
+        col3, col4 = st.columns(2)
+        categoria = col3.selectbox("Categoria", ["Matéria-Prima", "Produto Acabado", "Embalagem", "Outros"])
+        unidade = col4.selectbox("Unidade de Medida", ["UN", "KG", "CX", "PCT", "L"])
+        
+        if st.form_submit_button("Salvar Produto", type="primary"):
+            if codigo and descricao:
+                # Evitar duplicados
+                if any(p["codigo"] == codigo for p in st.session_state.bd["produtos"]):
+                    st.error("Este código de produto já está cadastrado!")
                 else:
-                    st.error("Credenciais incorretas.")
-else:
-    st.sidebar.write(f"🏢 **{st.session_state.config['Empresa']}**")
-    st.sidebar.write(f"👤 `{st.session_state.user}`")
-    if st.sidebar.button("Efetuar Logout / Sair"):
-        del st.session_state.user
-        st.rerun()
-        
-    st.sidebar.divider()
-    
-    opcao_menu = st.sidebar.radio(
-        "Módulos WMS", 
-        ["Endereçamento (Visão Geral)", "Entrada (Armazenagem)", "Saída (Picking)"]
-    )
-    
-    # 1. MÓDULO ENDEREÇAMENTO (VISÃO GERAL DO ESTOQUE)
-    if opcao_menu == "Endereçamento (Visão Geral)":
-        st.title("🧱 Consulta de Posições e Endereçamento")
-        
-        total_posicoes = len(set([str(item.get('Endereço', '')) for item in st.session_state.inventory if isinstance(item, dict)]))
-        total_itens = sum([int(item.get('Quantidade', 0)) for item in st.session_state.inventory if isinstance(item, dict)])
-        
-        c1, c2 = st.columns(2)
-        c1.metric("Posições Ocupadas no Momento 📥", total_posicoes)
-        c2.metric("Total de Itens Armazenados 📦", total_itens)
-        
-        st.subheader("🔍 Filtro de Posições")
-        busca = st.text_input("Buscar por Endereço ou Produto").upper()
-        
-        lista_exibicao = [i for i in st.session_state.inventory if isinstance(i, dict)]
-        if busca:
-            lista_exibicao = [
-                item for item in lista_exibicao 
-                if busca in str(item.get('Endereço', '')).upper() or busca in str(item.get('Código Produto', '')).upper() or busca in str(item.get('Descrição', '')).upper()
-            ]
-            
-        st.dataframe(lista_exibicao, use_container_width=True)
-
-    # 2. MÓDULO ENTRADA (ARMAZENAGEM)
-    elif opcao_menu == "Entrada (Armazenagem)":
-        st.title("📥 Entrada de Mercadoria por Endereço")
-        if not validar_perfil(['Almoxarife', 'Conferente']):
-            st.error("Acesso negado."); st.stop()
-            
-        with st.form("armazenagem"):
-            st.info("Digite o código do endereço onde o produto será armazenado.")
-            endereco_destino = st.text_input("Código do Endereço (Ex: PRATELEIRA-A1)").upper().strip()
-            cod_prod = st.text_input("Código do Produto")
-            desc_prod = st.text_input("Descrição do Produto")
-            qtd = st.number_input("Quantidade", min_value=1, value=1)
-            lote = st.text_input("Lote / Validade", value="N/A")
-            
-            if st.form_submit_button("Confirmar Entrada"):
-                if endereco_destino and cod_prod and desc_prod:
-                    encontrou = False
-                    for item in st.session_state.inventory:
-                        if isinstance(item, dict) and item.get('Endereço') == endereco_destino and item.get('Código Produto') == cod_prod and item.get('Lote') == lote:
-                            item['Quantidade'] = int(item.get('Quantidade', 0)) + qtd
-                            item['Última Atualização'] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                            encontrou = True
-                            break
-                    
-                    if not encontrou:
-                        st.session_state.inventory.append({
-                            'Endereço': endereco_destino, 'Código Produto': cod_prod, 'Descrição': desc_prod, 
-                            'Quantidade': qtd, 'Lote': lote, 'Última Atualização': datetime.now().strftime('%d/%m/%Y %H:%M')
-                        })
-                    
+                    st.session_state.bd["produtos"].append({
+                        "codigo": codigo, "descricao": descricao, "categoria": categoria, "unidade": unidade
+                    })
                     salvar_dados()
-                    st.success(f"Produto guardado com sucesso no endereço {endereco_destino}!")
-                    st.rerun()
-                else:
-                    st.warning("Preencha todos os campos obrigatórios.")
-
-    # 3. MÓDULO SAÍDA (PICKING)
-    elif opcao_menu == "Saída (Picking)":
-        st.title("📤 Retirada de Estoque (Picking)")
-        if not validar_perfil(['Almoxarife', 'Conferente']):
-            st.error("Acesso negado."); st.stop()
-            
-        enderecos_ocupados = list(set([item.get('Endereço', '') for item in st.session_state.inventory if isinstance(item, dict) and item.get('Endereço')]))
-        if not enderecos_ocupados:
-            st.info("Não há itens registrados em nenhum endereço.")
-        else:
-            with st.form("picking"):
-                endereco_retirada = st.selectbox("Selecione o Endereço de Retirada", enderecos_ocupados)
+                    st.success(f"Produto {codigo} cadastrado com sucesso!")
+            else:
+                st.warning("Preencha os campos obrigatórios (Código e Descrição).")
                 
-                item_localizado = None
-                for item in st.session_state.inventory:
-                    if isinstance(item, dict) and item.get('Endereço') == endereco_retirada:
-                        item_localizado = item
+    st.subheader("Itens Cadastrados")
+    st.dataframe(st.session_state.bd["produtos"], use_container_width=True)
+
+# ==========================================
+# 6. MÓDULO: CADASTRO DE ENDEREÇOS
+# ==========================================
+elif opcao_menu == "🧱 Cadastro de Endereços":
+    st.title("🧱 Cadastro da Estrutura Física (Endereçamento)")
+    st.info("Padrão de Endereçamento Geográfico: Rua - Prédio - Nível - Apartamento")
+    
+    with st.form("cad_endereco", clear_on_submit=True):
+        c1, c2, c3, c4 = st.columns(4)
+        rua = c1.text_input("Rua (Ex: A, B, 01)").upper().strip()
+        predio = c2.text_input("Prédio/Módulo (Ex: 01, 02)").strip()
+        nivel = c3.text_input("Nível/Andar (Ex: 01, 02)").strip()
+        apto = c4.text_input("Apartamento/Vão (Ex: A, B)").upper().strip()
+        
+        if st.form_submit_button("Gerar e Cadastrar Posição", type="primary"):
+            if rua and predio and nivel and apto:
+                cod_completo = f"R{rua}-P{predio}-N{nivel}-A{apto}"
+                
+                if any(e["completo"] == cod_completo for e in st.session_state.bd["enderecos"]):
+                    st.error("Este endereço já existe no sistema!")
+                else:
+                    st.session_state.bd["enderecos"].append({
+                        "rua": rua, "predio": predio, "nivel": nivel, "apartamento": apto, "completo": cod_completo
+                    })
+                    salvar_dados()
+                    st.success(f"Endereço {cod_completo} criado com sucesso!")
+            else:
+                st.warning("Preencha todos os quadrantes para gerar o endereço.")
+                
+    st.subheader("Malha de Endereços Ativos")
+    st.dataframe(st.session_state.bd["enderecos"], use_container_width=True)
+
+# ==========================================
+# 7. MÓDULO: ENTRADA & ARMAZENAGEM
+# ==========================================
+elif opcao_menu == "📥 Entrada & Armazenagem":
+    st.title("📥 Entrada de Mercadoria por Validação")
+    
+    if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
+        st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
+    else:
+        # Listas para os selects (garante que o usuário só use dados cadastrados)
+        lista_prods = [f"{p['codigo']} - {p['descricao']}" for p in st.session_state.bd["produtos"]]
+        lista_ends = [e["completo"] for e in st.session_state.bd["enderecos"]]
+        
+        with st.form("mov_entrada"):
+            prod_selecionado = st.selectbox("Selecione o Produto Cadastrado", lista_prods)
+            end_selecionado = st.selectbox("Selecione o Endereço de Destino", lista_ends)
+            
+            c1, c2 = st.columns(2)
+            qtd = c1.number_input("Quantidade", min_value=1, value=1)
+            lote = c2.text_input("Lote / Validade", value="N/A").upper()
+            
+            if st.form_submit_button("Executar Entrada"):
+                cod_prod = prod_selecionado.split(" - ")[0]
+                
+                # Procura se já existe o mesmo produto e lote no mesmo endereço para somar
+                encontrou = False
+                for item in st.session_state.bd["estoque"]:
+                    if item["endereco"] == end_selecionado and item["codigo_produto"] == cod_prod and item["lote"] == lote:
+                        item["quantidade"] += qtd
+                        item["atualizacao"] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                        encontrou = True
                         break
                 
-                if item_localizado:
-                    p_desc = item_localizado.get('Descrição', '')
-                    p_qtd_max = int(item_localizado.get('Quantidade', 0))
-                    p_lote = item_localizado.get('Lote', 'N/A')
-                    
-                    st.warning(f"📦 Item na posição: {p_desc} | Lote: {p_lote} | Saldo: {p_qtd_max}")
-                    qtd_retirar = st.number_input("Quantidade a Retirar", min_value=1, max_value=p_qtd_max, value=p_qtd_max)
-                    
-                    if st.form_submit_button("Confirmar Baixa/Saída"):
-                        if qtd_retirar == p_qtd_max:
-                            st.session_state.inventory = [item for item in st.session_state.inventory if isinstance(item, dict) and item.get('Endereço') != endereco_retirada]
-                        else:
-                            for item in st.session_state.inventory:
+                if not encontrou:
+                    st.session_state.bd["estoque"].append({
+                        "endereco": end_selecionado, "codigo_produto": cod_prod, "quantidade": qtd, 
+                        "lote": lote, "atualizacao": datetime.now().strftime('%d/%m/%Y %H:%M')
+                    })
+                
+                salvar_dados()
+                st.success(f"Quantidade de {qtd} do item {cod_prod} alocada em {end_selecionado}!")
 
+# ==========================================
+# 8. MÓDULO: SAÍDA & PICKING
+# ==========================================
+elif opcao_menu == "📤 Saída & Picking":
+    st.title("📤 Baixa de Estoque (Picking)")
+    
+    # Filtra apenas o que tem saldo real em estoque
+    itens_com_saldo = [i for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
+    
+    if not itens_com_saldo:
+        st.info("Não há mercadorias com saldo disponível para retirada no momento.")
+    else:
+        lista_opcoes_saida = [
+            f"Endereço: {i['endereco']} | SKU: {i['codigo_produto']} | Lote: {i['lote']} (Saldo: {i['quantidade']})" 
+            for i in itens_com_saldo
+        ]
+        
+        with st.form("mov_saida"):
+            item_escolhido = st.selectbox("Selecione a Posição de Origem para Retirada", lista_opcoes_saida)
+            qtd_retirada = st.number_input("Quantidade a Retirar", min_value=1, value=1)
+            
+            if st.form_submit_button("Confirmar Separação / Baixa", type="primary"):
+                # Extrai o índice baseado na seleção do usuário
 
 

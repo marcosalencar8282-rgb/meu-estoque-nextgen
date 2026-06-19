@@ -21,9 +21,9 @@ def carregar_dados():
                 st.session_state.bd = {"produtos": [], "enderecos": [], "estoque": []}
         else:
             st.session_state.bd = {
-                "produtos": [],     # {codigo, descricao, categoria, um}
-                "enderecos": [],    # {rua, predio, nivel, apartamento, completo, status}
-                "estoque": []       # {endereco, codigo_produto, quantidade, lote, atualizacao}
+                "produtos": [],     # Estrutura: {codigo, descricao, categoria, unidade}
+                "enderecos": [],    # Estrutura: {rua, predio, nivel, apartamento, completo}
+                "estoque": []       # Estrutura: {endereco, codigo_produto, quantidade, lote, atualizacao}
             }
 
 def salvar_dados():
@@ -57,7 +57,7 @@ opcao_menu = st.sidebar.radio(
 if opcao_menu == "📊 Painel Geral (Estoque)":
     st.title("📊 Posição de Estoque e Ocupação")
     
-    # Métricas
+    # Métricas calculadas dinamicamente
     total_prods = len(st.session_state.bd["produtos"])
     total_ends = len(st.session_state.bd["enderecos"])
     ends_ocupados = len(set([item["endereco"] for item in st.session_state.bd["estoque"] if item["quantidade"] > 0]))
@@ -71,12 +71,12 @@ if opcao_menu == "📊 Painel Geral (Estoque)":
     st.subheader("🔍 Consulta Rápida")
     busca = st.text_input("Filtrar por Endereço, Código ou Descrição").upper()
     
-    # Cruzamento de dados para exibição rica
+    # Cruzamento de dados de estoque com a descrição do produto
     linhas_tabela = []
     for item in st.session_state.bd["estoque"]:
         desc = next((p["descricao"] for p in st.session_state.bd["produtos"] if p["codigo"] == item["codigo_produto"]), "Não Cadastrado")
         
-        if (not busca) or (busca in item["endereco"] or busca in item["codigo_produto"] or busca in desc.upper()):
+        if (not busca) or (busca in item["endereco"].upper() or busca in item["codigo_produto"].upper() or busca in desc.upper()):
             linhas_tabela.append({
                 "Endereço": item["endereco"],
                 "Cód. Produto": item["codigo_produto"],
@@ -105,7 +105,7 @@ elif opcao_menu == "🍎 Cadastro de Produtos":
         
         if st.form_submit_button("Salvar Produto", type="primary"):
             if codigo and descricao:
-                # Evitar duplicados
+                # Impede códigos duplicados no sistema
                 if any(p["codigo"] == codigo for p in st.session_state.bd["produtos"]):
                     st.error("Este código de produto já está cadastrado!")
                 else:
@@ -114,6 +114,7 @@ elif opcao_menu == "🍎 Cadastro de Produtos":
                     })
                     salvar_dados()
                     st.success(f"Produto {codigo} cadastrado com sucesso!")
+                    st.rerun()
             else:
                 st.warning("Preencha os campos obrigatórios (Código e Descrição).")
                 
@@ -125,7 +126,7 @@ elif opcao_menu == "🍎 Cadastro de Produtos":
 # ==========================================
 elif opcao_menu == "🧱 Cadastro de Endereços":
     st.title("🧱 Cadastro da Estrutura Física (Endereçamento)")
-    st.info("Padrão de Endereçamento Geográfico: Rua - Prédio - Nível - Apartamento")
+    st.info("Padrão de Endereçamento Logístico: Rua - Prédio - Nível - Apartamento")
     
     with st.form("cad_endereco", clear_on_submit=True):
         c1, c2, c3, c4 = st.columns(4)
@@ -138,6 +139,7 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
             if rua and predio and nivel and apto:
                 cod_completo = f"R{rua}-P{predio}-N{nivel}-A{apto}"
                 
+                # Impede endereços físicos duplicados
                 if any(e["completo"] == cod_completo for e in st.session_state.bd["enderecos"]):
                     st.error("Este endereço já existe no sistema!")
                 else:
@@ -146,6 +148,7 @@ elif opcao_menu == "🧱 Cadastro de Endereços":
                     })
                     salvar_dados()
                     st.success(f"Endereço {cod_completo} criado com sucesso!")
+                    st.rerun()
             else:
                 st.warning("Preencha todos os quadrantes para gerar o endereço.")
                 
@@ -161,11 +164,11 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
     if not st.session_state.bd["produtos"] or not st.session_state.bd["enderecos"]:
         st.warning("⚠️ Para dar entrada, você precisa ter ao menos 1 Produto e 1 Endereço cadastrados nas abas anteriores.")
     else:
-        # Listas para os selects (garante que o usuário só use dados cadastrados)
+        # Puxa listas limpas diretamente do banco de dados para evitar digitação errada
         lista_prods = [f"{p['codigo']} - {p['descricao']}" for p in st.session_state.bd["produtos"]]
         lista_ends = [e["completo"] for e in st.session_state.bd["enderecos"]]
         
-        with st.form("mov_entrada"):
+        with st.form("mov_entrada", clear_on_submit=True):
             prod_selecionado = st.selectbox("Selecione o Produto Cadastrado", lista_prods)
             end_selecionado = st.selectbox("Selecione o Endereço de Destino", lista_ends)
             
@@ -174,9 +177,10 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
             lote = c2.text_input("Lote / Validade", value="N/A").upper()
             
             if st.form_submit_button("Executar Entrada"):
+                # Captura apenas a parte do código antes do hífen
                 cod_prod = prod_selecionado.split(" - ")[0]
                 
-                # Procura se já existe o mesmo produto e lote no mesmo endereço para somar
+                # Se o mesmo produto e lote já existirem nesta vaga, apenas soma o saldo
                 encontrou = False
                 for item in st.session_state.bd["estoque"]:
                     if item["endereco"] == end_selecionado and item["codigo_produto"] == cod_prod and item["lote"] == lote:
@@ -185,14 +189,19 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
                         encontrou = True
                         break
                 
+                # Se for um item ou lote novo na vaga, adiciona novo registro
                 if not encontrou:
                     st.session_state.bd["estoque"].append({
-                        "endereco": end_selecionado, "codigo_produto": cod_prod, "quantidade": qtd, 
-                        "lote": lote, "atualizacao": datetime.now().strftime('%d/%m/%Y %H:%M')
+                        "endereco": end_selecionado, 
+                        "codigo_produto": cod_prod, 
+                        "quantidade": qtd, 
+                        "lote": lote, 
+                        "atualizacao": datetime.now().strftime('%d/%m/%Y %H:%M')
                     })
                 
                 salvar_dados()
                 st.success(f"Quantidade de {qtd} do item {cod_prod} alocada em {end_selecionado}!")
+                st.rerun()
 
 # ==========================================
 # 8. MÓDULO: SAÍDA & PICKING
@@ -200,22 +209,12 @@ elif opcao_menu == "📥 Entrada & Armazenagem":
 elif opcao_menu == "📤 Saída & Picking":
     st.title("📤 Baixa de Estoque (Picking)")
     
-    # Filtra apenas o que tem saldo real em estoque
+    # Lista apenas os registros que possuem mercadoria física armazenada
     itens_com_saldo = [i for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
     
     if not itens_com_saldo:
         st.info("Não há mercadorias com saldo disponível para retirada no momento.")
     else:
         lista_opcoes_saida = [
-            f"Endereço: {i['endereco']} | SKU: {i['codigo_produto']} | Lote: {i['lote']} (Saldo: {i['quantidade']})" 
-            for i in itens_com_saldo
-        ]
-        
-        with st.form("mov_saida"):
-            item_escolhido = st.selectbox("Selecione a Posição de Origem para Retirada", lista_opcoes_saida)
-            qtd_retirada = st.number_input("Quantidade a Retirar", min_value=1, value=1)
-            
-            if st.form_submit_button("Confirmar Separação / Baixa", type="primary"):
-                # Extrai o índice baseado na seleção do usuário
 
 

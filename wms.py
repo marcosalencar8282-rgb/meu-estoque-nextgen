@@ -17,7 +17,6 @@ if 'bd' not in st.session_state:
             with open(ARQUIVO_BD, 'r', encoding='utf-8') as f:
                 dados = json.load(f)
                 
-                # Se o JSON antigo estiver no formato global estruturado, extrai o estoque puro
                 if isinstance(dados, dict) and "estoque" in dados:
                     estoque_bruto = dados["estoque"]
                     enderecos_brutos = dados.get("enderecos", [])
@@ -28,19 +27,14 @@ if 'bd' not in st.session_state:
                     estoque_bruto = dados if isinstance(dados, list) else []
                     enderecos_brutos = []
 
-                # REPARO AUTOMÁTICO DE CHAVES ANTIGAS (Evita o KeyError)
                 estoque_corrigido = []
                 for item in estoque_bruto:
                     if isinstance(item, dict):
-                        # Restaura o endereço de chaves antigas ou padroniza
                         endereco = item.get("endereco") or item.get("Endereço") or "N/A"
-                        
-                        # Restaura o produto tratando todas as variações antigas das conversões anteriores
                         produto = item.get("produto") or item.get("Código Produto") or item.get("codigo_produto") or item.get("Cód. Produto") or "N/A"
                         
-                        # Garante que o código do produto vire texto limpo e não uma array stringficada
                         if isinstance(produto, list):
-                            produto = str(produto[0]) if produto else "N/A"
+                            produto = str(produto) if produto else "N/A"
                         produto = str(produto).replace("[", "").replace("]", "").replace("'", "").strip()
                         
                         quantidade = item.get("quantidade") or item.get("Quantidade") or item.get("Qtd") or 0
@@ -55,7 +49,6 @@ if 'bd' not in st.session_state:
                             "data": str(data).strip()
                         })
                 
-                # Converte lista de endereços se vier no formato de dicionário complexo antigo
                 lista_enderecos = []
                 for e in enderecos_brutos:
                     if isinstance(e, dict):
@@ -63,7 +56,6 @@ if 'bd' not in st.session_state:
                     else:
                         lista_enderecos.append(str(e))
                 
-                # Sincroniza endereços a partir do pátio logístico para não perder nada
                 for item in estoque_corrigido:
                     if item["endereco"] not in lista_enderecos and item["endereco"] != "N/A":
                         lista_enderecos.append(item["endereco"])
@@ -80,8 +72,6 @@ if 'bd' not in st.session_state:
 def salvar():
     with open(ARQUIVO_BD, 'w', encoding='utf-8') as f:
         json.dump(st.session_state.bd, f, indent=4, ensure_ascii=False)
-
-carregar_dados_ok = True
 
 # ==========================================
 # TELA DE LOGIN CENTRALIZADA E REDUZIDA
@@ -119,6 +109,7 @@ st.sidebar.markdown("<p style='color: gray; font-size:13px;'>Ambiente Logístico
 st.sidebar.write(f"Operador: `admin`")
 
 st.sidebar.markdown("---")
+# Removidos emojis dos valores internos de navegação para evitar qualquer erro de chave textual
 opcao = st.sidebar.radio(
     "Navegação de Módulos", 
     ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"]
@@ -216,6 +207,17 @@ elif opcao == "Entrada de Mercadoria":
             with st.form("form_entrada", clear_on_submit=True):
                 st.markdown("#### Dados do Documento de Entrada")
                 end = st.selectbox("Endereço de Destino", st.session_state.bd["enderecos"])
+                prod = st.text_input("Código/SKU do Produto").upper().strip()
+                
+                c1, c2 = st.columns(2)
+                qtd = c1.number_input("Quantidade de Volumes", min_value=1, value=1)
+                lote = c2.text_input("Número do Lote / Série", value="N/A").upper().strip()
+                
+                if st.form_submit_button("Confirmar Entrada no Pátio", type="primary", use_container_width=True):
+                    if prod:
+                        encontrou = False
+                        for item in st.session_state.bd["estoque"]:
+
 
 
 

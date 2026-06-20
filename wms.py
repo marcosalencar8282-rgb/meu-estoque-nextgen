@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st
 from datetime import datetime
 import httpx
 
@@ -43,7 +43,8 @@ def carregar_dados_nuvem():
 def salvar_endereco_nuvem(novo_end):
     try:
         with httpx.Client() as client:
-            res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json={"endereco": novo_end})
+            payload = {"endereco": novo_end}
+            res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json=payload)
             if res.status_code == 201 or res.status_code == 200:
                 return True
             return False
@@ -60,7 +61,8 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
                 item_atual = r_busca.json()[0]
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
-                res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json={"quantidade": novo_total, "data": data_atual})
+                payload = {"quantidade": novo_total, "data": data_atual}
+                res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
                 return res.status_code == 200
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
@@ -75,7 +77,8 @@ def salvar_saida_nuvem(item_id, nova_qtd):
     try:
         with httpx.Client() as client:
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json={"quantidade": int(nova_qtd), "data": data_atual})
+            payload = {"quantidade": int(nova_qtd), "data": data_atual}
+            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
             return res.status_code == 200
     except Exception:
         return False
@@ -96,7 +99,6 @@ if not st.session_state.logado:
         st.markdown("<h2 style='text-align: center;'>Acesso ao WMS</h2>", unsafe_allow_html=True)
         with st.form("login_wms"):
             user = st.text_input("Usuário").strip()
-            # COLOQUE SUA NOVA SENHA AQUI: Substitua "admin" pela senha permanente desejada!
             password = st.text_input("Senha", type="password").strip()
             if st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True):
                 if user == "admin" and password == "admin":

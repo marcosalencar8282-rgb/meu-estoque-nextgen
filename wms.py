@@ -1,62 +1,56 @@
 import streamlit as st
 from datetime import datetime
-import json
-import os
+import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="NextGen WMS", layout="wide")
-ARQUIVO_BD = "wms_simplificado_db.json"
 
 # ==========================================
-# BANCO DE DADOS LOCAL COM AJUSTE AUTOMÁTICO
+# CONEXÃO COM O BANCO DE DADOS (GOOGLE SHEETS)
 # ==========================================
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception:
+    st.error("Erro ao conectar ao banco de dados. Verifique os Secrets.")
+    st.stop()
+
+def carregar_dados_nuvem():
+    """Busca os dados gravados no banco sempre que o app reinicia"""
+    try:
+        # Puxa a aba de estoque
+        df_estoque = conn.read(worksheet="estoque", ttl=0)
+        df_estoque = df_estoque.dropna(how="all").fillna("N/A")
+        if not df_estoque.empty and "quantidade" in df_estoque.columns:
+            df_estoque['quantidade'] = df_estoque['quantidade'].astype(int)
+        estoque = df_estoque.to_dict(orient='records')
+    except Exception:
+        estoque = []
+
+    try:
+        # Puxa a aba de endereços
+        df_end = conn.read(worksheet="enderecos", ttl=0)
+        df_end = df_end.dropna(how="all").fillna("N/A")
+        enderecos = df_end['endereco'].astype(str).tolist() if not df_end.empty else []
+    except Exception:
+        enderecos = []
+
+    return {"enderecos": enderecos, "estoque": estoque}
+
+def salvar_na_nuvem():
+    """Grava as alterações direto no banco de dados na nuvem"""
+    try:
+        df_est = pd.DataFrame(st.session_state.bd["estoque"])
+        df_end = pd.DataFrame({"endereco": st.session_state.bd["enderecos"]})
+        
+        # Atualiza as planilhas de forma persistente
+        conn.update(worksheet="estoque", data=df_est)
+        conn.update(worksheet="enderecos", data=df_end)
+    except Exception as e:
+        st.error(f"Erro ao salvar dados no banco: {e}")
+
+# Sincronização inicial do Estado da Sessão
 if 'bd' not in st.session_state:
-    if os.path.exists(ARQUIVO_BD):
-        try:
-            with open(ARQUIVO_BD, 'r', encoding='utf-8') as f:
-                dados = json.load(f)
-                if isinstance(dados, dict) and "estoque" in dados:
-                    estoque_bruto = dados["estoque"]
-                    enderecos_brutos = dados.get("enderecos", [])
-                else:
-                    estoque_bruto = dados if isinstance(dados, list) else []
-                    enderecos_brutos = []
-
-                estoque_corrigido = []
-                for item in estoque_bruto:
-                    if isinstance(item, dict):
-                        endereco = item.get("endereco") or item.get("Endereço") or "N/A"
-                        produto = item.get("produto") or item.get("Código Produto") or "N/A"
-                        if isinstance(produto, list):
-                            produto = str(produto) if produto else "N/A"
-                        produto = str(produto).replace("[", "").replace("]", "").replace("'", "").strip()
-                        quantidade = item.get("quantidade") or item.get("Quantidade") or 0
-                        lote = item.get("lote") or item.get("Lote") or "N/A"
-                        data = item.get("data") or item.get("atualizacao") or datetime.now().strftime('%d/%m/%Y %H:%M')
-                        
-                        estoque_corrigido.append({
-                            "endereco": str(endereco).strip(),
-                            "produto": str(produto).strip(),
-                            "quantidade": int(quantidade),
-                            "lote": str(lote).strip(),
-                            "data": str(data).strip()
-                        })
-                
-                lista_enderecos = []
-                for e in enderecos_brutos:
-                    lista_enderecos.append(str(e))
-                for item in estoque_corrigido:
-                    if item["endereco"] not in lista_enderecos:
-                        lista_enderecos.append(item["endereco"])
-
-                st.session_state.bd = {"enderecos": lista_enderecos, "estoque": estoque_corrigido}
-        except:
-            st.session_state.bd = {"enderecos": [], "estoque": []}
-    else:
-        st.session_state.bd = {"enderecos": [], "estoque": []}
-
-def salvar():
-    with open(ARQUIVO_BD, 'w', encoding='utf-8') as f:
-        json.dump(st.session_state.bd, f, indent=4, ensure_ascii=False)
+    st.session_state.bd = carregar_dados_nuvem()
 
 # ==========================================
 # TELA DE LOGIN
@@ -125,8 +119,8 @@ elif opcao == "Cadastrar Endereço":
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
                     st.session_state.bd["enderecos"].append(novo_end)
-                    salvar()
-                    st.success("Endereço cadastrado!")
+                    salvar_na_nuvem()
+                    st.success("Endereço salvo permanentemente no banco!")
                     st.rerun()
     with c_lista:
         st.dataframe({"Lista de Endereços": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
@@ -158,8 +152,8 @@ elif opcao == "Entrada de Mercadoria":
                         st.session_state.bd["estoque"].append({
                             "endereco": end, "produto": prod, "quantidade": qtd, "lote": lote, "data": datetime.now().strftime('%d/%m/%Y %H:%M')
                         })
-                    salvar()
-                    st.success("Entrada realizada com sucesso!")
+                    salvar_na_nuvem()
+                    st.success("Entrada salva permanentemente no banco!")
                     st.rerun()
 
 # ==========================================
@@ -171,22 +165,22 @@ elif opcao == "Saída de Mercadoria":
     if not itens_disponiveis:
         st.info("Estoque vazio.")
     else:
-        lista_saida = [f"Local: {x['endereco']} | SKU: {x['produto']} | Lote: {x['lote']} (Saldo: {x['quantidade']})" for x in itens_disponiveis]
-        with st.form("form_saida"):
-            selecionado = st.selectbox("Selecione o Item", lista_saida)
-            qtd_retirar = st.number_input("Quantidade para Retirada", min_value=1, value=1)
-            if st.form_submit_button("Confirmar Baixa", type="primary", use_container_width=True):
-                idx = lista_saida.index(selecionado)
-                item_estoque = itens_disponiveis[idx]
-                if qtd_retirar > item_estoque["quantidade"]:
-                    st.error("Quantidade indisponível.")
+        with st.form("form_saida", clear_on_submit=True):
+            opcoes_saida = [f"Local: {x['endereco']} | SKU: {x['produto']} | Lote: {x['lote']} (Saldo: {x['quantidade']})" for x in itens_disponiveis]
+            item_selecionado_texto = st.selectbox("Selecione o item para dar saída", opcoes_saida)
+            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
+            
+            if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
+                idx_selecionado = opcoes_saida.index(item_selecionado_texto)
+                item_estoque = itens_disponiveis[idx_selecionado]
+                
+                if qtd_saida > item_estoque["quantidade"]:
+                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
                 else:
-                    item_estoque["quantidade"] -= qtd_retirar
+                    item_estoque["quantidade"] -= qtd_saida
                     item_estoque["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    if item_estoque["quantidade"] == 0:
-                        st.session_state.bd["estoque"].remove(item_estoque)
-                    salvar()
-                    st.success("Baixa processada!")
+                    salvar_na_nuvem()
+                    st.success("Saída salva permanentemente no banco!")
                     st.rerun()
 
 

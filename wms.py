@@ -21,12 +21,10 @@ def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
         with httpx.Client() as client:
-            # Busca Endereços reais salvos
             r_end = client.get(f"{SUPABASE_URL}enderecos?select=*", headers=headers)
             if r_end.status_code == 200:
                 enderecos = [str(item["endereco"]).upper().strip() for item in r_end.json() if "endereco" in item]
             
-            # Busca Estoque real salvo
             r_est = client.get(f"{SUPABASE_URL}estoque?select=*", headers=headers)
             if r_est.status_code == 200:
                 for item in r_est.json():
@@ -83,7 +81,6 @@ def salvar_saida_nuvem(item_id, nova_qtd):
     except Exception:
         return False
 
-# Inicialização do Banco de Dados direto puxando da Nuvem
 if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_nuvem()
 
@@ -100,7 +97,6 @@ if not st.session_state.logado:
         st.markdown("<h2 style='text-align: center;'>Acesso ao WMS</h2>", unsafe_allow_html=True)
         with st.form("login_wms"):
             user = st.text_input("Usuário").strip()
-            # Mude a palavra "admin" abaixo para a senha desejada se quiser alterar!
             password = st.text_input("Senha", type="password").strip()
             if st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True):
                 if user == "admin" and password == "admin":
@@ -114,7 +110,7 @@ if not st.session_state.logado:
 # MENU LATERAL
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
-opcao = st.sidebar.radio("Módules", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
+opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
     st.rerun()
@@ -178,13 +174,14 @@ elif opcao == "Entrada de Mercadoria":
             lote = st.text_input("Lote", value="N/A").upper().strip()
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
-                if prod:
-                    if salvar_entrada_nuvem(end, prod, qtd, lote):
-                        st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Entrada armazenada com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Erro ao registrar entrada no banco.")
+                if not prod:
+                    st.error("Por favor, digite o código do produto.")
+                elif salvar_entrada_nuvem(end, prod, qtd, lote):
+                    st.session_state.bd = carregar_dados_nuvem()
+                    st.success("Entrada armazenada com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Erro ao registrar entrada no banco.")
 
 # ==========================================
 # 4. SAÍDA DE MERCADORIA
@@ -209,4 +206,7 @@ elif opcao == "Saída de Mercadoria":
                 else:
                     nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
                     if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
+                        st.session_state.bd = carregar_dados_nuvem()
+                        st.success("Saída processada com sucesso!")
+                        st.rerun()
 

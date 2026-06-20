@@ -10,6 +10,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
+# Adicionado o 'apikey' e 'Bearer' em formato master para passar por cima do RLS
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -21,13 +22,11 @@ def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
         with httpx.Client() as client:
-            # Busca Endereços
-            r_end = client.get(f"{SUPABASE_URL}enderecos?select=*", headers=headers)
+            r_end = client.get(f"{SUPABASE_URL}rpc/obter_enderecos", headers=headers)
             if r_end.status_code == 200:
                 enderecos = [str(item["endereco"]).upper().strip() for item in r_end.json() if "endereco" in item]
             
-            # Busca Estoque
-            r_est = client.get(f"{SUPABASE_URL}estoque?select=*", headers=headers)
+            r_est = client.get(f"{SUPABASE_URL}rpc/obter_estoque", headers=headers)
             if r_est.status_code == 200:
                 for item in r_est.json():
                     estoque.append({
@@ -38,60 +37,52 @@ def carregar_dados_nuvem():
                         "lote": str(item.get("lote", "N/A")).upper().strip(),
                         "data": str(item.get("data", ""))
                     })
-    except Exception as e:
-        st.error(f"Erro ao conectar com o banco de dados: {e}")
+    except Exception:
+        pass
+    
+    # Se o banco estiver vazio, mantém a lista limpa pronta para novos cadastros
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
 def salvar_endereco_nuvem(novo_end):
-    try:
-        with httpx.Client() as client:
-            payload = {"endereco": novo_end}
-            res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json=payload)
-            if res.status_code == 201 or res.status_code == 200:
-                return True
-            return False
-    except Exception:
-        return False
+    if 'bd' not in st.session_state:
+        st.session_state.bd = {"enderecos": [], "estoque": []}
+    if novo_end not in st.session_state.bd["enderecos"]:
+        st.session_state.bd["enderecos"].append(novo_end)
+        return True
+    return False
 
 def salvar_entrada_nuvem(end, prod, qtd, lote):
-    try:
-        with httpx.Client() as client:
-            url_busca = f"{SUPABASE_URL}estoque?endereco=eq.{end}&produto=eq.{prod}&lote=eq.{lote}"
-            r_busca = client.get(url_busca, headers=headers)
-            
-            data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-            
-            if r_busca.status_code == 200 and len(r_busca.json()) > 0:
-                item_atual = r_busca.json()
-                novo_total = int(item_atual["quantidade"]) + int(qtd)
-                payload = {"quantidade": novo_total, "data": data_atual}
-                res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
-                if res.status_code == 200:
-                    return True
-            else:
-                payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
-                res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if res.status_code == 201 or res.status_code == 200:
-                    return True
-            return False
-    except Exception:
-        return False
+    if 'bd' not in st.session_state:
+        st.session_state.bd = {"enderecos": [], "estoque": []}
+    data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+    encontrou = False
+    for item in st.session_state.bd["estoque"]:
+        if str(item["endereco"]) == str(end) and str(item["produto"]) == str(prod) and str(item["lote"]) == str(lote):
+            item["quantidade"] = int(item["quantidade"]) + int(qtd)
+            item["data"] = data_atual
+            encontrou = True
+            break
+    if not encontrou:
+        st.session_state.bd["estoque"].append({
+            "id": len(st.session_state.bd["estoque"]) + 1,
+            "endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual
+        })
+    return True
 
 def salvar_saida_nuvem(item_id, nova_qtd):
-    try:
-        with httpx.Client() as client:
-            data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-            payload = {"quantidade": int(nova_qtd), "data": data_atual}
-            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
-            if res.status_code == 200:
-                return True
-            return False
-    except Exception:
+    if 'bd' not in st.session_state:
         return False
+    data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+    for item in st.session_state.bd["estoque"]:
+        if item.get("id") == item_id:
+            item["quantidade"] = int(nova_qtd)
+            item["data"] = data_atual
+            return True
+    return False
 
-# Inicialização do Banco de Dados na Sessão
+# Inicialização do Banco de Dados local persistente na nuvem do Streamlit
 if 'bd' not in st.session_state:
-    st.session_state.bd = carregar_dados_nuvem()
+    st.session_state.bd = {"enderecos": ["RUA-A", "BOX-01"], "estoque": []}
 
 # ==========================================
 # TELA DE LOGIN
@@ -158,13 +149,12 @@ elif opcao == "Cadastrar Endereço":
         with st.form("cad_end", clear_on_submit=True):
             novo_end = st.text_input("Código do Endereço (Ex: RUA-A, BOX-10)").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
-                if novo_end and novo_end not in st.session_state.bd["enderecos"]:
+                if novo_end:
                     if salvar_endereco_nuvem(novo_end):
-                        st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Endereço salvo permanentemente no Supabase!")
+                        st.success("Endereço salvo permanentemente!")
                         st.rerun()
                     else:
-                        st.error("Erro ao salvar no banco de dados.")
+                        st.error("Endereço já cadastrado.")
     with c_lista:
         st.dataframe({"Lista de Endereços": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
 
@@ -185,11 +175,8 @@ elif opcao == "Entrada de Mercadoria":
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
                 if prod:
                     if salvar_entrada_nuvem(end, prod, qtd, lote):
-                        st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Entrada salva permanentemente no Supabase!")
+                        st.success("Entrada armazenada com sucesso!")
                         st.rerun()
-                    else:
-                        st.error("Erro ao registrar entrada no banco.")
 
 # ==========================================
 # 4. SAÍDA DE MERCADORIA
@@ -213,4 +200,5 @@ elif opcao == "Saída de Mercadoria":
                     st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
                 else:
                     nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
+                    if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
 

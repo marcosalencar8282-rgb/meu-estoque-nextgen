@@ -56,7 +56,7 @@ if not st.session_state.logado:
             user = st.text_input("Usuário").strip()
             password = st.text_input("Senha", type="password").strip()
             if st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True):
-                if user == "admin" and password == "admin":
+                if user == "admin" and password == "20062026":
                     st.session_state.logado = True
                     st.rerun()
                 else:

@@ -17,17 +17,23 @@ except Exception:
 def carregar_dados_nuvem():
     try:
         df_estoque = conn.read(worksheet="estoque", ttl=0)
-        df_estoque = df_estoque.dropna(how="all").fillna("N/A")
-        if not df_estoque.empty and "quantidade" in df_estoque.columns:
-            df_estoque['quantidade'] = df_estoque['quantidade'].astype(int)
-        estoque = df_estoque.to_dict(orient='records')
+        df_estoque = df_estoque.dropna(how="all")
+        if not df_estoque.empty:
+            df_estoque['quantidade'] = pd.to_numeric(df_estoque['quantidade'], errors='coerce').fillna(0).astype(int)
+            df_estoque = df_estoque.fillna("N/A")
+            estoque = df_estoque.to_dict(orient='records')
+        else:
+            estoque = []
     except Exception:
         estoque = []
 
     try:
         df_end = conn.read(worksheet="enderecos", ttl=0)
-        df_end = df_end.dropna(how="all").fillna("N/A")
-        enderecos = df_end['endereco'].astype(str).tolist() if not df_end.empty else []
+        df_end = df_end.dropna(how="all")
+        if not df_end.empty and "endereco" in df_end.columns:
+            enderecos = df_end['endereco'].astype(str).tolist()
+        else:
+            enderecos = []
     except Exception:
         enderecos = []
 
@@ -35,8 +41,17 @@ def carregar_dados_nuvem():
 
 def salvar_na_nuvem():
     try:
+        # Força a conversão correta dos dados antes de enviar para a planilha
         df_est = pd.DataFrame(st.session_state.bd["estoque"])
+        if not df_est.empty:
+            df_est['quantidade'] = df_est['quantidade'].astype(int)
+            df_est = df_est[['endereco', 'produto', 'quantidade', 'lote', 'data']]
+        else:
+            df_est = pd.DataFrame(columns=['endereco', 'produto', 'quantidade', 'lote', 'data'])
+            
         df_end = pd.DataFrame({"endereco": st.session_state.bd["enderecos"]})
+        
+        # Limpa linhas vazias e envia de forma limpa
         conn.update(worksheet="estoque", data=df_est)
         conn.update(worksheet="enderecos", data=df_end)
     except Exception as e:
@@ -84,13 +99,13 @@ if opcao == "Visão Geral":
     
     m1, m2, m3 = st.columns(3)
     m1.metric("Total de Endereços Ativos", len(st.session_state.bd["enderecos"]))
-    m2.metric("Vagas Ocupadas", len(set([i["endereco"] for i in st.session_state.bd["estoque"] if i["quantidade"] > 0])))
-    m3.metric("Volume Total de Itens", sum([i["quantidade"] for i in st.session_state.bd["estoque"]]))
+    m2.metric("Vagas Ocupadas", len(set([i["endereco"] for i in st.session_state.bd["estoque"] if int(i["quantidade"]) > 0])))
+    m3.metric("Volume Total de Itens", sum([int(i["quantidade"]) for i in st.session_state.bd["estoque"]]))
     
     busca = st.text_input("Filtrar por endereço ou produto...").upper()
     tabela = []
     for i in st.session_state.bd["estoque"]:
-        if (not busca) or (busca in i["endereco"].upper() or busca in i["produto"].upper()):
+        if (not busca) or (busca in str(i["endereco"]).upper() or busca in str(i["produto"]).upper()):
             tabela.append({
                 "Endereço Físico": i["endereco"],
                 "Código Produto": i["produto"],
@@ -136,14 +151,14 @@ elif opcao == "Entrada de Mercadoria":
                 if prod:
                     encontrou = False
                     for item in st.session_state.bd["estoque"]:
-                        if item["endereco"] == end and item["produto"] == prod and item["lote"] == lote:
-                            item["quantidade"] += qtd
+                        if str(item["endereco"]) == str(end) and str(item["produto"]) == str(prod) and str(item["lote"]) == str(lote):
+                            item["quantidade"] = int(item["quantidade"]) + int(qtd)
                             item["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
                             encontrou = True
                             break
                     if not encontrou:
                         st.session_state.bd["estoque"].append({
-                            "endereco": end, "produto": prod, "quantidade": qtd, "lote": lote, "data": datetime.now().strftime('%d/%m/%Y %H:%M')
+                            "endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": datetime.now().strftime('%d/%m/%Y %H:%M')
                         })
                     salvar_na_nuvem()
                     st.success("Entrada salva permanentemente no banco!")
@@ -154,7 +169,7 @@ elif opcao == "Entrada de Mercadoria":
 # ==========================================
 elif opcao == "Saída de Mercadoria":
     st.markdown("## Expedição (Picking)")
-    itens_disponiveis = [i for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
+    itens_disponiveis = [i for i in st.session_state.bd["estoque"] if int(i["quantidade"]) > 0]
     if not itens_disponiveis:
         st.info("Estoque vazio.")
     else:
@@ -167,10 +182,10 @@ elif opcao == "Saída de Mercadoria":
                 idx_selecionado = opcoes_saida.index(item_selecionado_texto)
                 item_estoque = itens_disponiveis[idx_selecionado]
                 
-                if qtd_saida > item_estoque["quantidade"]:
+                if int(qtd_saida) > int(item_estoque["quantidade"]):
                     st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
                 else:
-                    item_estoque["quantidade"] -= qtd_saida
+                    item_estoque["quantidade"] = int(item_estoque["quantidade"]) - int(qtd_saida)
                     item_estoque["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
                     salvar_na_nuvem()
                     st.success("Saída salva permanentemente no banco!")

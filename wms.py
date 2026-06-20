@@ -15,9 +15,7 @@ except Exception:
     st.stop()
 
 def carregar_dados_nuvem():
-    """Busca os dados gravados no banco sempre que o app reinicia"""
     try:
-        # Puxa a aba de estoque
         df_estoque = conn.read(worksheet="estoque", ttl=0)
         df_estoque = df_estoque.dropna(how="all").fillna("N/A")
         if not df_estoque.empty and "quantidade" in df_estoque.columns:
@@ -27,7 +25,6 @@ def carregar_dados_nuvem():
         estoque = []
 
     try:
-        # Puxa a aba de endereços
         df_end = conn.read(worksheet="enderecos", ttl=0)
         df_end = df_end.dropna(how="all").fillna("N/A")
         enderecos = df_end['endereco'].astype(str).tolist() if not df_end.empty else []
@@ -37,18 +34,14 @@ def carregar_dados_nuvem():
     return {"enderecos": enderecos, "estoque": estoque}
 
 def salvar_na_nuvem():
-    """Grava as alterações direto no banco de dados na nuvem"""
     try:
         df_est = pd.DataFrame(st.session_state.bd["estoque"])
         df_end = pd.DataFrame({"endereco": st.session_state.bd["enderecos"]})
-        
-        # Atualiza as planilhas de forma persistente
         conn.update(worksheet="estoque", data=df_est)
         conn.update(worksheet="enderecos", data=df_end)
     except Exception as e:
         st.error(f"Erro ao salvar dados no banco: {e}")
 
-# Sincronização inicial do Estado da Sessão
 if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_nuvem()
 
@@ -182,7 +175,6 @@ elif opcao == "Saída de Mercadoria":
                     salvar_na_nuvem()
                     st.success("Saída salva permanentemente no banco!")
                     st.rerun()
-
 
 
 

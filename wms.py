@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 from datetime import datetime
 import httpx
 
@@ -44,7 +44,9 @@ def salvar_endereco_nuvem(novo_end):
     try:
         with httpx.Client() as client:
             res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json={"endereco": novo_end})
-            return res.status_code in [200, 201]
+            if res.status_code == 201 or res.status_code == 200:
+                return True
+            return False
     except Exception:
         return False
 
@@ -63,7 +65,9 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                return res.status_code in [200, 201]
+                if res.status_code == 201 or res.status_code == 200:
+                    return True
+            return False
     except Exception:
         return False
 
@@ -92,9 +96,9 @@ if not st.session_state.logado:
         st.markdown("<h2 style='text-align: center;'>Acesso ao WMS</h2>", unsafe_allow_html=True)
         with st.form("login_wms"):
             user = st.text_input("Usuário").strip()
+            # COLOQUE SUA NOVA SENHA AQUI: Substitua "admin" pela senha permanente desejada!
             password = st.text_input("Senha", type="password").strip()
             if st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True):
-                # ALTERE A SENHA ABAIXO: mude "admin" para a senha que você deseja!
                 if user == "admin" and password == "admin":
                     st.session_state.logado = True
                     st.rerun()
@@ -112,7 +116,7 @@ if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.rerun()
 
 # ==========================================
-# MÓDULOS DE INTERFACE (VISÃO GERAL / CADASTROS)
+# 1. VISÃO GERAL
 # ==========================================
 if opcao == "Visão Geral":
     st.markdown("## Posição Geral do Estoque")
@@ -121,19 +125,28 @@ if opcao == "Visão Geral":
     m2.metric("Vagas Ocupadas", len(set([i["endereco"] for i in st.session_state.bd["estoque"] if int(i["quantidade"]) > 0])))
     m3.metric("Volume Total de Itens", sum([int(i["quantidade"]) for i in st.session_state.bd["estoque"]]))
     
-    busca = st.text_input("Filtrar...").upper()
+    busca = st.text_input("Filtrar por endereço ou produto...").upper()
     tabela = []
     for i in st.session_state.bd["estoque"]:
         if (not busca) or (busca in str(i["endereco"]).upper() or busca in str(i["produto"]).upper()):
-            tabela.append({"Endereço Físico": i["endereco"], "Código Produto": i["produto"], "Lote / Validade": i["lote"], "Quantidade Saldo": i["quantidade"], "Última Atualização": i["data"]})
+            tabela.append({
+                "Endereço Físico": i["endereco"],
+                "Código Produto": i["produto"],
+                "Lote / Validade": i["lote"],
+                "Quantidade Saldo": i["quantidade"],
+                "Última Atualização": i["data"]
+            })
     st.dataframe(tabela, use_container_width=True, hide_index=True)
 
+# ==========================================
+# 2. CADASTRAR ENDEREÇO
+# ==========================================
 elif opcao == "Cadastrar Endereço":
     st.markdown("## Mapeamento de Estrutura Física")
     c_form, c_lista = st.columns([1.2, 1])
     with c_form:
         with st.form("cad_end", clear_on_submit=True):
-            novo_end = st.text_input("Código do Endereço").upper().strip()
+            novo_end = st.text_input("Código do Endereço (Ex: RUA-A, BOX-10)").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
                     if salvar_endereco_nuvem(novo_end):
@@ -145,6 +158,9 @@ elif opcao == "Cadastrar Endereço":
     with c_lista:
         st.dataframe({"Lista de Endereços": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
 
+# ==========================================
+# 3. ENTRADA DE MERCADORIA
+# ==========================================
 elif opcao == "Entrada de Mercadoria":
     st.markdown("## Recebimento e Alocação")
     if not st.session_state.bd["enderecos"]:
@@ -155,6 +171,7 @@ elif opcao == "Entrada de Mercadoria":
             prod = st.text_input("Código do Produto").upper().strip()
             qtd = st.number_input("Quantidade", min_value=1, value=1)
             lote = st.text_input("Lote", value="N/A").upper().strip()
+            
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
                 if prod:
                     if salvar_entrada_nuvem(end, prod, qtd, lote):
@@ -162,8 +179,11 @@ elif opcao == "Entrada de Mercadoria":
                         st.success("Entrada armazenada com sucesso!")
                         st.rerun()
                     else:
-                        st.error("Erro ao salvar entrada.")
+                        st.error("Erro ao registrar entrada no banco.")
 
+# ==========================================
+# 4. SAÍDA DE MERCADORIA
+# ==========================================
 elif opcao == "Saída de Mercadoria":
     st.markdown("## Expedição (Picking)")
     itens_disponiveis = [i for i in st.session_state.bd["estoque"] if int(i["quantidade"]) > 0]
@@ -172,19 +192,21 @@ elif opcao == "Saída de Mercadoria":
     else:
         with st.form("form_saida", clear_on_submit=True):
             opcoes_saida = [f"Local: {x['endereco']} | SKU: {x['produto']} | Lote: {x['lote']} (Saldo: {x['quantidade']})" for x in itens_disponiveis]
-            item_selecionado_texto = st.selectbox("Selecione o item", opcoes_saida)
+            item_selecionado_texto = st.selectbox("Selecione o item para dar saída", opcoes_saida)
             qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
+            
             if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
-                idx = opcoes_saida.index(item_selecionado_texto)
-                item_estoque = itens_disponiveis[idx]
+                idx_selecionado = opcoes_saida.index(item_selecionado_texto)
+                item_estoque = itens_disponiveis[idx_selecionado]
+                
                 if int(qtd_saida) > int(item_estoque["quantidade"]):
-                    st.error("Quantidade indisponível.")
+                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
                 else:
                     nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
                     if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
                         st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Saída processada!")
+                        st.success("Saída processada com sucesso!")
                         st.rerun()
-U
+                    else:
 
 

@@ -62,7 +62,6 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
         with httpx.Client() as client:
             url_busca = f"{SUPABASE_URL}estoque?endereco=eq.{end}&produto=eq.{prod}&lote=eq.{lote}"
             r_busca = client.get(url_busca, headers=headers)
-            
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
@@ -214,4 +213,5 @@ elif opcao == "Saída de Mercadoria":
                 item_estoque = itens_disponiveis[idx_selecionado]
                 
                 if int(qtd_saida) > int(item_estoque["quantidade"]):
+                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
 

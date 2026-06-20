@@ -5,30 +5,28 @@ import httpx
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# CREDENCIAIS DO BANCO DE DADOS (SUPABASE)
+# CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-try:
-    SUPABASE_URL = st.secrets["connections"]["supabase"]["url"]
-    SUPABASE_KEY = st.secrets["connections"]["supabase"]["key"]
-    
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
-    }
-except Exception:
-    st.error("Erro ao carregar as credenciais do Supabase nos Secrets.")
-    st.stop()
+SUPABASE_URL = "https://supabase.co"
+SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
+
+headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+}
 
 def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
         with httpx.Client() as client:
+            # Busca Endereços reais salvos
             r_end = client.get(f"{SUPABASE_URL}enderecos?select=*", headers=headers)
             if r_end.status_code == 200:
                 enderecos = [str(item["endereco"]).upper().strip() for item in r_end.json() if "endereco" in item]
             
+            # Busca Estoque real salvo
             r_est = client.get(f"{SUPABASE_URL}estoque?select=*", headers=headers)
             if r_est.status_code == 200:
                 for item in r_est.json():
@@ -85,6 +83,7 @@ def salvar_saida_nuvem(item_id, nova_qtd):
     except Exception:
         return False
 
+# Inicialização do Banco de Dados direto puxando da Nuvem
 if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_nuvem()
 
@@ -210,5 +209,4 @@ elif opcao == "Saída de Mercadoria":
                 else:
                     nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
                     if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
-                        st.session_state.bd = carregar_dados_nuvem()
 

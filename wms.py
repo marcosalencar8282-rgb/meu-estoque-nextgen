@@ -58,7 +58,6 @@ def salvar_endereco_nuvem(novo_end):
 def salvar_entrada_nuvem(end, prod, qtd, lote):
     try:
         with httpx.Client() as client:
-            # Verifica se já existe o mesmo produto no mesmo endereço e lote
             url_busca = f"{SUPABASE_URL}estoque?endereco=eq.{end}&produto=eq.{prod}&lote=eq.{lote}"
             r_busca = client.get(url_busca, headers=headers)
             
@@ -200,7 +199,7 @@ elif opcao == "Saída de Mercadoria":
         with st.form("form_saida", clear_on_submit=True):
             opcoes_saida = [f"Local: {x['endereco']} | SKU: {x['produto']} | Lote: {x['lote']} (Saldo: {x['quantidade']})" for x in itens_disponiveis]
             item_selecionado_texto = st.selectbox("Selecione o item para dar saída", opcoes_saida)
-            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
+            qtd_saida = m = st.number_input("Quantidade de Saída", min_value=1, value=1)
             
             if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
                 idx_selecionado = opcoes_saida.index(item_selecionado_texto)
@@ -211,16 +210,6 @@ elif opcao == "Saída de Mercadoria":
                 else:
                     nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
                     if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
-Use o código com cuidado.st.session_state.bd = carregar_dados_nuvem()st.success("Saída salva permanentemente no Supabase!")st.rerun()else:st.error("Erro ao registrar saída no banco.")4. Clique no botão verde **Commit changes...** para salvar no GitHub.
-
----
-
-### 📦 Passo 2: Atualizar o arquivo `requirements.txt`
-1. Volte na lista inicial de arquivos do seu GitHub e abra o arquivo **`requirements.txt`**.
-2. Clique no lápis para editar, apague tudo e deixe com essas duas linhas exatas:
-```text
-streamlit
-httpx
 
 
 

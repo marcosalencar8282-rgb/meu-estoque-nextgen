@@ -51,7 +51,7 @@ def salvar_endereco_nuvem(novo_end):
         with httpx.Client() as client:
             payload = {"endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json=payload)
-            if res.status_code in:
+            if res.status_code == 201 or res.status_code == 200:
                 return True
             return False
     except Exception:
@@ -70,12 +70,12 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
                 res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
-                if res.status_code in:
+                if res.status_code == 200:
                     return True
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if res.status_code in:
+                if res.status_code == 201 or res.status_code == 200:
                     return True
             return False
     except Exception:
@@ -87,7 +87,7 @@ def salvar_saida_nuvem(item_id, nova_qtd):
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             payload = {"quantidade": int(nova_qtd), "data": data_atual}
             res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
-            if res.status_code in:
+            if res.status_code == 200:
                 return True
             return False
     except Exception:
@@ -214,6 +214,6 @@ elif opcao == "Saída de Mercadoria":
                 item_estoque = itens_disponiveis[idx_selecionado]
                 
                 if int(qtd_saida) > int(item_estoque["quantidade"]):
-                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
+
 
 

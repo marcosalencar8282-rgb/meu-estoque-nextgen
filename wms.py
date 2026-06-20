@@ -5,17 +5,21 @@ import httpx
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
+# CREDENCIAIS DO BANCO DE DADOS (SUPABASE)
 # ==========================================
-SUPABASE_URL = "https://supabase.co"
-SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
-
-headers = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation"
-}
+try:
+    SUPABASE_URL = st.secrets["connections"]["supabase"]["url"]
+    SUPABASE_KEY = st.secrets["connections"]["supabase"]["key"]
+    
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+except Exception:
+    st.error("Erro ao carregar as credenciais do Supabase nos Secrets.")
+    st.stop()
 
 def carregar_dados_nuvem():
     estoque, enderecos = [], []
@@ -59,7 +63,7 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
-                item_atual = r_busca.json()[0]
+                item_atual = r_busca.json()
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
                 res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
@@ -207,6 +211,4 @@ elif opcao == "Saída de Mercadoria":
                     nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
                     if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
                         st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Saída processada com sucesso!")
-                        st.rerun()
 

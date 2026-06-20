@@ -99,6 +99,7 @@ if not st.session_state.logado:
         st.markdown("<h2 style='text-align: center;'>Acesso ao WMS</h2>", unsafe_allow_html=True)
         with st.form("login_wms"):
             user = st.text_input("Usuário").strip()
+            # Mude a palavra "admin" abaixo se quiser trocar sua senha!
             password = st.text_input("Senha", type="password").strip()
             if st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True):
                 if user == "admin" and password == "admin":
@@ -148,7 +149,7 @@ elif opcao == "Cadastrar Endereço":
     c_form, c_lista = st.columns([1.2, 1])
     with c_form:
         with st.form("cad_end", clear_on_submit=True):
-            novo_end = st.text_input("Código do Endereço (Ex: RUA-A, BOX-10)").upper().strip()
+            novo_end = st.text_input("Código do Endereço").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
                     if salvar_endereco_nuvem(novo_end):
@@ -175,13 +176,12 @@ elif opcao == "Entrada de Mercadoria":
             lote = st.text_input("Lote", value="N/A").upper().strip()
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
-                if prod:
-                    if salvar_entrada_nuvem(end, prod, qtd, lote):
-                        st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Entrada armazenada com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Erro ao registrar entrada no banco.")
+                if salvar_entrada_nuvem(end, prod, qtd, lote):
+                    st.session_state.bd = carregar_dados_nuvem()
+                    st.success("Entrada armazenada com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Erro ao registrar entrada no banco.")
 
 # ==========================================
 # 4. SAÍDA DE MERCADORIA

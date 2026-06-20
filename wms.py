@@ -5,21 +5,17 @@ import httpx
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# CONEXÃO COM O BANCO DE DADOS (SUPABASE)
+# CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-try:
-    SUPABASE_URL = st.secrets["connections"]["supabase"]["url"]
-    SUPABASE_KEY = st.secrets["connections"]["supabase"]["key"]
-    
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
-    }
-except Exception:
-    st.error("Erro ao carregar as credenciais do Supabase nos Secrets.")
-    st.stop()
+SUPABASE_URL = "https://supabase.co"
+SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
+
+headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+}
 
 def carregar_dados_nuvem():
     estoque, enderecos = [], []
@@ -62,10 +58,11 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
         with httpx.Client() as client:
             url_busca = f"{SUPABASE_URL}estoque?endereco=eq.{end}&produto=eq.{prod}&lote=eq.{lote}"
             r_busca = client.get(url_busca, headers=headers)
+            
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
-                item_atual = r_busca.json()[0]
+                item_atual = r_busca.json()
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
                 res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
@@ -214,4 +211,6 @@ elif opcao == "Saída de Mercadoria":
                 
                 if int(qtd_saida) > int(item_estoque["quantidade"]):
                     st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
+                else:
+                    nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
 

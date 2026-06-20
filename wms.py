@@ -25,10 +25,12 @@ def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
         with httpx.Client() as client:
+            # Busca Endereços
             r_end = client.get(f"{SUPABASE_URL}enderecos?select=*", headers=headers)
             if r_end.status_code == 200:
                 enderecos = [str(item["endereco"]).upper().strip() for item in r_end.json() if "endereco" in item]
             
+            # Busca Estoque
             r_est = client.get(f"{SUPABASE_URL}estoque?select=*", headers=headers)
             if r_est.status_code == 200:
                 for item in r_est.json():
@@ -47,8 +49,11 @@ def carregar_dados_nuvem():
 def salvar_endereco_nuvem(novo_end):
     try:
         with httpx.Client() as client:
-            res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json={"endereco": novo_end})
-            return res.status_code in [200, 201]
+            payload = {"endereco": novo_end}
+            res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json=payload)
+            if res.status_code == 201 or res.status_code == 200:
+                return True
+            return False
     except Exception:
         return False
 
@@ -57,17 +62,22 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
         with httpx.Client() as client:
             url_busca = f"{SUPABASE_URL}estoque?endereco=eq.{end}&produto=eq.{prod}&lote=eq.{lote}"
             r_busca = client.get(url_busca, headers=headers)
+            
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
                 item_atual = r_busca.json()[0]
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
-                res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json={"quantidade": novo_total, "data": data_atual})
-                return res.status_code == 200
+                payload = {"quantidade": novo_total, "data": data_atual}
+                res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
+                if res.status_code == 200:
+                    return True
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                return res.status_code in [200, 201]
+                if res.status_code == 201 or res.status_code == 200:
+                    return True
+            return False
     except Exception:
         return False
 
@@ -75,8 +85,11 @@ def salvar_saida_nuvem(item_id, nova_qtd):
     try:
         with httpx.Client() as client:
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json={"quantidade": int(nova_qtd), "data": data_atual})
-            return res.status_code == 200
+            payload = {"quantidade": int(nova_qtd), "data": data_atual}
+            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
+            if res.status_code == 200:
+                return True
+            return False
     except Exception:
         return False
 
@@ -201,12 +214,4 @@ elif opcao == "Saída de Mercadoria":
                 item_estoque = itens_disponiveis[idx_selecionado]
                 
                 if int(qtd_saida) > int(item_estoque["quantidade"]):
-                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
-                else:
-                    nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
-                    if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
-                        st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Saída salva permanentemente no Supabase!")
-                        st.rerun()
-
 

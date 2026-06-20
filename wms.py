@@ -1,4 +1,4 @@
-import streamlit as st
+mos resolver isso agora de forma definitiva com o código 100% correto e limpo [streamlit.io].Substitua todo o conteúdo do seu arquivo wms.py no GitHub por este bloco exato (ele foi corrigido para checar se a resposta do banco deu sucesso usando o número 201 ou 200):pythonimport streamlit as st
 from datetime import datetime
 import httpx
 
@@ -214,7 +214,6 @@ elif opcao == "Saída de Mercadoria":
                 item_estoque = itens_disponiveis[idx_selecionado]
                 
                 if int(qtd_saida) > int(item_estoque["quantidade"]):
-                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
-
+                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['rendering']}")
 
 

@@ -10,7 +10,6 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
-# Adicionado o 'apikey' e 'Bearer' em formato master para passar por cima do RLS
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -39,8 +38,6 @@ def carregar_dados_nuvem():
                     })
     except Exception:
         pass
-    
-    # Se o banco estiver vazio, mantém a lista limpa pronta para novos cadastros
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
 def salvar_endereco_nuvem(novo_end):

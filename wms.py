@@ -148,7 +148,7 @@ elif opcao == "Cadastrar Endereço":
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end:
                     if salvar_endereco_nuvem(novo_end):
-                        st.success("Endereço salvo permanentemente!")
+                        st.success("Endereço saved com sucesso!")
                         st.rerun()
                     else:
                         st.error("Endereço já cadastrado.")
@@ -170,7 +170,9 @@ elif opcao == "Entrada de Mercadoria":
             lote = st.text_input("Lote", value="N/A").upper().strip()
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
-                if prod:
+                if not prod:
+                    st.error("Por favor, digite o código do produto.")
+                else:
                     if salvar_entrada_nuvem(end, prod, qtd, lote):
                         st.success("Entrada armazenada com sucesso!")
                         st.rerun()
@@ -198,4 +200,5 @@ elif opcao == "Saída de Mercadoria":
                 else:
                     nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
                     if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
+                        st.success("Saída processada com sucesso!")
 

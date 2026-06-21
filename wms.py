@@ -1,80 +1,17 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
-import io
 
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# GERENCIAMENTO LOCAL VIA BANCO DE DADOS CSV
+# GERENCIAMENTO DE BANCO DE DADOS EM MEMÓRIA
 # ==========================================
-ARQUIVO_ENDERECOS = "wms_enderecos.csv"
-ARQUIVO_ESTOQUE = "wms_estoque.csv"
-
-def carregar_dados_locais():
-    """Carrega as tabelas dos arquivos CSV locais."""
-    enderecos = []
-    estoque = []
-    
-    # Carrega endereços
-    if os.path.exists(ARQUIVO_ENDERECOS):
-        try:
-            df_end = pd.read_csv(ARQUIVO_ENDERECOS)
-            if not df_end.empty and "endereco" in df_end.columns:
-                enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
-        except Exception:
-            pass
-            
-    # Carrega estoque
-    if os.path.exists(ARQUIVO_ESTOQUE):
-        try:
-            df_est = pd.read_csv(ARQUIVO_ESTOQUE)
-            if not df_est.empty:
-                for _, row in df_est.iterrows():
-                    estoque.append({
-                        "id": int(row.get("id", 0)),
-                        "endereco": str(row.get("endereco", "")).upper().strip(),
-                        "produto": str(row.get("produto", "")).upper().strip(),
-                        "quantidade": int(row.get("quantidade", 0)),
-                        "lote": str(row.get("lote", "N/A")).upper().strip(),
-                        "data": str(row.get("data", ""))
-                    })
-        except Exception:
-            pass
-            
-    return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
-
-def salvar_dados_locais(dados):
-    """Grava as listas de endereços e estoque dentro dos arquivos CSV."""
-    try:
-        df_end = pd.DataFrame({"endereco": dados["enderecos"]})
-        df_end.to_csv(ARQUIVO_ENDERECOS, index=False)
-        
-        df_est = pd.DataFrame(dados["estoque"])
-        if df_est.empty:
-            df_est = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
-        df_est.to_csv(ARQUIVO_ESTOQUE, index=False)
-        return True
-    except Exception:
-        return False
-
-def gerar_csv_download(tipo):
-    """Gera um arquivo CSV em formato de texto para download imediato."""
-    dados = st.session_state.bd
-    if tipo == "enderecos":
-        df = pd.DataFrame({"endereco": dados["enderecos"]})
-    else:
-        df = pd.DataFrame(dados["estoque"])
-        if df.empty:
-            df = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
-    
-    # Exporta usando ponto e vírgula como separador para abrir direto no Excel em português
-    return df.to_csv(index=False, sep=";").encode('utf-8-sig')
-
-# Inicialização do banco de dados local
 if 'bd' not in st.session_state:
-    st.session_state.bd = carregar_dados_locais()
+    st.session_state.bd = {
+        "enderecos": [],
+        "estoque": []
+    }
 
 # ==========================================
 # TELA DE LOGIN
@@ -99,30 +36,24 @@ if not st.session_state.logado:
     st.stop()
 
 # ==========================================
-# MENU LATERAL E BOTÕES DE DOWNLOAD
+# MENU LATERAL E EXPORTAÇÃO EXCEL
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### Exportar Dados (Excel)")
+st.sidebar.markdown("### Exportar Dados")
 
-# Botão para baixar planilha de Endereços
-csv_enderecos = gerar_csv_download("enderecos")
-st.sidebar.download_button(
-    label="🗺️ Baixar Planilha Endereços",
-    data=csv_enderecos,
-    file_name=f"wms_enderecos_{datetime.now().strftime('%d_%m_%Y')}.csv",
-    mime="text/csv",
-    use_container_width=True
-)
+# Gera planilha de backup para baixar direto no Excel a qualquer momento
+df_backup = pd.DataFrame(st.session_state.bd["estoque"])
+if df_backup.empty:
+    df_backup = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
+csv_bytes = df_backup.to_csv(index=False, sep=";").encode('utf-8-sig')
 
-# Botão para baixar planilha de Estoque de Produtos
-csv_estoque = gerar_csv_download("estoque")
 st.sidebar.download_button(
-    label="📦 Baixar Planilha Estoque",
-    data=csv_estoque,
-    file_name=f"wms_estoque_{datetime.now().strftime('%d_%m_%Y')}.csv",
+    label="📥 Baixar Planilha Excel (.csv)",
+    data=csv_bytes,
+    file_name=f"wms_backup_{datetime.now().strftime('%d_%m_%Y')}.csv",
     mime="text/csv",
     use_container_width=True
 )
@@ -167,11 +98,8 @@ elif opcao == "Cadastrar Endereço":
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
                     st.session_state.bd["enderecos"].append(novo_end)
-                    if salvar_dados_locais(st.session_state.bd):
-                        st.success("Endereço salvo localmente com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Erro interno ao gravar dados.")
+                    st.success("Endereço salvo com sucesso!")
+                    st.rerun()
                 elif novo_end in st.session_state.bd["enderecos"]:
                     st.warning("Este endereço já está cadastrado.")
     with c_lista:
@@ -211,12 +139,8 @@ elif opcao == "Entrada de Mercadoria":
                             "lote": lote,
                             "data": data_atual
                         })
-                    
-                    if salvar_dados_locais(st.session_state.bd):
-                        st.success("Entrada armazenada com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Erro ao processar gravação no arquivo.")
+                    st.success("Entrada registrada com sucesso!")
+                    st.rerun()
                 else:
                     st.warning("Insira o código do produto.")
 
@@ -232,6 +156,23 @@ elif opcao == "Saída de Mercadoria":
         st.info("Não há mercadorias disponíveis em estoque para dar saída.")
     else:
         with st.form("form_saida", clear_on_submit=True):
+            item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
+            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
+            
+            if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
+                item_id = int(item_selecionado.split(" - ")[0])
+                dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
+                
+                if qtd_saida > dados_item["quantidade"]:
+                    st.error(f"Quantidade indisponível. Saldo atual: {dados_item['quantidade']}")
+                else:
+                    dados_item["quantidade"] -= int(qtd_saida)
+                    dados_item["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    
+                    if dados_item["quantidade"] == 0:
+                        st.session_state.bd["estoque"] = [i for i in st.session_state.bd["estoque"] if i["id"] != item_id]
+                    st.success("Saída efetuada com sucesso!")
+                    st.rerun()
 
 
 

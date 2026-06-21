@@ -7,7 +7,6 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-# URL e chave corrigidas com os dados exatos do seu painel
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -46,7 +45,6 @@ def salvar_endereco_nuvem(novo_end):
         with httpx.Client(timeout=10.0) as client:
             payload = {"Endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
-            # CORREÇÃO DEFINITIVA: Aceita qualquer código de sucesso da família 200 (200, 201, 204)
             if 200 <= res.status_code < 300:
                 return {"sucesso": True}
             return {"sucesso": False, "erro": f"HTTP {res.status_code} - {res.text}"}
@@ -89,7 +87,7 @@ def salvar_saida_nuvem(item_id, nova_qtd):
     except Exception as e:
         return {"sucesso": False, "erro": str(e)}
 
-# Inicialização do banco de dados
+# Inicialização limpa do banco de dados
 if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_nuvem()
 
@@ -122,6 +120,7 @@ st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
+    st.session_state.bd = carregar_dados_nuvem()  # Força a recarga da URL correta
     st.rerun()
 
 # ==========================================
@@ -207,6 +206,7 @@ elif opcao == "Saída de Mercadoria":
     else:
         with st.form("form_saida", clear_on_submit=True):
             item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
+            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
 
 
 

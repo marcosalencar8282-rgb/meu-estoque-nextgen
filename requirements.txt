@@ -1,2 +1,2 @@
-streamlit
-httpx
+pandas
+st-gsheets-connection

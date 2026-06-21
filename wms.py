@@ -1,35 +1,17 @@
 import streamlit as st
-import json
+import pandas as pd
 from datetime import datetime
 
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# BANCO DE DADOS INTEGRADO NOS SECRETS DO STREAMLIT
+# GERENCIAMENTO DE BANCO DE DADOS EM MEMÓRIA
 # ==========================================
-def carregar_dados_secrets():
-    """Carrega os dados armazenados de forma persistente nos Secrets do Streamlit."""
-    try:
-        # Se os segredos estiverem configurados, decodifica os textos em listas reais do Python
-        if "wms_dados" in st.secrets:
-            enderecos = json.loads(st.secrets["wms_dados"].get("enderecos", "[]"))
-            estoque = json.loads(st.secrets["wms_dados"].get("estoque", "[]"))
-            return {"enderecos": enderecos, "estoque": estoque}
-    except Exception:
-        pass
-    return {"enderecos": [], "estoque": []}
-
-def salvar_dados_secrets(dados):
-    """Atualiza a memória e avisa o usuário para conferir o painel persistente."""
-    try:
-        st.session_state.bd = dados
-        return True
-    except Exception:
-        return False
-
-# Inicialização limpa do banco de dados na sessão
 if 'bd' not in st.session_state:
-    st.session_state.bd = carregar_dados_secrets()
+    st.session_state.bd = {
+        "enderecos": [],
+        "estoque": []
+    }
 
 # ==========================================
 # TELA DE LOGIN
@@ -60,14 +42,10 @@ st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### Backup Backup Local")
+st.sidebar.markdown("### Exportar Dados")
 
-# Botão nativo para baixar a tabela em formato Excel para o seu computador a qualquer momento
-df_backup = pd.DataFrame(st.session_state.bd["estoque"]) if 'pd' in locals() else None
-if df_backup is None:
-    import pandas as pd
-    df_backup = pd.DataFrame(st.session_state.bd["estoque"])
-
+# Gera planilha de backup em tempo real para o usuário salvar as informações
+df_backup = pd.DataFrame(st.session_state.bd["estoque"])
 if df_backup.empty:
     df_backup = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
 csv_bytes = df_backup.to_csv(index=False, sep=";").encode('utf-8-sig')
@@ -120,8 +98,7 @@ elif opcao == "Cadastrar Endereço":
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
                     st.session_state.bd["enderecos"].append(novo_end)
-                    salvar_dados_secrets(st.session_state.bd)
-                    st.success("Endereço salvo com sucesso na nuvem do Streamlit!")
+                    st.success("Endereço salvo com sucesso!")
                     st.rerun()
                 elif novo_end in st.session_state.bd["enderecos"]:
                     st.warning("Este endereço já está cadastrado.")
@@ -162,8 +139,7 @@ elif opcao == "Entrada de Mercadoria":
                             "lote": lote,
                             "data": data_atual
                         })
-                    salvar_dados_secrets(st.session_state.bd)
-                    st.success("Entrada armazenada com sucesso!")
+                    st.success("Entrada registrada com sucesso!")
                     st.rerun()
                 else:
                     st.warning("Insira o código do produto.")
@@ -184,7 +160,10 @@ elif opcao == "Saída de Mercadoria":
             qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
             
             if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
-                item_id = int(item_selecionado.split(" - "))
+                # CORREÇÃO CRÍTICA: Corrigido o método de separação do ID do texto selecionado
+                partes = item_selecionado.split(" - ")
+                item_id = int(partes[0])
+                
                 dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
                 
                 if qtd_saida > dados_item["quantidade"]:
@@ -195,11 +174,6 @@ elif opcao == "Saída de Mercadoria":
                     
                     if dados_item["quantidade"] == 0:
                         st.session_state.bd["estoque"] = [i for i in st.session_state.bd["estoque"] if i["id"] != item_id]
-                    
-                    salvar_dados_secrets(st.session_state.bd)
-                    st.success("Saída efetuada com sucesso!")
-                    st.rerun()
-
 
 
 

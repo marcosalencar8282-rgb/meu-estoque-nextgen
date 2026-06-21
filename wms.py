@@ -7,7 +7,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-# URL e chave corrigidas com 100% de precisão baseada na sua foto
+# URL e chave corrigidas com os dados exatos do seu painel
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -46,7 +46,8 @@ def salvar_endereco_nuvem(novo_end):
         with httpx.Client(timeout=10.0) as client:
             payload = {"Endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
-            if res.status_code in:
+            # CORREÇÃO DEFINITIVA: Aceita qualquer código de sucesso da família 200 (200, 201, 204)
+            if 200 <= res.status_code < 300:
                 return {"sucesso": True}
             return {"sucesso": False, "erro": f"HTTP {res.status_code} - {res.text}"}
     except Exception as e:
@@ -64,13 +65,13 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
                 res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
-                if res.status_code in:
+                if 200 <= res.status_code < 300:
                     return {"sucesso": True}
                 return {"sucesso": False, "erro": f"Erro no Patch: {res.status_code}"}
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if res.status_code in:
+                if 200 <= res.status_code < 300:
                     return {"sucesso": True}
                 return {"sucesso": False, "erro": f"Erro no Post: {res.status_code}"}
     except Exception as e:
@@ -82,7 +83,7 @@ def salvar_saida_nuvem(item_id, nova_qtd):
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             payload = {"quantidade": int(nova_qtd), "data": data_atual}
             res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
-            if res.status_code in:
+            if 200 <= res.status_code < 300:
                 return {"sucesso": True}
             return {"sucesso": False, "erro": f"HTTP {res.status_code}"}
     except Exception as e:
@@ -206,7 +207,6 @@ elif opcao == "Saída de Mercadoria":
     else:
         with st.form("form_saida", clear_on_submit=True):
             item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
-            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
 
 
 

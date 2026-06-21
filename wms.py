@@ -7,72 +7,72 @@ import io
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# GERENCIAMENTO LOCAL VIA EXCEL
+# GERENCIAMENTO LOCAL VIA BANCO DE DADOS CSV
 # ==========================================
-ARQUIVO_EXCEL = "estoque_wms.xlsx"
+ARQUIVO_ENDERECOS = "wms_enderecos.csv"
+ARQUIVO_ESTOQUE = "wms_estoque.csv"
 
 def carregar_dados_locais():
-    """Carrega as tabelas do arquivo Excel ou cria uma nova estrutura se não existir."""
+    """Carrega as tabelas dos arquivos CSV locais."""
     enderecos = []
     estoque = []
     
-    if os.path.exists(ARQUIVO_EXCEL):
+    # Carrega endereços
+    if os.path.exists(ARQUIVO_ENDERECOS):
         try:
-            with pd.ExcelFile(ARQUIVO_EXCEL) as xls:
-                if "Enderecos" in xls.sheet_names:
-                    df_end = pd.read_excel(xls, "Enderecos")
-                    if not df_end.empty and "endereco" in df_end.columns:
-                        enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
-                
-                if "Estoque" in xls.sheet_names:
-                    df_est = pd.read_excel(xls, "Estoque")
-                    if not df_est.empty:
-                        for _, row in df_est.iterrows():
-                            estoque.append({
-                                "id": int(row.get("id", 0)),
-                                "endereco": str(row.get("endereco", "")).upper().strip(),
-                                "produto": str(row.get("produto", "")).upper().strip(),
-                                "quantidade": int(row.get("quantidade", 0)),
-                                "lote": str(row.get("lote", "N/A")).upper().strip(),
-                                "data": str(row.get("data", ""))
-                            })
+            df_end = pd.read_csv(ARQUIVO_ENDERECOS)
+            if not df_end.empty and "endereco" in df_end.columns:
+                enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
+        except Exception:
+            pass
+            
+    # Carrega estoque
+    if os.path.exists(ARQUIVO_ESTOQUE):
+        try:
+            df_est = pd.read_csv(ARQUIVO_ESTOQUE)
+            if not df_est.empty:
+                for _, row in df_est.iterrows():
+                    estoque.append({
+                        "id": int(row.get("id", 0)),
+                        "endereco": str(row.get("endereco", "")).upper().strip(),
+                        "produto": str(row.get("produto", "")).upper().strip(),
+                        "quantidade": int(row.get("quantidade", 0)),
+                        "lote": str(row.get("lote", "N/A")).upper().strip(),
+                        "data": str(row.get("data", ""))
+                    })
         except Exception:
             pass
             
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
 def salvar_dados_locais(dados):
-    """Grava as listas de endereços e estoque dentro das abas do arquivo Excel."""
+    """Grava as listas de endereços e estoque dentro dos arquivos CSV."""
     try:
         df_end = pd.DataFrame({"endereco": dados["enderecos"]})
-        df_est = pd.DataFrame(dados["estoque"])
+        df_end.to_csv(ARQUIVO_ENDERECOS, index=False)
         
+        df_est = pd.DataFrame(dados["estoque"])
         if df_est.empty:
             df_est = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
-            
-        with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
-            df_end.to_excel(writer, sheet_name="Enderecos", index=False)
-            df_est.to_excel(writer, sheet_name="Estoque", index=False)
+        df_est.to_csv(ARQUIVO_ESTOQUE, index=False)
         return True
     except Exception:
         return False
 
-def gerar_excel_download():
-    """Gera um arquivo Excel em memória para disponibilizar no botão de Download."""
-    output = io.BytesIO()
+def gerar_csv_download(tipo):
+    """Gera um arquivo CSV em formato de texto para download imediato."""
     dados = st.session_state.bd
-    df_end = pd.DataFrame({"endereco": dados["enderecos"]})
-    df_est = pd.DataFrame(dados["estoque"])
+    if tipo == "enderecos":
+        df = pd.DataFrame({"endereco": dados["enderecos"]})
+    else:
+        df = pd.DataFrame(dados["estoque"])
+        if df.empty:
+            df = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
     
-    if df_est.empty:
-        df_est = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
-        
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_end.to_excel(writer, sheet_name="Enderecos", index=False)
-        df_est.to_excel(writer, sheet_name="Estoque", index=False)
-    return output.getvalue()
+    # Exporta usando ponto e vírgula como separador para abrir direto no Excel em português
+    return df.to_csv(index=False, sep=";").encode('utf-8-sig')
 
-# Inicialização do banco de dados Excel
+# Inicialização do banco de dados local
 if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_locais()
 
@@ -99,21 +99,31 @@ if not st.session_state.logado:
     st.stop()
 
 # ==========================================
-# MENU LATERAL E BOTÃO DE EXCEL
+# MENU LATERAL E BOTÕES DE DOWNLOAD
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### Exportar Banco de Dados")
+st.sidebar.markdown("### Exportar Dados (Excel)")
 
-# Botão nativo para baixar a planilha gerada em tempo real
-excel_bytes = gerar_excel_download()
+# Botão para baixar planilha de Endereços
+csv_enderecos = gerar_csv_download("enderecos")
 st.sidebar.download_button(
-    label="📥 Baixar Planilha Excel",
-    data=excel_bytes,
-    file_name=f"wms_backup_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    label="🗺️ Baixar Planilha Endereços",
+    data=csv_enderecos,
+    file_name=f"wms_enderecos_{datetime.now().strftime('%d_%m_%Y')}.csv",
+    mime="text/csv",
+    use_container_width=True
+)
+
+# Botão para baixar planilha de Estoque de Produtos
+csv_estoque = gerar_csv_download("estoque")
+st.sidebar.download_button(
+    label="📦 Baixar Planilha Estoque",
+    data=csv_estoque,
+    file_name=f"wms_estoque_{datetime.now().strftime('%d_%m_%Y')}.csv",
+    mime="text/csv",
     use_container_width=True
 )
 
@@ -161,7 +171,7 @@ elif opcao == "Cadastrar Endereço":
                         st.success("Endereço salvo localmente com sucesso!")
                         st.rerun()
                     else:
-                        st.error("Erro interno ao gravar dados na planilha.")
+                        st.error("Erro interno ao gravar dados.")
                 elif novo_end in st.session_state.bd["enderecos"]:
                     st.warning("Este endereço já está cadastrado.")
     with c_lista:
@@ -186,7 +196,6 @@ elif opcao == "Entrada de Mercadoria":
                     data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
                     estoque_atual = st.session_state.bd["estoque"]
                     
-                    # Procura se o produto com o mesmo lote já existe naquele endereço
                     item_existente = next((i for i in estoque_atual if i["endereco"] == end and i["produto"] == prod and i["lote"] == lote), None)
                     
                     if item_existente:
@@ -210,6 +219,19 @@ elif opcao == "Entrada de Mercadoria":
                         st.error("Erro ao processar gravação no arquivo.")
                 else:
                     st.warning("Insira o código do produto.")
+
+# ==========================================
+# 4. SAÍDA DE MERCADORIA
+# ==========================================
+elif opcao == "Saída de Mercadoria":
+    st.markdown("## Expedição e Baixa")
+    itens_estoque = [f"{i['id']} - {i['produto']} (Lote: {i['lote']}) | End: {i['endereco']} | Qtd: {i['quantidade']}" 
+                     for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
+    
+    if not itens_estoque:
+        st.info("Não há mercadorias disponíveis em estoque para dar saída.")
+    else:
+        with st.form("form_saida", clear_on_submit=True):
 
 
 

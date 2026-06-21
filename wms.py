@@ -214,4 +214,3 @@ elif opcao == "Saída de Mercadoria":
                     st.error(f"Quantidade indisponível. Saldo atual: {dados_item['quantidade']}")
                 else:
                     nova_qtd = dados_item["quantidade"] - qtd_saida
-U

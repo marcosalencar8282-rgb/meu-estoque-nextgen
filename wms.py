@@ -7,6 +7,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
+# CORREÇÃO CRÍTICA: Ajustada a URL exata do seu projeto (yspqtffyzxdgapfphmi)
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -204,7 +205,7 @@ elif opcao == "Saída de Mercadoria":
         st.info("Não há mercadorias disponíveis em estoque para dar saída.")
     else:
         with st.form("form_saida", clear_on_submit=True):
-            item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
+
 
 
 

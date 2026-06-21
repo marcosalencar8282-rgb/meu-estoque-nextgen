@@ -210,12 +210,10 @@ elif opcao == "Saída de Mercadoria":
                 partes_texto = item_selecionado.split(" - ")
                 item_id = int(partes_texto[0])
                 dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
-                
                 if qtd_saida > dados_item["quantidade"]:
                     st.error(f"Quantidade indisponível. Saldo atual: {dados_item['quantidade']}")
                 else:
                     nova_qtd = dados_item["quantidade"] - int(qtd_saida)
-                    if salvar_saida_nuvem(item_id, nova_qtd):
 
 
 

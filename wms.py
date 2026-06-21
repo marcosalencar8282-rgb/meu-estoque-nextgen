@@ -7,7 +7,6 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-# IMPORTANTE: Substitua 'seu-projeto-id' pelo ID real do seu painel Supabase
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -22,7 +21,8 @@ def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
         with httpx.Client() as client:
-            r_end = client.get(f"{SUPABASE_URL}enderecos?select=*", headers=headers)
+            # Aponta para 'Enderecos' com E maiúsculo conforme o seu banco de dados
+            r_end = client.get(f"{SUPABASE_URL}Enderecos?select=*", headers=headers)
             if r_end.status_code == 200:
                 enderecos = [str(item["endereco"]).upper().strip() for item in r_end.json() if "endereco" in item]
             
@@ -45,7 +45,8 @@ def salvar_endereco_nuvem(novo_end):
     try:
         with httpx.Client() as client:
             payload = {"endereco": novo_end}
-            res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json=payload)
+            # Aponta para 'Enderecos' com E maiúsculo conforme o seu banco de dados
+            res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
             if res.status_code == 200 or res.status_code == 201:
                 return True
             return False
@@ -212,5 +213,3 @@ elif opcao == "Saída de Mercadoria":
                 
                 if qtd_saida > dados_item["quantidade"]:
                     st.error(f"Quantidade indisponível. Saldo atual: {dados_item['quantidade']}")
-                else:
-                    nova_qtd = dados_item["quantidade"] - qtd_saida

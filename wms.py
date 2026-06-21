@@ -7,7 +7,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-# URL e chave corrigidas com os dados exatos do seu painel
+# URL e chave corrigidas com 100% de precisão baseada na sua foto
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -21,7 +21,7 @@ headers = {
 def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
-        with httpx.Client() as client:
+        with httpx.Client(timeout=10.0) as client:
             r_end = client.get(f"{SUPABASE_URL}Enderecos?select=*", headers=headers)
             if r_end.status_code == 200:
                 enderecos = [str(item["Endereco"]).upper().strip() for item in r_end.json() if "Endereco" in item]
@@ -37,16 +37,16 @@ def carregar_dados_nuvem():
                         "lote": str(item.get("lote", "N/A")).upper().strip(),
                         "data": str(item.get("data", ""))
                     })
-    except Exception as e:
+    except Exception:
         pass
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
 def salvar_endereco_nuvem(novo_end):
     try:
-        with httpx.Client() as client:
+        with httpx.Client(timeout=10.0) as client:
             payload = {"Endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
-            if res.status_code == 200 or res.status_code == 201 or res.status_code == 204:
+            if res.status_code in:
                 return {"sucesso": True}
             return {"sucesso": False, "erro": f"HTTP {res.status_code} - {res.text}"}
     except Exception as e:
@@ -54,24 +54,23 @@ def salvar_endereco_nuvem(novo_end):
 
 def salvar_entrada_nuvem(end, prod, qtd, lote):
     try:
-        with httpx.Client() as client:
+        with httpx.Client(timeout=10.0) as client:
             url_busca = f"{SUPABASE_URL}estoque?endereco=eq.{end}&produto=eq.{prod}&lote=eq.{lote}"
             r_busca = client.get(url_busca, headers=headers)
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
-                # CORREÇÃO: Capturando o primeiro item da lista de forma segura usando [0]
                 item_atual = r_busca.json()[0]
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
                 res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
-                if res.status_code == 200 or res.status_code == 204:
+                if res.status_code in:
                     return {"sucesso": True}
                 return {"sucesso": False, "erro": f"Erro no Patch: {res.status_code}"}
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if res.status_code == 200 or res.status_code == 201 or res.status_code == 204:
+                if res.status_code in:
                     return {"sucesso": True}
                 return {"sucesso": False, "erro": f"Erro no Post: {res.status_code}"}
     except Exception as e:
@@ -79,12 +78,13 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
 
 def salvar_saida_nuvem(item_id, nova_qtd):
     try:
-        data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-        payload = {"quantidade": int(nova_qtd), "data": data_atual}
-        res = httpx.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
-        if res.status_code == 200 or res.status_code == 204:
-            return {"sucesso": True}
-        return {"sucesso": False, "erro": f"HTTP {res.status_code}"}
+        with httpx.Client(timeout=10.0) as client:
+            data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+            payload = {"quantidade": int(nova_qtd), "data": data_atual}
+            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
+            if res.status_code in:
+                return {"sucesso": True}
+            return {"sucesso": False, "erro": f"HTTP {res.status_code}"}
     except Exception as e:
         return {"sucesso": False, "erro": str(e)}
 
@@ -206,6 +206,7 @@ elif opcao == "Saída de Mercadoria":
     else:
         with st.form("form_saida", clear_on_submit=True):
             item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
+            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
 
 
 

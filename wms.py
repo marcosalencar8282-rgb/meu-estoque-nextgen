@@ -9,7 +9,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # IMPORTANTE: Substitua 'seu-projeto-id' pelo ID real do seu painel Supabase
 SUPABASE_URL = "https://supabase.co"
-sb_publishable_827Z8LoQTsjuchp13yEZgQ_tkAWAPO_
+SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
 headers = {
     "apikey": SUPABASE_KEY,

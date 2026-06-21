@@ -2,14 +2,12 @@ import streamlit as st
 from datetime import datetime
 import httpx
 
-# Força o Streamlit a limpar qualquer cache antigo travado na memória
-st.cache_data.clear()
-
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
+# URL contendo os 3 'f's extraídos da sua barra de navegação original
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -20,7 +18,6 @@ headers = {
     "Prefer": "return=representation"
 }
 
-@st.cache_data(ttl=0)
 def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
@@ -49,6 +46,7 @@ def salvar_endereco_nuvem(novo_end):
         with httpx.Client(timeout=10.0) as client:
             payload = {"Endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
+            # CORREÇÃO DEFINITIVA: Avaliação numérica sem operador 'in' vazio
             if 200 <= res.status_code < 300:
                 return {"sucesso": True}
             return {"sucesso": False, "erro": f"HTTP {res.status_code} - {res.text}"}
@@ -124,8 +122,6 @@ st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
-    st.cache_data.clear()
-    st.session_state.bd = carregar_dados_nuvem()
     st.rerun()
 
 # ==========================================
@@ -164,7 +160,6 @@ elif opcao == "Cadastrar Endereço":
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
                     resultado = salvar_endereco_nuvem(novo_end)
                     if resultado.get("sucesso"):
-                        st.cache_data.clear()
                         st.session_state.bd = carregar_dados_nuvem()
                         st.success("Endereço salvo permanentemente no Supabase!")
                         st.rerun()
@@ -191,7 +186,6 @@ elif opcao == "Entrada de Mercadoria":
                 if prod:
                     resultado = salvar_entrada_nuvem(end, prod, qtd, lote)
                     if resultado.get("sucesso"):
-                        st.cache_data.clear()
                         st.session_state.bd = carregar_dados_nuvem()
                         st.success("Entrada registrada com sucesso!")
                         st.rerun()
@@ -210,6 +204,9 @@ elif opcao == "Saída de Mercadoria":
     
     if not itens_estoque:
         st.info("Não há mercadorias disponíveis em estoque para dar saída.")
+    else:
+        with st.form("form_saida", clear_on_submit=True):
+            item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
 
 
 

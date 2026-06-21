@@ -7,6 +7,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
+# IMPORTANTE: Substitua 'seu-projeto-id' pelo ID real do seu painel Supabase
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -45,9 +46,7 @@ def salvar_endereco_nuvem(novo_end):
         with httpx.Client() as client:
             payload = {"endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json=payload)
-            if res.status_code == 201 or res.status_code == 200:
-                return True
-            return False
+            return res.status_code in [200, 201]
     except Exception:
         return False
 
@@ -67,9 +66,7 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if res.status_code == 201 or res.status_code == 200:
-                    return True
-            return False
+                return res.status_code in [200, 201]
     except Exception:
         return False
 
@@ -83,6 +80,7 @@ def salvar_saida_nuvem(item_id, nova_qtd):
     except Exception:
         return False
 
+# Inicialização do banco de dados
 if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_nuvem()
 
@@ -99,7 +97,6 @@ if not st.session_state.logado:
         st.markdown("<h2 style='text-align: center;'>Acesso ao WMS</h2>", unsafe_allow_html=True)
         with st.form("login_wms"):
             user = st.text_input("Usuário").strip()
-            # Mude a palavra "admin" abaixo se quiser trocar sua senha!
             password = st.text_input("Senha", type="password").strip()
             if st.form_submit_button("Acessar Sistema", type="primary", use_container_width=True):
                 if user == "admin" and password == "admin":
@@ -176,39 +173,42 @@ elif opcao == "Entrada de Mercadoria":
             lote = st.text_input("Lote", value="N/A").upper().strip()
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
-                if salvar_entrada_nuvem(end, prod, qtd, lote):
-                    st.session_state.bd = carregar_dados_nuvem()
-                    st.success("Entrada armazenada com sucesso!")
-                    st.rerun()
+                if prod:
+                    if salvar_entrada_nuvem(end, prod, qtd, lote):
+                        st.session_state.bd = carregar_dados_nuvem()
+                        st.success("Entrada registrada com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao registrar entrada no banco de dados.")
                 else:
-                    st.error("Erro ao registrar entrada no banco.")
+                    st.warning("Insira o código do produto.")
 
 # ==========================================
 # 4. SAÍDA DE MERCADORIA
 # ==========================================
 elif opcao == "Saída de Mercadoria":
-    st.markdown("## Expedição (Picking)")
-    itens_disponiveis = [i for i in st.session_state.bd["estoque"] if int(i["quantidade"]) > 0]
-    if not itens_disponiveis:
-        st.info("Estoque vazio.")
+    st.markdown("## Expedição e Baixa")
+    itens_estoque = [f"{i['id']} - {i['produto']} (Lote: {i['lote']}) | End: {i['endereco']} | Qtd: {i['quantidade']}" 
+                     for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
+    
+    if not itens_estoque:
+        st.info("Não há mercadorias disponíveis em estoque para dar saída.")
     else:
         with st.form("form_saida", clear_on_submit=True):
-            opcoes_saida = [f"Local: {x['endereco']} | SKU: {x['produto']} | Lote: {x['lote']} (Saldo: {x['quantidade']})" for x in itens_disponiveis]
-            item_selecionado_texto = st.selectbox("Selecione o item para dar saída", opcoes_saida)
+            item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
             qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
             
             if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
-                idx_selecionado = opcoes_saida.index(item_selecionado_texto)
-                item_estoque = itens_disponiveis[idx_selecionado]
+                item_id = int(item_selecionado.split(" - ")[0])
+                dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
                 
-                if int(qtd_saida) > int(item_estoque["quantidade"]):
-                    st.error(f"Quantidade indisponível. Saldo atual: {item_estoque['quantidade']}")
+                if qtd_saida > dados_item["quantidade"]:
+                    st.error(f"Quantidade indisponível. Saldo atual: {dados_item['quantidade']}")
                 else:
-                    nova_qtd = int(item_estoque["quantidade"]) - int(qtd_saida)
-                    if salvar_saida_nuvem(item_estoque["id"], nova_qtd):
+                    nova_qtd = dados_item["quantidade"] - qtd_saida
+                    if salvar_saida_nuvem(item_id, nova_qtd):
                         st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Saída processada com sucesso!")
+                        st.success("Saída efetuada com sucesso!")
                         st.rerun()
                     else:
-
 

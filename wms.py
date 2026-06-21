@@ -21,10 +21,10 @@ def carregar_dados_nuvem():
     estoque, enderecos = [], []
     try:
         with httpx.Client() as client:
-            # Aponta para 'Enderecos' com E maiúsculo conforme o seu banco de dados
             r_end = client.get(f"{SUPABASE_URL}Enderecos?select=*", headers=headers)
             if r_end.status_code == 200:
-                enderecos = [str(item["endereco"]).upper().strip() for item in r_end.json() if "endereco" in item]
+                # Ajustado para ler 'Endereco' com E maiúsculo igual à sua tabela
+                enderecos = [str(item["Endereco"]).upper().strip() for item in r_end.json() if "Endereco" in item]
             
             r_est = client.get(f"{SUPABASE_URL}estoque?select=*", headers=headers)
             if r_est.status_code == 200:
@@ -44,10 +44,9 @@ def carregar_dados_nuvem():
 def salvar_endereco_nuvem(novo_end):
     try:
         with httpx.Client() as client:
-            payload = {"endereco": novo_end}
-            # Aponta para 'Enderecos' com E maiúsculo conforme o seu banco de dados
+            # AJUSTE CRÍTICO: 'Endereco' com E maiúsculo para bater com a coluna da sua tabela
+            payload = {"Endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
-            # CORREÇÃO DEFINITIVA: Validação explícita sem usar 'in' incompleto
             if res.status_code == 200 or res.status_code == 201 or res.status_code == 204:
                 return True
             return False
@@ -120,7 +119,7 @@ if not st.session_state.logado:
 # MENU LATERAL
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
-opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
+opcao = st.sidebar.radio("Módules", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
     st.rerun()
@@ -210,5 +209,6 @@ elif opcao == "Saída de Mercadoria":
             
             if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
                 item_id = int(item_selecionado.split(" - ")[0])
+                dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
 
 

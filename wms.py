@@ -46,7 +46,7 @@ def salvar_endereco_nuvem(novo_end):
         with httpx.Client() as client:
             payload = {"endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}enderecos", headers=headers, json=payload)
-            if res.status_code in:
+            if res.status_code == 200 or res.status_code == 201:
                 return True
             return False
     except Exception:
@@ -70,7 +70,7 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if res.status_code in:
+                if res.status_code == 200 or res.status_code == 201:
                     return True
                 return False
     except Exception:

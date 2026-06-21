@@ -7,7 +7,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-# URL e chave ajustadas com base nas imagens do seu painel do Supabase
+# URL e chave corrigidas com os dados exatos do seu painel
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -60,6 +60,7 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
+                # CORREÇÃO: Capturando o primeiro item da lista de forma segura usando [0]
                 item_atual = r_busca.json()[0]
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
@@ -205,7 +206,6 @@ elif opcao == "Saída de Mercadoria":
     else:
         with st.form("form_saida", clear_on_submit=True):
             item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
-            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
 
 
 

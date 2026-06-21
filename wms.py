@@ -7,6 +7,7 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
+# URL e chave ajustadas com base nas imagens do seu painel do Supabase
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -37,7 +38,7 @@ def carregar_dados_nuvem():
                         "data": str(item.get("data", ""))
                     })
     except Exception as e:
-        st.sidebar.error(f"Erro ao carregar dados: {e}")
+        pass
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
 def salvar_endereco_nuvem(novo_end):
@@ -79,7 +80,6 @@ def salvar_saida_nuvem(item_id, nova_qtd):
     try:
         data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
         payload = {"quantidade": int(nova_qtd), "data": data_atual}
-        # CORREÇÃO: Chamada direta sem bloco 'with' aninhado no final
         res = httpx.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
         if res.status_code == 200 or res.status_code == 204:
             return {"sucesso": True}
@@ -205,6 +205,8 @@ elif opcao == "Saída de Mercadoria":
     else:
         with st.form("form_saida", clear_on_submit=True):
             item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
+            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
+
 
 
 

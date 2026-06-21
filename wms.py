@@ -7,7 +7,6 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
 # ==========================================
-# CORREÇÃO CRÍTICA: Ajustada a URL exata do seu projeto (yspqtffyzxdgapfphmi)
 SUPABASE_URL = "https://supabase.co"
 SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
 
@@ -78,13 +77,13 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
 
 def salvar_saida_nuvem(item_id, nova_qtd):
     try:
-        with httpx.Client() as client:
-            data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-            payload = {"quantidade": int(nova_qtd), "data": data_atual}
-            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
-            if res.status_code == 200 or res.status_code == 204:
-                return {"sucesso": True}
-            return {"sucesso": False, "erro": f"HTTP {res.status_code}"}
+        data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+        payload = {"quantidade": int(nova_qtd), "data": data_atual}
+        # CORREÇÃO: Chamada direta sem bloco 'with' aninhado no final
+        res = httpx.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
+        if res.status_code == 200 or res.status_code == 204:
+            return {"sucesso": True}
+        return {"sucesso": False, "erro": f"HTTP {res.status_code}"}
     except Exception as e:
         return {"sucesso": False, "erro": str(e)}
 
@@ -205,6 +204,7 @@ elif opcao == "Saída de Mercadoria":
         st.info("Não há mercadorias disponíveis em estoque para dar saída.")
     else:
         with st.form("form_saida", clear_on_submit=True):
+            item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
 
 
 

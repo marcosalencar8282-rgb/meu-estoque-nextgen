@@ -1,97 +1,80 @@
 import streamlit as st
+import pandas as pd
 from datetime import datetime
-import httpx
+import os
+import io
 
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# CONEXÃO DIRETA COM O BANCO DE DADOS (SUPABASE)
+# GERENCIAMENTO LOCAL VIA EXCEL
 # ==========================================
-# URL contendo os 3 'f's extraídos da sua barra de navegação original
-SUPABASE_URL = "https://supabase.co"
-SUPABASE_KEY = "sb_publishable_82728LoQTsjuchp13yEZgQ_tkAWAP"
+ARQUIVO_EXCEL = "estoque_wms.xlsx"
 
-headers = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation"
-}
-
-def carregar_dados_nuvem():
-    estoque, enderecos = [], []
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            r_end = client.get(f"{SUPABASE_URL}Enderecos?select=*", headers=headers)
-            if r_end.status_code == 200:
-                enderecos = [str(item["Endereco"]).upper().strip() for item in r_end.json() if "Endereco" in item]
+def carregar_dados_locais():
+    """Carrega as tabelas do arquivo Excel ou cria uma nova estrutura se não existir."""
+    enderecos = []
+    estoque = []
+    
+    if os.path.exists(ARQUIVO_EXCEL):
+        try:
+            with pd.ExcelFile(ARQUIVO_EXCEL) as xls:
+                if "Enderecos" in xls.sheet_names:
+                    df_end = pd.read_excel(xls, "Enderecos")
+                    if not df_end.empty and "endereco" in df_end.columns:
+                        enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
+                
+                if "Estoque" in xls.sheet_names:
+                    df_est = pd.read_excel(xls, "Estoque")
+                    if not df_est.empty:
+                        for _, row in df_est.iterrows():
+                            estoque.append({
+                                "id": int(row.get("id", 0)),
+                                "endereco": str(row.get("endereco", "")).upper().strip(),
+                                "produto": str(row.get("produto", "")).upper().strip(),
+                                "quantidade": int(row.get("quantidade", 0)),
+                                "lote": str(row.get("lote", "N/A")).upper().strip(),
+                                "data": str(row.get("data", ""))
+                            })
+        except Exception:
+            pass
             
-            r_est = client.get(f"{SUPABASE_URL}estoque?select=*", headers=headers)
-            if r_est.status_code == 200:
-                for item in r_est.json():
-                    estoque.append({
-                        "id": item.get("id"),
-                        "endereco": str(item.get("endereco", "")).upper().strip(),
-                        "produto": str(item.get("produto", "")).upper().strip(),
-                        "quantidade": int(item.get("quantidade", 0)),
-                        "lote": str(item.get("lote", "N/A")).upper().strip(),
-                        "data": str(item.get("data", ""))
-                    })
-    except Exception:
-        pass
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
-def salvar_endereco_nuvem(novo_end):
+def salvar_dados_locais(dados):
+    """Grava as listas de endereços e estoque dentro das abas do arquivo Excel."""
     try:
-        with httpx.Client(timeout=10.0) as client:
-            payload = {"Endereco": novo_end}
-            res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
-            # CORREÇÃO DEFINITIVA: Avaliação numérica sem operador 'in' vazio
-            if 200 <= res.status_code < 300:
-                return {"sucesso": True}
-            return {"sucesso": False, "erro": f"HTTP {res.status_code} - {res.text}"}
-    except Exception as e:
-        return {"sucesso": False, "erro": str(e)}
-
-def salvar_entrada_nuvem(end, prod, qtd, lote):
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            url_busca = f"{SUPABASE_URL}estoque?endereco=eq.{end}&produto=eq.{prod}&lote=eq.{lote}"
-            r_busca = client.get(url_busca, headers=headers)
-            data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+        df_end = pd.DataFrame({"endereco": dados["enderecos"]})
+        df_est = pd.DataFrame(dados["estoque"])
+        
+        if df_est.empty:
+            df_est = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
             
-            if r_busca.status_code == 200 and len(r_busca.json()) > 0:
-                item_atual = r_busca.json()[0]
-                novo_total = int(item_atual["quantidade"]) + int(qtd)
-                payload = {"quantidade": novo_total, "data": data_atual}
-                res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
-                if 200 <= res.status_code < 300:
-                    return {"sucesso": True}
-                return {"sucesso": False, "erro": f"Erro no Patch: {res.status_code}"}
-            else:
-                payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
-                res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if 200 <= res.status_code < 300:
-                    return {"sucesso": True}
-                return {"sucesso": False, "erro": f"Erro no Post: {res.status_code}"}
-    except Exception as e:
-        return {"sucesso": False, "erro": str(e)}
+        with pd.ExcelWriter(ARQUIVO_EXCEL, engine="openpyxl") as writer:
+            df_end.to_excel(writer, sheet_name="Enderecos", index=False)
+            df_est.to_excel(writer, sheet_name="Estoque", index=False)
+        return True
+    except Exception:
+        return False
 
-def salvar_saida_nuvem(item_id, nova_qtd):
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-            payload = {"quantidade": int(nova_qtd), "data": data_atual}
-            res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
-            if 200 <= res.status_code < 300:
-                return {"sucesso": True}
-            return {"sucesso": False, "erro": f"HTTP {res.status_code}"}
-    except Exception as e:
-        return {"sucesso": False, "erro": str(e)}
+def gerar_excel_download():
+    """Gera um arquivo Excel em memória para disponibilizar no botão de Download."""
+    output = io.BytesIO()
+    dados = st.session_state.bd
+    df_end = pd.DataFrame({"endereco": dados["enderecos"]})
+    df_est = pd.DataFrame(dados["estoque"])
+    
+    if df_est.empty:
+        df_est = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
+        
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_end.to_excel(writer, sheet_name="Enderecos", index=False)
+        df_est.to_excel(writer, sheet_name="Estoque", index=False)
+    return output.getvalue()
 
-# Inicialização limpa do banco de dados
+# Inicialização do banco de dados Excel
 if 'bd' not in st.session_state:
-    st.session_state.bd = carregar_dados_nuvem()
+    st.session_state.bd = carregar_dados_locais()
 
 # ==========================================
 # TELA DE LOGIN
@@ -116,10 +99,25 @@ if not st.session_state.logado:
     st.stop()
 
 # ==========================================
-# MENU LATERAL
+# MENU LATERAL E BOTÃO DE EXCEL
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Exportar Banco de Dados")
+
+# Botão nativo para baixar a planilha gerada em tempo real
+excel_bytes = gerar_excel_download()
+st.sidebar.download_button(
+    label="📥 Baixar Planilha Excel",
+    data=excel_bytes,
+    file_name=f"wms_backup_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
+
+st.sidebar.markdown("---")
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
     st.rerun()
@@ -158,13 +156,14 @@ elif opcao == "Cadastrar Endereço":
             novo_end = st.text_input("Código do Endereço").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
-                    resultado = salvar_endereco_nuvem(novo_end)
-                    if resultado.get("sucesso"):
-                        st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Endereço salvo permanentemente no Supabase!")
+                    st.session_state.bd["enderecos"].append(novo_end)
+                    if salvar_dados_locais(st.session_state.bd):
+                        st.success("Endereço salvo localmente com sucesso!")
                         st.rerun()
                     else:
-                        st.error(f"Erro no banco: {resultado.get('erro')}")
+                        st.error("Erro interno ao gravar dados na planilha.")
+                elif novo_end in st.session_state.bd["enderecos"]:
+                    st.warning("Este endereço já está cadastrado.")
     with c_lista:
         st.dataframe({"Lista de Endereços": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
 
@@ -184,29 +183,34 @@ elif opcao == "Entrada de Mercadoria":
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
                 if prod:
-                    resultado = salvar_entrada_nuvem(end, prod, qtd, lote)
-                    if resultado.get("sucesso"):
-                        st.session_state.bd = carregar_dados_nuvem()
-                        st.success("Entrada registrada com sucesso!")
+                    data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    estoque_atual = st.session_state.bd["estoque"]
+                    
+                    # Procura se o produto com o mesmo lote já existe naquele endereço
+                    item_existente = next((i for i in estoque_atual if i["endereco"] == end and i["produto"] == prod and i["lote"] == lote), None)
+                    
+                    if item_existente:
+                        item_existente["quantidade"] += int(qtd)
+                        item_existente["data"] = data_atual
+                    else:
+                        novo_id = max([i["id"] for i in estoque_atual], default=0) + 1
+                        estoque_atual.append({
+                            "id": novo_id,
+                            "endereco": end,
+                            "produto": prod,
+                            "quantidade": int(qtd),
+                            "lote": lote,
+                            "data": data_atual
+                        })
+                    
+                    if salvar_dados_locais(st.session_state.bd):
+                        st.success("Entrada armazenada com sucesso!")
                         st.rerun()
                     else:
-                        st.error(f"Erro ao registrar entrada: {resultado.get('erro')}")
+                        st.error("Erro ao processar gravação no arquivo.")
                 else:
                     st.warning("Insira o código do produto.")
 
-# ==========================================
-# 4. SAÍDA DE MERCADORIA
-# ==========================================
-elif opcao == "Saída de Mercadoria":
-    st.markdown("## Expedição e Baixa")
-    itens_estoque = [f"{i['id']} - {i['produto']} (Lote: {i['lote']}) | End: {i['endereco']} | Qtd: {i['quantidade']}" 
-                     for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
-    
-    if not itens_estoque:
-        st.info("Não há mercadorias disponíveis em estoque para dar saída.")
-    else:
-        with st.form("form_saida", clear_on_submit=True):
-            item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
 
 
 

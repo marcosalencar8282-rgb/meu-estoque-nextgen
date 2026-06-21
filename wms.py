@@ -1,17 +1,96 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# GERENCIAMENTO DE BANCO DE DADOS EM MEMÓRIA
+# CONEXÃO OFICIAL COM GOOGLE SHEETS
 # ==========================================
-if 'bd' not in st.session_state:
-    st.session_state.bd = {
-        "enderecos": [],
-        "estoque": []
-    }
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+def carregar_dados_nuvem():
+    enderecos = []
+    estoque = []
+    try:
+        df_end = conn.read(worksheet="Enderecos", ttl=0)
+        if not df_end.empty and "endereco" in df_end.columns:
+            enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
+            
+        df_est = conn.read(worksheet="Estoque", ttl=0)
+        if not df_est.empty:
+            for _, row in df_est.iterrows():
+                estoque.append({
+                    "id": int(row.get("id", 0)),
+                    "endereco": str(row.get("endereco", "")).upper().strip(),
+                    "produto": str(row.get("produto", "")).upper().strip(),
+                    "quantidade": int(row.get("quantidade", 0)),
+                    "lote": str(row.get("lote", "N/A")).upper().strip(),
+                    "data": str(row.get("data", ""))
+                })
+    except Exception:
+        pass
+    return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
+
+def salvar_endereco_nuvem(novo_end):
+    try:
+        df_atual = conn.read(worksheet="Enderecos", ttl=0)
+        df_novo = pd.DataFrame({"endereco": [novo_end]})
+        df_final = pd.concat([df_atual, df_novo], ignore_index=True)
+        conn.update(worksheet="Enderecos", data=df_final)
+        return True
+    except Exception:
+        return False
+
+def salvar_entrada_nuvem(end, prod, qtd, lote):
+    try:
+        data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+        df_est = conn.read(worksheet="Estoque", ttl=0)
+        
+        if not df_est.empty:
+            df_est["quantidade"] = df_est["quantidade"].astype(int)
+            df_est["id"] = df_est["id"].astype(int)
+            
+            filtro = (df_est["endereco"].str.upper() == end.upper()) & \
+                     (df_est["produto"].str.upper() == prod.upper()) & \
+                     (df_est["lote"].str.upper() == lote.upper())
+            
+            if filtro.any():
+                df_est.loc[filtro, "quantidade"] += int(qtd)
+                df_est.loc[filtro, "data"] = data_atual
+            else:
+                novo_id = int(df_est["id"].max()) + 1
+                nova_linha = pd.DataFrame([{"id": novo_id, "endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}])
+                df_est = pd.concat([df_est, nova_linha], ignore_index=True)
+        else:
+            df_est = pd.DataFrame([{"id": 1, "endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}])
+            
+        conn.update(worksheet="Estoque", data=df_est)
+        return True
+    except Exception:
+        return False
+
+def salvar_saida_nuvem(item_id, nova_qtd):
+    try:
+        data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+        df_est = conn.read(worksheet="Estoque", ttl=0)
+        
+        if not df_est.empty:
+            df_est["id"] = df_est["id"].astype(int)
+            if int(nova_qtd) <= 0:
+                df_est = df_est[df_est["id"] != int(item_id)]
+            else:
+                df_est.loc[df_est["id"] == int(item_id), "quantidade"] = int(nova_qtd)
+                df_est.loc[df_est["id"] == int(item_id), "data"] = data_atual
+                
+            conn.update(worksheet="Estoque", data=df_est)
+            return True
+        return False
+    except Exception:
+        return False
+
+st.session_state.bd = carregar_dados_nuvem()
 
 # ==========================================
 # TELA DE LOGIN
@@ -36,29 +115,10 @@ if not st.session_state.logado:
     st.stop()
 
 # ==========================================
-# MENU LATERAL E EXPORTAÇÃO EXCEL
+# MENU LATERAL
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Exportar Dados")
-
-# Gera planilha de backup em tempo real para o usuário salvar as informações
-df_backup = pd.DataFrame(st.session_state.bd["estoque"])
-if df_backup.empty:
-    df_backup = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
-csv_bytes = df_backup.to_csv(index=False, sep=";").encode('utf-8-sig')
-
-st.sidebar.download_button(
-    label="📥 Baixar Planilha Excel (.csv)",
-    data=csv_bytes,
-    file_name=f"wms_backup_{datetime.now().strftime('%d_%m_%Y')}.csv",
-    mime="text/csv",
-    use_container_width=True
-)
-
-st.sidebar.markdown("---")
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
     st.rerun()
@@ -97,9 +157,11 @@ elif opcao == "Cadastrar Endereço":
             novo_end = st.text_input("Código do Endereço").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
-                    st.session_state.bd["enderecos"].append(novo_end)
-                    st.success("Endereço salvo com sucesso!")
-                    st.rerun()
+                    if salvar_endereco_nuvem(novo_end):
+                        st.success("Endereço salvo permanentemente no Google Sheets!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao gravar dados na planilha Google.")
                 elif novo_end in st.session_state.bd["enderecos"]:
                     st.warning("Este endereço já está cadastrado.")
     with c_lista:
@@ -121,26 +183,11 @@ elif opcao == "Entrada de Mercadoria":
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
                 if prod:
-                    data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    estoque_atual = st.session_state.bd["estoque"]
-                    
-                    item_existente = next((i for i in estoque_atual if i["endereco"] == end and i["produto"] == prod and i["lote"] == lote), None)
-                    
-                    if item_existente:
-                        item_existente["quantidade"] += int(qtd)
-                        item_existente["data"] = data_atual
+                    if salvar_entrada_nuvem(end, prod, qtd, lote):
+                        st.success("Entrada registrada com sucesso no Google Sheets!")
+                        st.rerun()
                     else:
-                        novo_id = max([i["id"] for i in estoque_atual], default=0) + 1
-                        estoque_atual.append({
-                            "id": novo_id,
-                            "endereco": end,
-                            "produto": prod,
-                            "quantidade": int(qtd),
-                            "lote": lote,
-                            "data": data_atual
-                        })
-                    st.success("Entrada registrada com sucesso!")
-                    st.rerun()
+                        st.error("Erro ao registrar entrada na planilha.")
                 else:
                     st.warning("Insira o código do produto.")
 
@@ -160,20 +207,16 @@ elif opcao == "Saída de Mercadoria":
             qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
             
             if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
-                # CORREÇÃO CRÍTICA: Corrigido o método de separação do ID do texto selecionado
-                partes = item_selecionado.split(" - ")
-                item_id = int(partes[0])
+                partes_texto = item_selecionado.split(" - ")
+                item_id = int(partes_texto[0])
                 
                 dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
                 
                 if qtd_saida > dados_item["quantidade"]:
                     st.error(f"Quantidade indisponível. Saldo atual: {dados_item['quantidade']}")
                 else:
-                    dados_item["quantidade"] -= int(qtd_saida)
-                    dados_item["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    
-                    if dados_item["quantidade"] == 0:
-                        st.session_state.bd["estoque"] = [i for i in st.session_state.bd["estoque"] if i["id"] != item_id]
+                    nova_qtd = dados_item["quantidade"] - int(qtd_saida)
+                    if salvar_saida_nuvem(item_id, nova_qtd):
 
 
 

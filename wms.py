@@ -23,7 +23,6 @@ def carregar_dados_nuvem():
         with httpx.Client() as client:
             r_end = client.get(f"{SUPABASE_URL}Enderecos?select=*", headers=headers)
             if r_end.status_code == 200:
-                # Ajustado para ler 'Endereco' com E maiúsculo igual à sua tabela
                 enderecos = [str(item["Endereco"]).upper().strip() for item in r_end.json() if "Endereco" in item]
             
             r_est = client.get(f"{SUPABASE_URL}estoque?select=*", headers=headers)
@@ -37,21 +36,20 @@ def carregar_dados_nuvem():
                         "lote": str(item.get("lote", "N/A")).upper().strip(),
                         "data": str(item.get("data", ""))
                     })
-    except Exception:
-        pass
+    except Exception as e:
+        st.sidebar.error(f"Erro ao carregar dados: {e}")
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
 def salvar_endereco_nuvem(novo_end):
     try:
         with httpx.Client() as client:
-            # AJUSTE CRÍTICO: 'Endereco' com E maiúsculo para bater com a coluna da sua tabela
             payload = {"Endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
-            if res.status_code == 200 or res.status_code == 201 or res.status_code == 204:
-                return True
-            return False
-    except Exception:
-        return False
+            if res.status_code in:
+                return {"sucesso": True}
+            return {"sucesso": False, "erro": f"HTTP {res.status_code} - {res.text}"}
+    except Exception as e:
+        return {"sucesso": False, "erro": str(e)}
 
 def salvar_entrada_nuvem(end, prod, qtd, lote):
     try:
@@ -61,21 +59,22 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
+                # CORREÇÃO CRÍTICA: Adicionado o índice [0] para extrair o item correto da lista
                 item_atual = r_busca.json()[0]
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
                 res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_atual['id']}", headers=headers, json=payload)
-                if res.status_code == 200 or res.status_code == 204:
-                    return True
-                return False
+                if res.status_code in:
+                    return {"sucesso": True}
+                return {"sucesso": False, "erro": f"Erro no Patch: {res.status_code}"}
             else:
                 payload = {"endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}
                 res = client.post(f"{SUPABASE_URL}estoque", headers=headers, json=payload)
-                if res.status_code == 200 or res.status_code == 201 or res.status_code == 204:
-                    return True
-                return False
-    except Exception:
-        return False
+                if res.status_code in:
+                    return {"sucesso": True}
+                return {"sucesso": False, "erro": f"Erro no Post: {res.status_code}"}
+    except Exception as e:
+        return {"sucesso": False, "erro": str(e)}
 
 def salvar_saida_nuvem(item_id, nova_qtd):
     try:
@@ -83,11 +82,11 @@ def salvar_saida_nuvem(item_id, nova_qtd):
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             payload = {"quantidade": int(nova_qtd), "data": data_atual}
             res = client.patch(f"{SUPABASE_URL}estoque?id=eq.{item_id}", headers=headers, json=payload)
-            if res.status_code == 200 or res.status_code == 204:
-                return True
-            return False
-    except Exception:
-        return False
+            if res.status_code in:
+                return {"sucesso": True}
+            return {"sucesso": False, "erro": f"HTTP {res.status_code}"}
+    except Exception as e:
+        return {"sucesso": False, "erro": str(e)}
 
 # Inicialização do banco de dados
 if 'bd' not in st.session_state:
@@ -119,7 +118,7 @@ if not st.session_state.logado:
 # MENU LATERAL
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
-opcao = st.sidebar.radio("Módules", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
+opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
     st.rerun()
@@ -158,12 +157,13 @@ elif opcao == "Cadastrar Endereço":
             novo_end = st.text_input("Código do Endereço").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
-                    if salvar_endereco_nuvem(novo_end):
+                    resultado = salvar_endereco_nuvem(novo_end)
+                    if resultado.get("sucesso"):
                         st.session_state.bd = carregar_dados_nuvem()
                         st.success("Endereço salvo permanentemente no Supabase!")
                         st.rerun()
                     else:
-                        st.error("Erro ao salvar no banco de dados.")
+                        st.error(f"Erro no banco: {resultado.get('erro')}")
     with c_lista:
         st.dataframe({"Lista de Endereços": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
 
@@ -183,12 +183,13 @@ elif opcao == "Entrada de Mercadoria":
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
                 if prod:
-                    if salvar_entrada_nuvem(end, prod, qtd, lote):
+                    resultado = salvar_entrada_nuvem(end, prod, qtd, lote)
+                    if resultado.get("sucesso"):
                         st.session_state.bd = carregar_dados_nuvem()
                         st.success("Entrada registrada com sucesso!")
                         st.rerun()
                     else:
-                        st.error("Erro ao registrar entrada no banco de dados.")
+                        st.error(f"Erro ao registrar entrada: {resultado.get('erro')}")
                 else:
                     st.warning("Insira o código do produto.")
 
@@ -205,10 +206,5 @@ elif opcao == "Saída de Mercadoria":
     else:
         with st.form("form_saida", clear_on_submit=True):
             item_selecionado = st.selectbox("Selecione o Item para Saída", itens_estoque)
-            qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
-            
-            if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
-                item_id = int(item_selecionado.split(" - ")[0])
-                dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
 
 

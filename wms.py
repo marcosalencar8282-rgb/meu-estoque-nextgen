@@ -209,7 +209,6 @@ elif opcao == "Saída de Mercadoria":
             if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
                 partes_texto = item_selecionado.split(" - ")
                 item_id = int(partes_texto[0])
-                
                 dados_item = next(i for i in st.session_state.bd["estoque"] if i["id"] == item_id)
                 
                 if qtd_saida > dados_item["quantidade"]:
@@ -217,7 +216,6 @@ elif opcao == "Saída de Mercadoria":
                 else:
                     nova_qtd = dados_item["quantidade"] - int(qtd_saida)
                     if salvar_saida_nuvem(item_id, nova_qtd):
-
 
 
 

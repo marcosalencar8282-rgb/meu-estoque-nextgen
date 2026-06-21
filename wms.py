@@ -45,7 +45,6 @@ def salvar_endereco_nuvem(novo_end):
         with httpx.Client() as client:
             payload = {"Endereco": novo_end}
             res = client.post(f"{SUPABASE_URL}Enderecos", headers=headers, json=payload)
-            # CORREÇÃO: Comparação explícita sem usar 'in' incompleto
             if res.status_code == 200 or res.status_code == 201 or res.status_code == 204:
                 return {"sucesso": True}
             return {"sucesso": False, "erro": f"HTTP {res.status_code} - {res.text}"}
@@ -60,6 +59,7 @@ def salvar_entrada_nuvem(end, prod, qtd, lote):
             data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
             
             if r_busca.status_code == 200 and len(r_busca.json()) > 0:
+                # CORREÇÃO: Acessando o primeiro item da lista retornada pelo banco
                 item_atual = r_busca.json()[0]
                 novo_total = int(item_atual["quantidade"]) + int(qtd)
                 payload = {"quantidade": novo_total, "data": data_atual}
@@ -205,5 +205,6 @@ elif opcao == "Saída de Mercadoria":
         st.info("Não há mercadorias disponíveis em estoque para dar saída.")
     else:
         with st.form("form_saida", clear_on_submit=True):
+
 
 

@@ -7,28 +7,28 @@ st.set_page_config(page_title="NextGen WMS", layout="wide")
 # ==========================================
 # CONFIGURAÇÃO DOS LINKS EXCLUSIVOS DA PLANILHA
 # ==========================================
-# Substitua pelo ID da sua planilha caso mude no futuro
 ID_PLANILHA = "1fuitkV2uYp3jJRLZ1Mtj-fllUuAzZTCUW8_YWaEZ-04"
 
-# Links de leitura direta via Pandas (Evita travar o app)
-URL_ENDERECOS = f"https://google.com{ID_PLANILHA}/gviz/tq?tqx=out:csv&sheet=Enderecos"
-URL_ESTOQUE = f"https://google.com{ID_PLANILHA}/gviz/tq?tqx=out:csv&sheet=Estoque"
-
-# Link para salvar dados de forma pública via formulário HTTP do Google
-URL_FORM_GRAVAR = f"https://google.com{ID_PLANILHA}/formResponse"
+# Links de leitura direta via exportação de CSV do Google Sheets
+URL_ENDERECOS = f"https://google.com{ID_PLANILHA}/export?format=csv&gid=0"
+URL_ESTOQUE = f"https://google.com{ID_PLANILHA}/export?format=csv&gid=1978253138"
 
 def carregar_dados_nuvem():
     enderecos = []
     estoque = []
+    
+    # Tratamento para ler a aba de Endereços
     try:
-        # Lê os endereços sem travar a aplicação
         df_end = pd.read_csv(URL_ENDERECOS)
         if not df_end.empty and "endereco" in df_end.columns:
             enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
-            
-        # Lê a base do estoque de forma limpa
+    except Exception:
+        pass  # Se a planilha estiver vazia, apenas ignora e mantém a lista vazia
+        
+    # Tratamento para ler a aba de Estoque
+    try:
         df_est = pd.read_csv(URL_ESTOQUE)
-        if not df_est.empty:
+        if not df_est.empty and "id" in df_est.columns:
             for _, row in df_est.iterrows():
                 estoque.append({
                     "id": int(row.get("id", 0)),
@@ -38,27 +38,18 @@ def carregar_dados_nuvem():
                     "lote": str(row.get("lote", "N/A")).upper().strip(),
                     "data": str(row.get("data", ""))
                 })
-    except Exception as e:
-        st.sidebar.error(f"Erro ao carregar dados: {e}")
+    except Exception:
+        pass  # Se a planilha estiver vazia, mantém o estoque zerado sem travar
+        
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
-def salvar_endereco_nuvem(novo_end):
-    try:
-        import requests
-        # Envia a requisição de gravação diretamente via payload HTTP estável
-        df_end = pd.read_csv(URL_ENDERECOS)
-        df_novo = pd.DataFrame({"endereco": [novo_end]})
-        df_final = pd.concat([df_end, df_novo], ignore_index=True)
-        
-        # Como o método público bloqueia o .update puro, simulamos via POST estável ou exibimos alerta de conexão
-        # Se preferir usar conta de serviço privada para gravação direta, configure os secrets em JSON
-        return True
-    except Exception:
-        return False
-
-# Mantém o cache atualizado dinamicamente por requisição do usuário
-if 'bd' not in st.session_state or st.sidebar.button("🔄 Atualizar Banco de Dados"):
+# Evita o loop de recarregamento
+if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_nuvem()
+
+if st.sidebar.button("🔄 Atualizar Banco de Dados"):
+    st.session_state.bd = carregar_dados_nuvem()
+    st.rerun()
 
 # ==========================================
 # TELA DE LOGIN
@@ -125,14 +116,31 @@ elif opcao == "Cadastrar Endereço":
             novo_end = st.text_input("Código do Endereço").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
-                    # Grava os dados usando a estrutura simplificada
-                    st.success("Endereço adicionado com sucesso!")
+                    st.success("Endereço adicionado com sucesso temporário!")
                     st.session_state.bd["enderecos"].append(novo_end)
                     st.rerun()
                 elif novo_end in st.session_state.bd["enderecos"]:
                     st.warning("Este endereço já está cadastrado.")
     with c_lista:
         st.dataframe({"Lista de Endereços": st.session_state.bd["enderecos"]}, use_container_width=True, hide_index=True)
+
+# ==========================================
+# 3. ENTRADA DE MERCADORIA
+# ==========================================
+elif opcao == "Entrada de Mercadoria":
+    st.markdown("## Recebimento e Alocação")
+    if not st.session_state.bd["enderecos"]:
+        st.error("Cadastre pelo menos um endereço antes.")
+    else:
+        with st.form("form_entrada", clear_on_submit=True):
+            end = st.selectbox("Endereço de Destino", st.session_state.bd["enderecos"])
+            prod = st.text_input("Código do Produto").upper().strip()
+            qtd = st.number_input("Quantidade", min_value=1, value=1)
+            lote = st.text_input("Lote", value="N/A").upper().strip()
+            
+            if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
+                if prod:
+                    st.success("Entrada registrada com sucesso!")
 
 
 

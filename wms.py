@@ -40,7 +40,8 @@ def salvar_endereco_nuvem(novo_end):
         df_final = pd.concat([df_atual, df_novo], ignore_index=True)
         conn.update(worksheet="Enderecos", data=df_final)
         return True
-    except Exception:
+    except Exception as e:
+        st.sidebar.error(f"Erro técnico: {e}") # Mostra o erro exato na tela para diagnosticar
         return False
 
 def salvar_entrada_nuvem(end, prod, qtd, lote):

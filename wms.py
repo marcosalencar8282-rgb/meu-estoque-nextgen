@@ -23,7 +23,7 @@ def carregar_dados_nuvem():
         if not df_end.empty and "endereco" in df_end.columns:
             enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
     except Exception:
-        pass  # Se a planilha estiver vazia, apenas ignora e mantém a lista vazia
+        pass
         
     # Tratamento para ler a aba de Estoque
     try:
@@ -39,17 +39,13 @@ def carregar_dados_nuvem():
                     "data": str(row.get("data", ""))
                 })
     except Exception:
-        pass  # Se a planilha estiver vazia, mantém o estoque zerado sem travar
+        pass
         
     return {"enderecos": sorted(list(set(enderecos))), "estoque": estoque}
 
-# Evita o loop de recarregamento
+# Inicializa o estado do banco de dados local temporário
 if 'bd' not in st.session_state:
     st.session_state.bd = carregar_dados_nuvem()
-
-if st.sidebar.button("🔄 Atualizar Banco de Dados"):
-    st.session_state.bd = carregar_dados_nuvem()
-    st.rerun()
 
 # ==========================================
 # TELA DE LOGIN
@@ -77,7 +73,15 @@ if not st.session_state.logado:
 # MENU LATERAL
 # ==========================================
 st.sidebar.markdown("<h2>WMS NextGen</h2>", unsafe_allow_html=True)
+
+if st.sidebar.button("🔄 Atualizar Banco de Dados", use_container_width=True):
+    st.session_state.bd = carregar_dados_nuvem()
+    st.success("Dados sincronizados!")
+    st.rerun()
+
 opcao = st.sidebar.radio("Módulos", ["Visão Geral", "Cadastrar Endereço", "Entrada de Mercadoria", "Saída de Mercadoria"])
+
+st.sidebar.write("---")
 if st.sidebar.button("Efetuar Logout", use_container_width=True):
     st.session_state.logado = False
     st.rerun()
@@ -116,8 +120,9 @@ elif opcao == "Cadastrar Endereço":
             novo_end = st.text_input("Código do Endereço").upper().strip()
             if st.form_submit_button("Confirmar Cadastro", type="primary", use_container_width=True):
                 if novo_end and novo_end not in st.session_state.bd["enderecos"]:
-                    st.success("Endereço adicionado com sucesso temporário!")
+                    st.success("Endereço adicionado com sucesso localmente!")
                     st.session_state.bd["enderecos"].append(novo_end)
+                    st.session_state.bd["enderecos"] = sorted(list(set(st.session_state.bd["enderecos"])))
                     st.rerun()
                 elif novo_end in st.session_state.bd["enderecos"]:
                     st.warning("Este endereço já está cadastrado.")
@@ -130,7 +135,7 @@ elif opcao == "Cadastrar Endereço":
 elif opcao == "Entrada de Mercadoria":
     st.markdown("## Recebimento e Alocação")
     if not st.session_state.bd["enderecos"]:
-        st.error("Cadastre pelo menos um endereço antes.")
+        st.error("Cadastre pelo menos um endereço antes de realizar a entrada.")
     else:
         with st.form("form_entrada", clear_on_submit=True):
             end = st.selectbox("Endereço de Destino", st.session_state.bd["enderecos"])
@@ -140,8 +145,48 @@ elif opcao == "Entrada de Mercadoria":
             
             if st.form_submit_button("Confirmar Entrada", type="primary", use_container_width=True):
                 if prod:
-                    st.success("Entrada registrada com sucesso!")
+                    data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    nova_linha = {
+                        "id": len(st.session_state.bd["estoque"]) + 1,
+                        "endereco": end,
+                        "produto": prod,
+                        "quantidade": int(qtd),
+                        "lote": lote,
+                        "data": data_atual
+                    }
+                    st.session_state.bd["estoque"].append(nova_linha)
+                    st.success("Entrada registrada com sucesso no sistema local!")
+                    st.rerun()
+                else:
+                    st.error("Informe o código do produto.")
 
+# ==========================================
+# 4. SAÍDA DE MERCADORIA
+# ==========================================
+elif opcao == "Saída de Mercadoria":
+    st.markdown("## Separação e Baixa de Itens")
+    if not st.session_state.bd["estoque"]:
+        st.info("Não há mercadorias no estoque para realizar a saída.")
+    else:
+        opcoes_estoque = [f"ID: {i['id']} | {i['endereco']} | {i['produto']} | Qtd: {i['quantidade']} | Lote: {i['lote']}" for i in st.session_state.bd["estoque"] if i["quantidade"] > 0]
+        
+        if not opcoes_estoque:
+            st.info("Não há itens com saldo positivo.")
+        else:
+            with st.form("form_saida", clear_on_submit=True):
+                item_selecionado = st.selectbox("Selecione o Item para Baixa", opcoes_estoque)
+                qtd_saida = st.number_input("Quantidade de Saída", min_value=1, value=1)
+                
+                if st.form_submit_button("Confirmar Saída", type="primary", use_container_width=True):
+                    id_item = int(item_selecionado.split("|")[0].replace("ID:", "").strip())
+                    
+                    for item in st.session_state.bd["estoque"]:
+                        if item["id"] == id_item:
+                            if int(qtd_saida) > item["quantidade"]:
+                                st.error(f"Quantidade indisponível. Saldo atual: {item['quantidade']}")
+                            else:
+                                item["quantidade"] -= int(qtd_saida)
+                                item["data"] = datetime.now().strftime('%d/%m/%Y %H:%M')
 
 
 

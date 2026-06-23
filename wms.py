@@ -1,32 +1,54 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+import gspread
 
 st.set_page_config(page_title="NextGen WMS", layout="wide")
 
 # ==========================================
-# CONEXÃO DO STREAMLIT COM GOOGLE SHEETS
+# CONEXÃO DIRETA COM GOOGLE SHEETS (GSPREAD)
 # ==========================================
-conn = st.connection("gsheets", type=GSheetsConnection)
+ID_PLANILHA = "1fuitkV2uYp3jJRLZ1Mtj-fllUuAzZTCUW8_YWaEZ-04"
+
+def conectar_planilha():
+    try:
+        # Abre a planilha pública sem precisar de arquivos JSON complexos
+        gc = gspread.public_api()
+        sh = gc.open_by_key(ID_PLANILHA)
+        return sh
+    except Exception:
+        # Fallback caso a API pública mude de rota
+        try:
+            gc = gspread.oauth()
+            return gc.open_by_key(ID_PLANILHA)
+        except Exception:
+            return None
 
 def carregar_dados_nuvem():
     enderecos = []
     estoque = []
     
-    # Lendo a aba Enderecos de forma segura
+    sh = conectar_planilha()
+    if sh is None:
+        return {"enderecos": [], "estoque": []}
+        
+    # Lendo a aba Enderecos
     try:
-        df_end = conn.read(worksheet="Enderecos", ttl=0)
-        if not df_end.empty and "endereco" in df_end.columns:
-            enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
+        wks_end = sh.worksheet("Enderecos")
+        dados_end = wks_end.get_all_records()
+        if dados_end:
+            df_end = pd.DataFrame(dados_end)
+            if "endereco" in df_end.columns:
+                enderecos = [str(x).upper().strip() for x in df_end["endereco"].dropna().tolist()]
     except Exception:
         pass
         
-    # Lendo a aba Estoque de forma segura
+    # Lendo a aba Estoque
     try:
-        df_est = conn.read(worksheet="Estoque", ttl=0)
-        if not df_est.empty and "id" in df_est.columns:
-            for _, row in df_est.iterrows():
+        wks_est = sh.worksheet("Estoque")
+        dados_est = wks_est.get_all_records()
+        if dados_est:
+            for row in dados_est:
                 estoque.append({
                     "id": int(row.get("id", 0)),
                     "endereco": str(row.get("endereco", "")).upper().strip(),
@@ -42,40 +64,28 @@ def carregar_dados_nuvem():
 
 def salvar_endereco_nuvem(novo_end):
     try:
-        # Busca o que já existe na nuvem para não apagar dados anteriores
-        try:
-            df_atual = conn.read(worksheet="Enderecos", ttl=0)
-        except Exception:
-            df_atual = pd.DataFrame(columns=["endereco"])
-            
-        if df_atual.empty or "endereco" not in df_atual.columns:
-            df_atual = pd.DataFrame(columns=["endereco"])
-            
-        df_novo = pd.DataFrame({"endereco": [str(novo_end).upper().strip()]})
-        df_final = pd.concat([df_atual, df_novo], ignore_index=True)
-        
-        # Envia a atualização definitiva para a nuvem
-        conn.update(worksheet="Enderecos", data=df_final)
+        sh = conectar_planilha()
+        if sh is None:
+            return False
+        wks_end = sh.worksheet("Enderecos")
+        # Adiciona a nova linha direto no final da planilha Google
+        wks_end.append_row([str(novo_end).upper().strip()])
         return True
     except Exception:
         return False
 
 def salvar_entrada_nuvem(end, prod, qtd, lote):
     try:
+        sh = conectar_planilha()
+        if sh is None:
+            return False
+        wks_est = sh.worksheet("Estoque")
+        dados_est = wks_est.get_all_records()
+        novo_id = len(dados_est) + 1
         data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
-        try:
-            df_est = conn.read(worksheet="Estoque", ttl=0)
-        except Exception:
-            df_est = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
-            
-        if df_est.empty or "id" not in df_est.columns:
-            df_est = pd.DataFrame(columns=["id", "endereco", "produto", "quantidade", "lote", "data"])
-            
-        novo_id = int(df_est["id"].max()) + 1 if not df_est.empty else 1
-        nova_linha = pd.DataFrame([{"id": novo_id, "endereco": end, "produto": prod, "quantidade": int(qtd), "lote": lote, "data": data_atual}])
-        df_final = pd.concat([df_est, nova_linha], ignore_index=True)
         
-        conn.update(worksheet="Estoque", data=df_final)
+        # Grava a linha de estoque direto na nuvem
+        wks_est.append_row([novo_id, end, prod, int(qtd), lote, data_atual])
         return True
     except Exception:
         return False
